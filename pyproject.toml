@@ -1,0 +1,25 @@
+[project]
+name = "handbook-rag"
+version = "0.1.0"
+description = "Permission-aware RAG assistant over the GitLab public handbook"
+requires-python = ">=3.12"
+dependencies = [
+    "psycopg[binary]>=3.3.6",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["integration: needs the docker DB (run `make up` first)"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
