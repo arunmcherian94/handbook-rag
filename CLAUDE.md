@@ -21,7 +21,10 @@ Python 3.12, uv, Postgres + pgvector via docker compose.
 1. Write `specs/NNNN-<name>.md` from `specs/0000-template.md`, with numbered AC-n criteria. Open it as its own PR. The human reviews and merges it before any build starts.
 2. Build from the merged spec in plan mode. Each plan step cites the AC IDs it covers. Anything not traceable to an AC is scope creep: list it in NOTES.md as a follow-up, and don't build it.
 3. Tests reference the AC IDs they cover.
-4. Before opening a PR, run `make test`, `make lint`, and `/code-review`. Fix each finding, or note it with a reason. Record what the review caught in NOTES.md.
+4. Before opening a PR, run `make test`, `make lint`, and `/code-review`. Rank the findings by severity.
+   - **Fix by default:** correctness bugs, data integrity or provenance problems, security issues, and anything that breaks an AC.
+   - **Lower priority** (simplification, style, minor efficiency, speculative hardening): list them with the reason and wait for the human to confirm before fixing.
+   - Record what the review caught in NOTES.md.
 5. Clean-room verify from a fresh clone under `$HOME`. Colima only mounts `$HOME`.
 6. Set the spec's status to implemented, then push and open the PR.
 

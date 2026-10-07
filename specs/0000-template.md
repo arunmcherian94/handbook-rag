@@ -32,6 +32,6 @@ The commands and checks that prove the ACs hold.
 Before the implementation PR:
 
 - [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, with findings fixed or noted
+- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
 - [ ] Clean-room verified
 - [ ] NOTES.md updated
