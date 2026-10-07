@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -9,6 +9,9 @@ up: ## Start DB and wait until healthy
 
 down: ## Stop DB (keeps data volume)
 	docker compose down
+
+corpus: ## Check out pinned handbook corpus into data/handbook
+	PYTHONPATH=src uv run python -m handbook_rag.corpus
 
 test: test-unit test-integration ## Run unit + integration tests
 
