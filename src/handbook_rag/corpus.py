@@ -68,20 +68,26 @@ def main() -> int:
     git("sparse-checkout", "set", "--cone", *m.paths)
     git("checkout", "--quiet", "--detach", m.sha)
 
+    error = verify(m)
+    if error:
+        print(error, file=sys.stderr)
+        return 1
+    print(f"corpus ok: {CHECKOUT} at {m.sha}, {m.file_count} .md files")
+    return 0
+
+
+def verify(m: Manifest) -> str | None:
+    """Return why the checkout doesn't match the pin, or None if it does."""
     head = git_out("rev-parse", "HEAD").strip()
     if head != m.sha:
-        print(f"HEAD {head} != pinned {m.sha}", file=sys.stderr)
-        return 1
+        return f"HEAD {head} != pinned {m.sha}"
     dirty = git_out("status", "--porcelain")
     if dirty:
-        print(f"{CHECKOUT} has local changes; corpus must match the pin:\n{dirty}", file=sys.stderr)
-        return 1
+        return f"{CHECKOUT} has local changes; corpus must match the pin:\n{dirty}"
     n = count_md(CHECKOUT, m.paths)
     if n != m.file_count:
-        print(f"found {n} .md files, CORPUS.md expects {m.file_count}", file=sys.stderr)
-        return 1
-    print(f"corpus ok: {CHECKOUT} at {m.sha}, {n} .md files")
-    return 0
+        return f"found {n} .md files, CORPUS.md expects {m.file_count}"
+    return None
 
 
 if __name__ == "__main__":

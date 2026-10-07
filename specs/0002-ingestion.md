@@ -1,6 +1,6 @@
 # 0002: Ingestion
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-07
 - Depends on: 0001
 
@@ -57,11 +57,16 @@ Retrieval and evals need the pinned handbook markdown in Postgres, with stable i
 | ACL and source type | Columns with stub defaults | **Real logic now:** it would design ACLs before any retrieval result exists. **No columns:** forces a schema change in Week 2. |
 | Content hash | Not added | Git diff between SHAs covers doc-level change detection. Hashes pay off at chunk level (re-embedding only changed chunks), together with pipeline version columns, when chunking exists. |
 | Shortcodes | Left raw in `body` | **Stripping now:** a rabbit hole. Measure the impact against the eval set during chunking. |
+| `url_path` | `content/handbook/a/b.md` → `/handbook/a/b/`. `_index.md` and `index.md` → the directory URL. | **Honouring front-matter `url:`:** 0 files use it at the pin. **`aliases:`:** 1 file, an old URL, ignored. |
+| Skip rules | Skip `draft` (4) and `empty_body` (85), plus `decode_error` as a guard (0). Draft takes precedence. | **Skip redirect stubs:** rejected at the plan gate. 4 of 6 carry unique rename knowledge (e.g. PRR → PREP), and the other 2 are empty. **Ingest drafts:** they're unpublished, so a citation would 404, and the content is templates and WIP. |
+| `body` | The raw markdown after the front matter, otherwise unmodified | **Including front matter:** it's metadata, and the title is stored separately. |
+| `doc_id` | `uuid5(NAMESPACE_URL, repo-relative path)` | **The path string itself:** works, but duplicates the `path` column and isn't fixed-width. |
+| Stale rows | Each run mirrors the snapshot: upsert, then delete rows not in the ingested set, in one transaction | **Upsert only:** a skip-rule change or re-pin would leave stale rows, including pages removed from public. |
+| Schema | `db/init/002_documents.sql` (`CREATE TABLE IF NOT EXISTS`), run by docker init on fresh volumes and by `make ingest` on existing ones | **A migration tool:** out of scope. **Init-only:** existing volumes would need `down -v`. |
 
 ## Open questions
 
-- How `url_path` is derived from the path (`_index.md` → directory URL), and whether front-matter `url`/`aliases` overrides should be honoured. To be resolved in the plan gate against the real files.
-- The skip rules (e.g. empty files, `draft: true`). To be resolved in the plan gate against the real files.
+None. Both were resolved at the plan gate against the real files (see Decisions).
 
 ## Verification
 

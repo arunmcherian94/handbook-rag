@@ -1,7 +1,7 @@
-import os
-
 import psycopg
 import pytest
+
+from handbook_rag.db import connect
 
 pytestmark = pytest.mark.integration
 
@@ -11,14 +11,7 @@ HINT = "Database unreachable. Run `cp .env.example .env && make up` first."
 @pytest.fixture(scope="module")
 def conn():
     try:
-        c = psycopg.connect(
-            host="localhost",
-            port=os.environ["POSTGRES_PORT"],
-            user=os.environ["POSTGRES_USER"],
-            password=os.environ["POSTGRES_PASSWORD"],
-            dbname=os.environ["POSTGRES_DB"],
-            connect_timeout=3,
-        )
+        c = connect()
     except (KeyError, psycopg.OperationalError) as e:
         pytest.fail(f"{HINT} ({type(e).__name__}: {e})")
     with c:

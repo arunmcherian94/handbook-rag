@@ -19,6 +19,22 @@ Working notes on building this with a coding agent. One bullet per entry: what h
 - Pinned `5273b21` (committed 2026-10-07T11:36:50+13:00). A blobless clone took ~14s and is 90 MB of `.git` for 105,724 commits.
 - No doc-level `content_hash` in ingestion → `git diff OLD..NEW` already identifies changed files. Hashes pay off at chunk level (re-embedding only changed chunks), together with pipeline version columns (`chunker_version`, `embed_model`), because a chunker or model change alters no file. How much a chunk hash saves depends on chunking: fixed windows shift every chunk after an edit, while heading-based chunks isolate the change.
 - `/code-review` gate caught: `make corpus` checked only HEAD and the file count, so local edits (or one add plus one delete) in `data/handbook` passed as "ok" → it now fails on a dirty `git status`, and doesn't silently reset, so edits aren't destroyed. It also passes `--cone` explicitly instead of relying on the git version's default.
+- Ingestion (spec 0002) result: 4,177 found, 4,088 ingested, 89 skipped (85 empty_body, 4 draft). It takes ~1.7s, and a re-run is identical.
+- Plan-gate catch: the first plan skipped `redirect_to:` stubs as noise. Checking the 6 files showed 4 carry rename knowledge found nowhere else (`production/readiness.md`: "PRR retired, replaced by PREP"), the same class as the HelpLab → Compass eval traps. The other 2 are empty anyway. The rule was dropped, and redirect stubs with a body are ingested. If a stub outranks its target, evals will show it, and the fix then is to store `redirect_to` and follow it at retrieval.
+- Drafts are skipped because they're unpublished: a citation would 404, and they're templates and WIP. Unverified: that the site's Hugo config doesn't build drafts. The config is outside the sparse checkout.
+- Real-file findings that shaped parsing:
+  - All 4,177 files use YAML front matter.
+  - One uses `Title:` (capitalised), so the key match is case-insensitive.
+  - 10 files have no title, so they fall back to the filename or parent directory.
+  - 138 leaf bundles (`index.md`) map to the directory URL, like `_index.md`.
+  - 0 `url:` overrides. The single `aliases:` is ignored.
+  - `finance/expenses.md` has **two** headings numbered "4.1" (TRAVEL and NON-TRAVEL). Co-Working and Internet sit under the second. That matters for any eval or chunk citation that uses section numbers.
+- Each ingest mirrors the snapshot: upsert, then delete rows not in the ingested set, in one transaction. Without this, a skip-rule change or a re-pin that drops a page (e.g. a page pulled from public) would leave stale rows that retrieval could still serve.
+- `body` stores the markdown after the front matter, unmodified (shortcodes kept). Front matter is metadata, and the title is stored separately.
+- `/code-review` gate caught two problems in ingestion:
+  - **Ingest only checked HEAD.** A dirty checkout would have been stored labelled as pinned content. A narrowed or empty checkout would have made the mirror-delete wipe rows, and an empty scan would have emptied the table. Fix: `corpus.verify()` (HEAD, clean tree, file count) is shared by `make corpus` and `make ingest`.
+  - **`url_path` kept uppercase.** Hugo lowercases URLs. On the live site, `/billing-ops-GPO/` returns 302 and `/billing-ops-gpo/` returns 200. Fix: `url_path` is lowercased. One file was affected at the pin.
+- Schema is applied without a migration tool. `db/init/002_documents.sql` is run by docker init on fresh volumes and re-applied (`IF NOT EXISTS`) by `make ingest` on existing ones. A real column change later will need either a migration tool or `down -v`. Revisit when the schema first changes.
 
 ## Corpus: git behaviors, limitations, assumptions
 
