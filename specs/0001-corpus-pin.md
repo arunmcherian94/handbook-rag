@@ -1,6 +1,6 @@
 # 0001: Corpus pin
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-07
 
 ## Problem
