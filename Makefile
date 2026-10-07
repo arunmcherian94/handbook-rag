@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -12,6 +12,9 @@ down: ## Stop DB (keeps data volume)
 
 corpus: ## Check out pinned handbook corpus into data/handbook
 	PYTHONPATH=src uv run python -m handbook_rag.corpus
+
+ingest: ## Load pinned corpus markdown into Postgres (needs `make up`, `make corpus`)
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ingest
 
 test: test-unit test-integration ## Run unit + integration tests
 
