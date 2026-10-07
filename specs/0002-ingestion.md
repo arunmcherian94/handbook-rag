@@ -1,6 +1,6 @@
 # 0002: Ingestion
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-07
 - Depends on: 0001
 
