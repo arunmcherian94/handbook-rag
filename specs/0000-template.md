@@ -28,3 +28,10 @@ Things that will not be built here, even if they would help.
 ## Verification
 
 The commands and checks that prove the ACs hold.
+
+Before the implementation PR:
+
+- [ ] `make test` and `make lint` pass
+- [ ] `/code-review` run, with findings fixed or noted
+- [ ] Clean-room verified
+- [ ] NOTES.md updated
