@@ -7,6 +7,53 @@ and what it changes in this project. Newest first within each date.
 
 ## Fri 9 Oct 2026
 
+### Concepts from discussion (no single source)
+
+Embeddings and dimensions:
+- Dimension count (e.g. 1,536 for OpenAI text-embedding-3-small,
+  3,072 for -3-large; open models often 384/768/1,024) is a model
+  design choice, not a magic number. More dims = more room for fine
+  distinctions, but more storage, slower comparisons, and index limits
+  (pgvector HNSW: 2,000 dims for `vector`). More dims ≠ better
+  retrieval on my corpus; week 2 compares models.
+- Toy example: "Can I claim my home wifi bill?" scores ~0.997 against
+  "Internet costs are reimbursed up to a monthly cap" with no shared
+  keywords. Embeddings match meaning, not words. (Also why keyword
+  search still matters for exact strings and versions: week 3.)
+- Real dimensions have no human labels; meaning is spread across them.
+  You can only compare embeddings, not read them.
+- A real normalized 1,536-dim vector: values mostly within ±0.05,
+  min/max around ±0.1, length exactly 1.0, ~6 KB in pgvector.
+  (Synthetic sample generated for shape only.)
+
+ANN, HNSW, IVF, DiskBBQ:
+- ANN is the category: find probably-closest vectors by examining only
+  part of the data. Trades recall for speed. HNSW and IVF are two
+  approaches within it.
+- HNSW: layered graph, greedy walk. Best speed/recall; slow build;
+  memory-hungry.
+- IVF (IVFFlat): cluster up front, search only the nearest clusters.
+  Faster build, less memory, lower recall at the same speed; misses
+  neighbours just across a cluster boundary.
+- Quantization: store vectors at lower precision (binary ≈ 1 bit per
+  number instead of 4 bytes). Much smaller; re-check top candidates
+  with full vectors to recover accuracy.
+- DiskBBQ (Elastic, Elasticsearch 9.2): evolved IVF with hierarchical
+  k-means, vectors may sit in more than one cluster (softens the
+  boundary problem), compressed with BBQ (Better Binary Quantization),
+  read selectively from disk. Vendor-reported: ~15 ms queries in
+  ~100 MB memory. Elastic's own caveat: HNSW still wins for 99%+
+  recall at very low latency.
+  Link: https://www.elastic.co/search-labs/blog/diskbbq-elasticsearch-introduction
+
+Takeaways for handbook-rag:
+- None of the ANN choices matter at current scale; exact search stays.
+- Interview line: HNSW when the graph fits in memory; IVF plus
+  quantization (e.g. DiskBBQ) when memory is the constraint; measure
+  recall against exact search either way.
+- Claims ledger: I operated Elasticsearch as a datastore. DiskBBQ is
+  knowledge, not experience.
+
 ### pgvector README: similarity, distance, exact search, indexing
 
 Links:
