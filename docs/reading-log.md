@@ -48,11 +48,9 @@ ANN, HNSW, IVF, DiskBBQ:
 
 Takeaways for handbook-rag:
 - None of the ANN choices matter at current scale; exact search stays.
-- Interview line: HNSW when the graph fits in memory; IVF plus
+- Rule of thumb: HNSW when the graph fits in memory; IVF plus
   quantization (e.g. DiskBBQ) when memory is the constraint; measure
   recall against exact search either way.
-- Claims ledger: I operated Elasticsearch as a datastore. DiskBBQ is
-  knowledge, not experience.
 
 ### pgvector README: similarity, distance, exact search, indexing
 
