@@ -36,6 +36,42 @@ Working notes on building this with a coding agent. One bullet per entry: what h
   - **`url_path` kept uppercase.** Hugo lowercases URLs. On the live site, `/billing-ops-GPO/` returns 302 and `/billing-ops-gpo/` returns 200. Fix: `url_path` is lowercased. One file was affected at the pin.
 - Schema is applied without a migration tool. `db/init/002_documents.sql` is run by docker init on fresh volumes and re-applied (`IF NOT EXISTS`) by `make ingest` on existing ones. A real column change later will need either a migration tool or `down -v`. Revisit when the schema first changes.
 
+## 2026-10-12 (baseline decisions, spec 0003)
+
+- Token profile of the 4,088 docs (cl100k_base, the tokenizer for `text-embedding-3-*`, confirmed via `tiktoken.encoding_for_model`):
+  - 9.29M tokens in total.
+  - Per doc: p50 1,333, p90 5,097, p99 14,194, max 65,283.
+  - 180 docs exceed the 8,191-token embedding input limit, so chunking is required, not optional.
+- Embedding cost barely depends on chunk size: about 10.3–11.3M tokens for every size/overlap tried. Overlap adds 1–8% in tokens, but its real cost is near-duplicate hits in top-k. Choose the size for retrieval quality, not price.
+- **512/64 chosen over 1024/128.** "Most docs fit in one 1024 chunk" was wrong: only 42% do (1,709 of 4,088). Big chunks give the generator more context but average more topics into each vector (dilution). For example, Expenses' Internet paragraph would share a vector with co-working and phone rules. 512 sits mid-range, so week 2 can sweep 256 and 1024 on either side.
+- Chunking ladder, from simplest: fixed tokens → recursive (paragraph, then sentence) → markdown headings → semantic → contextual (an LLM writes a context line per chunk) → parent/child. The baseline is fixed-size on purpose. The rest are week 2 experiments.
+- Embedding options considered:
+  - OpenAI 3-small ($0.02/1M, 1536d) vs 3-large ($0.13, 3072d, which needs `dimensions` to fit the 2,000-dim HNSW limit).
+  - Voyage-4, Gemini, Cohere v4.
+  - Open models: Qwen3-Embedding, BGE-M3, nomic, EmbeddingGemma.
+
+  Chose 3-small: cheapest, its tokenizer is exactly cl100k, and it's the standard reference point. About $0.21 for the corpus, about 11–15 min at Tier 1 (1M TPM), but about 4.5 h on the free tier (40k TPM).
+- Local models on this machine (M2, 8 GB, shared with Colima): a 0.3–0.6B embedder takes an estimated 1–3 h for the corpus. Answer models that fit (3–4B) are weak at grounding and abstention. Open embedders become a measured week 2 comparison, not a guess.
+- Answer-model cost math (about 3.1k input + 250 output tokens per question, about 3,500 calls over the project):
+
+  | Model | Per question | Per 100-question eval run | Whole project |
+  |---|---|---|---|
+  | Haiku 5.5 | $0.0004 | $0.04 | ~$1.50 |
+  | gpt-5.4-mini | $0.004 | $0.40 | ~$15 |
+  | Sonnet 5.5 | $0.009 | $0.87 | ~$30 |
+  | Opus 5.5 | $0.023 | $2.34 | ~$82 |
+
+  Cost doesn't decide it. Chose gpt-5.4-mini for three reasons: a single provider with the embeddings, a Claude judge later is cross-family (no self-preference), and its strength is checked on the seed questions. I initially left it off the shortlist because its price was unverified. The user caught that, and the price was then verified on OpenAI's pricing page.
+- **Parametric-leakage risk:** the GitLab handbook is almost certainly in every model's pretraining, so a model can answer correctly from memory when retrieval missed. That hides retrieval failures. Mitigations: strict grounding instructions, reading traces, and retrieval metrics scored separately from answers.
+- **k=5:** recall@5 is the standard operating point. 5×512 ≈ 2.6k tokens of context. k is coupled to chunk size (k × size = context budget), and the eval can sweep k without re-embedding.
+- Embeddings go in their own table (`chunk_id`, `model`) with an untyped `vector` column, so models of different dimensions coexist for week 2 comparisons. pgvector indexes one model later with an expression index plus a partial index (README FAQ).
+- Links:
+  - [OpenAI pricing](https://developers.openai.com/api/docs/pricing)
+  - [text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small)
+  - [pgvector README](https://github.com/pgvector/pgvector)
+  - [Open embedding models roundup (premai)](https://blog.premai.io/best-embedding-models-for-rag-2026-ranked-by-mteb-score-cost-and-self-hosting)
+  - [Pinecone chunking strategies](https://www.pinecone.io/learn/chunking-strategies)
+
 ## Corpus: git behaviors, limitations, assumptions
 
 Git behaviors:
@@ -68,3 +104,5 @@ Assumptions (unverified):
   4. Record a sync-run log (old SHA → new SHA, counts).
 - **Chunk-level hashes** plus pipeline version columns for incremental re-embedding.
 - **Review agents** for spec conformance and architecture.
+- **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the week 3 freeze.
+- **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer.
