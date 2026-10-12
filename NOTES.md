@@ -42,7 +42,24 @@ Working notes on building this with a coding agent. One bullet per entry: what h
   - 9.29M tokens in total.
   - Per doc: p50 1,333, p90 5,097, p99 14,194, max 65,283.
   - 180 docs exceed the 8,191-token embedding input limit, so chunking is required, not optional.
-- Embedding cost barely depends on chunk size: about 10.3–11.3M tokens for every size/overlap tried. Overlap adds 1–8% in tokens, but its real cost is near-duplicate hits in top-k. Choose the size for retrieval quality, not price.
+- Embedding cost barely depends on chunk size: about 10.3–11.3M tokens for every size/overlap tried. Choose the size for retrieval quality, not price.
+- **Overlap = 64 tokens** (cl100k tokens, not characters or words). Each chunk repeats the last 64 tokens of the previous one, so windows start every 448 tokens (512 − 64).
+  - **What 64 tokens is:** about 45–50 English words, or 2–3 typical policy sentences. A one-sentence fact like "Internet costs are reimbursed up to a monthly cap of USD 100…" is about 21 tokens.
+  - **Why overlap at all:** with fixed windows, a sentence can be cut at a boundary. Any sentence up to 64 tokens long appears whole in at least one chunk, so a fact is never retrievable only as two half-sentences.
+  - **How 64 was chosen:** the common 10–20% heuristic, at the low end (12.5%). Not tuned. Measured at 512:
+
+    | Overlap | Chunks | Embedded tokens |
+    |---|---|---|
+    | 0 | 20,310 | 9.29M |
+    | 32 | 21,276 | +5.9% |
+    | **64** | **22,378** | **+12.6%** |
+    | 100 | 23,807 | +21.2% |
+
+  - **Trade-off:**
+    - Against 32: it covers 2–3 sentences, not about one.
+    - Against 100: the top-5 more often holds two near-duplicate neighbouring chunks, and each duplicate uses up one of only 5 slots.
+    - The money is trivial (+12.6% ≈ $0.02).
+  - It's a week 2 sweep candidate (0 / 32 / 64 / 100).
 - **512/64 chosen over 1024/128.** "Most docs fit in one 1024 chunk" was wrong: only 42% do (1,709 of 4,088). Big chunks give the generator more context but average more topics into each vector (dilution). For example, Expenses' Internet paragraph would share a vector with co-working and phone rules. 512 sits mid-range, so week 2 can sweep 256 and 1024 on either side.
 - Chunking ladder, from simplest: fixed tokens → recursive (paragraph, then sentence) → markdown headings → semantic → contextual (an LLM writes a context line per chunk) → parent/child. The baseline is fixed-size on purpose. The rest are week 2 experiments.
 - Embedding options considered:
