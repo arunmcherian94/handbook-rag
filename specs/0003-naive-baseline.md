@@ -1,6 +1,6 @@
 # 0003: Naive RAG baseline
 
-- Status: approved
+- Status: implemented
 - Date: 2026-10-12
 - Depends on: 0002
 
@@ -112,7 +112,7 @@ There is no end-to-end path from a question to a cited answer yet. Week 2 (chunk
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] NOTES.md updated (including the AC-11 design note)
+- [x] `make test` and `make lint` pass
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
+- [x] Clean-room verified
+- [x] NOTES.md updated (including the AC-11 design note)
