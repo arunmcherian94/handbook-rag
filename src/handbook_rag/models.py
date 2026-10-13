@@ -8,11 +8,13 @@ import os
 from dataclasses import dataclass
 from typing import Protocol
 
-DEFAULT_EMBED_MODEL = "openai:text-embedding-3-small"
-DEFAULT_ANSWER_MODEL = "openai:gpt-5.4-mini"
-
-# Known output dimensions, checked on every response so a mismatch fails before insert.
-EMBED_DIMS = {"text-embedding-3-small": 1536, "text-embedding-3-large": 3072}
+from handbook_rag.constants import (
+    DEFAULT_ANSWER_MODEL,
+    DEFAULT_EMBED_MODEL,
+    EMBED_DIMS,
+    MAX_COMPLETION_TOKENS,
+    REASONING_EFFORT,
+)
 
 
 class Embedder(Protocol):
@@ -53,7 +55,13 @@ class OpenAIEmbedder:
 
 
 class OpenAIAnswerer:
-    def __init__(self, client, model: str, effort: str = "none", max_completion_tokens: int = 1024):
+    def __init__(
+        self,
+        client,
+        model: str,
+        effort: str = REASONING_EFFORT,
+        max_completion_tokens: int = MAX_COMPLETION_TOKENS,
+    ):
         self.client = client
         self.model = model
         self.name = f"openai:{model}"

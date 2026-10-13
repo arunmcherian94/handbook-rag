@@ -4,7 +4,8 @@ import uuid
 import pytest
 import tiktoken
 
-from handbook_rag.chunk import CHUNK_OVERLAP, CHUNK_SIZE, chunk_doc, find_headings
+from handbook_rag.chunk import chunk_doc, find_headings
+from handbook_rag.constants import CHUNK_OVERLAP, CHUNK_SIZE
 
 ENC = tiktoken.get_encoding("cl100k_base")
 DOC = uuid.UUID(int=1)

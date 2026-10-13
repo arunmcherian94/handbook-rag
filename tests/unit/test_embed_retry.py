@@ -5,8 +5,8 @@ import uuid
 import pytest
 from fakes import FakeEmbedder, status_error, timeout_error
 
+from handbook_rag.constants import MAX_REQUEST_TOKENS
 from handbook_rag.embed import (
-    MAX_REQUEST_TOKENS,
     FatalEmbedError,
     Pending,
     RetriesExhausted,

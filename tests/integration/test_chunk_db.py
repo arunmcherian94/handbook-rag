@@ -3,8 +3,9 @@ from pathlib import Path
 import psycopg
 import pytest
 
-from handbook_rag.chunk import CHUNK_OVERLAP, CHUNK_SIZE, TOKENIZER, run
-from handbook_rag.corpus import CHECKOUT, read_manifest
+from handbook_rag.chunk import run
+from handbook_rag.constants import CHECKOUT, CHUNK_OVERLAP, CHUNK_SIZE, TOKENIZER
+from handbook_rag.corpus import read_manifest
 from handbook_rag.db import connect
 
 pytestmark = pytest.mark.integration

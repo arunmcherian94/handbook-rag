@@ -6,9 +6,6 @@ from fakes import FakeAnswerer, FakeEmbedder
 
 from handbook_rag import ask as ask_mod
 from handbook_rag.ask import (
-    NOT_FOUND,
-    OUT_OF_SCOPE,
-    SYSTEM_PROMPT,
     Retrieved,
     append_trace,
     ask,
@@ -16,6 +13,7 @@ from handbook_rag.ask import (
     format_result,
     parse_citations,
 )
+from handbook_rag.prompts import NOT_FOUND, OUT_OF_SCOPE, SYSTEM_PROMPT
 
 
 def chunks(k=5):

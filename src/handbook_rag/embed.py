@@ -15,17 +15,18 @@ from dataclasses import dataclass, field
 
 import openai
 
+from handbook_rag.constants import (
+    BACKOFF_BASE,
+    BACKOFF_CAP,
+    EMBED_BATCH,
+    MAX_ATTEMPTS,
+    MAX_INPUT_TOKENS,
+    MAX_REQUEST_TOKENS,
+    PROGRESS_EVERY,
+    RETRY_4XX,
+)
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.models import Embedder, make_embedder
-
-BATCH = 128
-MAX_ATTEMPTS = 6
-MAX_INPUT_TOKENS = 8192
-MAX_REQUEST_TOKENS = 300_000
-BACKOFF_BASE = 1.0
-BACKOFF_CAP = 60.0
-PROGRESS_EVERY = 10  # batches
-RETRY_4XX = {408, 409}  # request timeout, conflict: transient
 
 log = logging.getLogger(__name__)
 
@@ -166,7 +167,9 @@ ON CONFLICT DO NOTHING
 """
 
 
-def run(conn, embedder, batch=BATCH, limit=None, sleep=time.sleep, rand=random.random) -> Summary:
+def run(
+    conn, embedder, batch=EMBED_BATCH, limit=None, sleep=time.sleep, rand=random.random
+) -> Summary:
     summary = Summary()
     summary.skipped = conn.execute(SKIPPED, (embedder.name,)).fetchone()[0]
     sql, params = PENDING, [embedder.name]

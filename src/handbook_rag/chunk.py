@@ -7,18 +7,12 @@ import uuid
 from bisect import bisect_right
 from dataclasses import dataclass
 from itertools import accumulate
-from pathlib import Path
 
 import tiktoken
 
+from handbook_rag.constants import CHUNK_BATCH, CHUNK_OVERLAP, CHUNK_SIZE, CHUNKS_SCHEMA, TOKENIZER
 from handbook_rag.corpus import read_manifest, verify
 from handbook_rag.db import connect
-
-CHUNK_SIZE = 512
-CHUNK_OVERLAP = 64
-TOKENIZER = "cl100k_base"
-SCHEMA = Path("db/init/003_chunks.sql")
-BATCH = 500
 
 HEADING = re.compile(r"#{1,6}[ \t]+(.*)")
 FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
@@ -165,7 +159,7 @@ def run(conn, force: bool = False) -> RunResult:
         raise SystemExit(f"{error}\nRun `make corpus` to restore the pinned checkout.")
     enc = tiktoken.get_encoding(TOKENIZER)
     with conn.transaction():
-        conn.execute(SCHEMA.read_text())
+        conn.execute(CHUNKS_SCHEMA.read_text())
         (stale,) = conn.execute(
             "SELECT EXISTS (SELECT 1 FROM documents WHERE commit_sha <> %s)", (m.sha,)
         ).fetchone()
@@ -187,7 +181,7 @@ def run(conn, force: bool = False) -> RunResult:
                         (c.chunk_id, doc_id, c.chunk_index, c.content, c.token_count, c.heading,
                          CHUNK_SIZE, CHUNK_OVERLAP, TOKENIZER, m.sha)
                     )  # fmt: skip
-                if len(rows) >= BATCH:
+                if len(rows) >= CHUNK_BATCH:
                     result.changed += flush(conn, rows)
                     rows = []
         if rows:
