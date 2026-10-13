@@ -13,7 +13,7 @@ There is no end-to-end path from a question to a cited answer yet. Week 2 (chunk
 - AC-1: **Chunking.** `make chunk` splits every ingested document into fixed-size cl100k token windows (512 tokens, 64 overlap) and stores them in a `chunks` table:
   - `chunk_id`: deterministic, `uuid5(doc_id:chunk_size:chunk_overlap:chunk_index)`.
   - `doc_id` (FK to `documents`), `chunk_index`, `content`, `token_count`.
-  - `heading`: text of the nearest preceding markdown heading, ignoring `#` lines inside code fences. It's for citation only and is **not** used to split.
+  - `heading`: text of the nearest markdown heading at or before the chunk's first non-blank character, ignoring `#` lines inside code fences. NULL when there's none (intro text, or a doc without headings). It's for citation only and is **not** used to split.
   - `chunk_size`, `chunk_overlap`, `tokenizer`: the parameters used.
   - `commit_sha`: the corpus SHA of the document that was chunked.
   - A document shorter than one window becomes one chunk. An empty or whitespace-only document produces none.
@@ -21,15 +21,23 @@ There is no end-to-end path from a question to a cited answer yet. Week 2 (chunk
   - **Early exit:** if the stored chunks for the current parameters were already produced from the current corpus SHA, `make chunk` makes no changes and exits, logging one line: the SHA, the parameters and the existing chunk count. "Already produced" means two things: every such chunk carries the manifest SHA, and every non-empty document has chunks.
   - **Forced re-run:** `make chunk FORCE=1` skips the early-exit check. This is for a fix to the chunker code itself, which doesn't change the SHA or the parameters.
   - **When it does run:** the same SHA and parameters give identical `chunk_id`s and content. Chunks of documents no longer in `documents` are removed, together with their embeddings. Everything happens in one transaction, like ingestion, and only after `corpus.verify()` passes.
+  - **Changed content:** if a re-run gives an existing `chunk_id` different content (a doc edit or a chunker fix), that chunk's embeddings are deleted in the same transaction, so `make embed` re-embeds it. A stale vector never sits beside new text.
+  - **Stale documents:** chunking refuses to run if `documents.commit_sha` differs from the manifest SHA, and tells you to run `make ingest`.
   - **Cost:** chunking is local and costs nothing. Embedding spend is protected separately by deterministic `chunk_id`s and AC-4, so a re-chunk never re-embeds unchanged chunks.
 - AC-3: **Embedding.** `make embed` gives each chunk one embedding per model in a `chunk_embeddings` table (`chunk_id`, `model`, `embedding vector`), with the model name recorded. Requests are batched.
   - **Transient errors** (rate limit, 5xx, timeout, connection) are retried with exponential backoff and jitter, up to a maximum of 6 attempts per request. The SDK's own retries are turned off, so this is the only retry layer.
   - **Retries exhausted:** the run stops with an error log naming the error, the attempt count and the batch's chunk ID range. Batches already committed are kept, and a re-run resumes (AC-4).
+  - **Local checks first:** a chunk that is empty or whitespace-only, or over 8,192 tokens, is a permanent failure with no request sent. A batch over 300k summed tokens is split before sending.
+  - **Fatal errors** (401/403/404: key, permission or model): the run stops immediately, with no retry and no split.
+  - **429:** honour `Retry-After` when present; otherwise backoff with jitter.
   - **Bad input** (a non-retryable 4xx such as an invalid input): one bad input fails the whole embeddings request. The batch is then split in half and each half retried, down to single chunks, so only the offending chunks fail. Each one is logged as a permanent failure with its `chunk_id`, `doc_id`, HTTP status and error message. The run continues with the other chunks.
   - **Run summary:** the run ends with one log line giving the counts embedded, skipped (already embedded) and permanently failed. It exits non-zero if any chunk failed. Failed chunks have no embedding row, so a re-run retries them.
 - AC-4: **Resumable.** If an embedding run dies midway, re-running embeds only chunks that have no embedding for that model. No chunk is ever paid for twice. Each batch is committed as it completes.
 - AC-5: **Retrieval.** `retrieve(question, k)` embeds the question with the same model and returns the top-k chunks for that model by **exact** cosine search: `ORDER BY embedding <=> $q LIMIT k` (ascending, raw operator). No vector index is created.
-- AC-6: **Answer.** One LLM call answers from the retrieved chunks only. It cites the chunks it used, rendered as `url_path` + heading text and never as section numbers. It says it doesn't know when the chunks don't contain the answer. The model cites chunks by number, code maps the numbers to citations, and out-of-range numbers are flagged.
+- AC-6: **Answer.** One LLM call (Chat Completions, `reasoning_effort="none"`, max 1,024 output tokens, no `tools` passed) answers from the retrieved chunks only, never from training knowledge, the web or tools.
+  - Two fixed replies: "I don't know based on the provided handbook excerpts." when the question is about the handbook but the chunks lack the answer, and "Sorry, I don't know how to answer that." for questions outside the GitLab handbook. Fixed strings let code and the eval tell them apart.
+  - A truncated answer (output cap hit) is flagged.
+  - It cites the chunks it used, rendered as `url_path` + heading text (the document title when the chunk has no heading) and never as section numbers. It says it doesn't know when the chunks don't contain the answer. The model cites chunks by number, code maps the numbers to citations, and out-of-range numbers are flagged.
 - AC-7: **CLI.** `make ask Q="..."` prints:
   - the answer and the citations
   - the retrieved chunks with their distances
@@ -87,10 +95,10 @@ There is no end-to-end path from a question to a cited answer yet. Week 2 (chunk
 | Embedding failures | Our own capped retries (6 attempts, exponential backoff with jitter), with SDK retries off. Bad inputs are isolated by splitting the batch. | **The SDK's built-in retries:** they stack with ours, and the attempt count and logging aren't ours to control. **Fail the whole batch:** one bad chunk would block thousands. **A per-chunk request on every failure:** splitting in halves needs about log₂(batch) requests, not one per chunk. **A failures table:** logs plus "no embedding row" already make failures visible and retryable. |
 | Dependencies | `tiktoken`, `openai` | **The `pgvector` Python adapter:** it only converts lists to vector literals and pulls in numpy. psycopg sends `'[…]'::vector` as text. |
 
-## Open questions
+## Open questions (resolved during the build, 13 Oct)
 
-- The exact parameter name and lowest value for gpt-5.4-mini reasoning effort. Check against the API reference during the build.
-- The embeddings per-request input cap (count and tokens), which sets the batch size. Check during the build.
+- **Reasoning effort:** gpt-5.4-mini supports `none`, `low`, `medium`, `high` and `xhigh`, with `none` the lowest and the default (OpenAI model page). We send `reasoning_effort="none"` through Chat Completions.
+- **Embeddings caps:** ≤8,192 tokens per input, ≤300,000 tokens summed per request, ≤2,048 inputs, and no empty strings (OpenAI embeddings reference). Batch = 128 chunks (≤65.5k tokens).
 
 ## Verification
 

@@ -13,3 +13,8 @@ def connect() -> psycopg.Connection:
         dbname=os.environ["POSTGRES_DB"],
         connect_timeout=3,
     )
+
+
+def vector_literal(v: list[float]) -> str:
+    """pgvector text input, sent as a parameter and cast with ::vector (no numpy adapter)."""
+    return "[" + ",".join(repr(float(x)) for x in v) + "]"
