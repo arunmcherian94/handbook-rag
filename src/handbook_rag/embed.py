@@ -1,7 +1,9 @@
 """Embed chunks into chunk_embeddings (spec 0003, AC-3, AC-4).
 
-Retry and bad-input isolation are pure (embed_with_retry, embed_batch) so they run without a DB;
-run() owns SQL and commits once per successful (sub-)batch.
+Functional core, imperative shell: retry and bad-input isolation (embed_with_retry, embed_batch)
+are pure, so they are unit-tested without a DB; run() is the shell that owns SQL and commits
+once per successful (sub-)batch. `sleep` and `rand` are injected so tests check backoff timing
+without waiting or randomness.
 """
 
 import argparse

@@ -1,9 +1,12 @@
 """AC-10: adapter request/response contracts and the provider:model factory (fake client)."""
 
 import pytest
-from fakes import FakeOpenAIClient
+from fakes import FakeEmbedder, FakeOpenAIClient
 
-from handbook_rag.models import OpenAIAnswerer, OpenAIEmbedder, make_answerer, make_embedder
+from handbook_rag.models import make_answerer, make_embedder
+from handbook_rag.models.answerers.openai import OpenAIAnswerer
+from handbook_rag.models.embedders.openai import OpenAIEmbedder
+from handbook_rag.models.factory import EMBEDDERS
 
 
 def test_embedder_request_shape_and_index_order():
@@ -70,3 +73,11 @@ def test_factory_rejects_unknown_provider():
         make_embedder("voyage:voyage-3")
     with pytest.raises(ValueError, match="unknown answer provider 'acme'"):
         make_answerer("acme:x")
+
+
+def test_registry_adds_provider_without_factory_change(monkeypatch):
+    """AC-10: a new provider is one registry entry; the error names what is registered."""
+    with pytest.raises(ValueError, match=r"\(registered: openai\)"):
+        make_embedder("local:minilm")
+    monkeypatch.setitem(EMBEDDERS, "local", lambda model: FakeEmbedder(name=f"local:{model}"))
+    assert make_embedder("local:minilm").name == "local:minilm"

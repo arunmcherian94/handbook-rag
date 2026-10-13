@@ -1,4 +1,9 @@
-"""Deterministic, offline stand-ins for the model adapters (spec 0003, AC-9). No network."""
+"""Deterministic, offline stand-ins for the model adapters (spec 0003, AC-9). No network.
+
+FakeEmbedder / FakeAnswerer satisfy the Embedder / Answerer Protocols structurally (no
+inheritance), so pipeline code runs on them unchanged. FakeOpenAIClient is injected into the
+real adapters to test their request and response handling.
+"""
 
 import hashlib
 import math

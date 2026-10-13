@@ -1,4 +1,8 @@
-"""Split ingested documents into fixed-size token windows (spec 0003, AC-1, AC-2)."""
+"""Split ingested documents into fixed-size token windows (spec 0003, AC-1, AC-2).
+
+Functional core, imperative shell: chunk_doc and find_headings are pure functions of a body,
+so windowing and heading attribution are unit-tested without a DB; run() owns the transaction.
+"""
 
 import argparse
 import re

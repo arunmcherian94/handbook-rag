@@ -1,4 +1,9 @@
-"""Naive RAG baseline: retrieve, answer from excerpts, cite by number, trace (spec 0003)."""
+"""Naive RAG baseline: retrieve, answer from excerpts, cite by number, trace (spec 0003).
+
+Functional core, imperative shell: build_prompt and parse_citations are pure and unit-tested;
+retrieve and ask do the I/O. The embedder and answerer arrive as ports (see models/base.py),
+and `clock` is injected so latency fields are testable.
+"""
 
 import argparse
 import json
