@@ -7,10 +7,10 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from handbook_rag.corpus import CHECKOUT, git_out, read_manifest, verify
+from handbook_rag.constants import CHECKOUT, DOCUMENTS_SCHEMA
+from handbook_rag.corpus import git_out, read_manifest, verify
 from handbook_rag.db import connect
 
-SCHEMA = Path("db/init/002_documents.sql")
 FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.DOTALL)
 
 
@@ -110,7 +110,7 @@ def run(conn) -> Scan:
 
     result = scan(CHECKOUT, m.paths)
     with conn.transaction():
-        conn.execute(SCHEMA.read_text())
+        conn.execute(DOCUMENTS_SCHEMA.read_text())
         with conn.cursor() as cur:
             cur.executemany(
                 UPSERT,

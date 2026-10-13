@@ -6,7 +6,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-CHECKOUT = Path("data/handbook")
+from handbook_rag.constants import CHECKOUT
 
 
 @dataclass(frozen=True)

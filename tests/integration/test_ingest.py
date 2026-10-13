@@ -5,7 +5,8 @@ from pathlib import Path
 import psycopg
 import pytest
 
-from handbook_rag.corpus import CHECKOUT, read_manifest
+from handbook_rag.constants import CHECKOUT
+from handbook_rag.corpus import read_manifest
 from handbook_rag.db import connect
 from handbook_rag.ingest import run, split_front_matter
 

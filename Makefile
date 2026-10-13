@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus ingest test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest chunk embed ask test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -15,6 +15,16 @@ corpus: ## Check out pinned handbook corpus into data/handbook
 
 ingest: ## Load pinned corpus markdown into Postgres (needs `make up`, `make corpus`)
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ingest
+
+chunk: ## Chunk documents into 512/64 token windows (FORCE=1 ignores the early exit)
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.chunk $(if $(FORCE),--force)
+
+embed: ## Embed chunks that have no embedding for EMBED_MODEL (LIMIT=n for a test run)
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.embed $(if $(LIMIT),--limit $(LIMIT))
+
+ask: ## Answer a question from the handbook: make ask Q="..."
+	@test -n "$$Q" || { echo 'usage: make ask Q="your question"'; exit 2; }
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask "$$Q"
 
 test: test-unit test-integration ## Run unit + integration tests
 
