@@ -123,3 +123,13 @@ Assumptions (unverified):
 - **Review agents** for spec conformance and architecture.
 - **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the week 3 freeze.
 - **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer.
+- **Production observability** (PR #7 review):
+  - Replace or augment the JSONL traces (spec 0003, AC-8) with a tracing tool that has nested spans (retrieve → prompt → LLM), cost and latency dashboards, and a link from traces to eval runs.
+  - Candidates to brainstorm:
+    - [LangSmith](https://docs.smith.langchain.com/)
+    - [Langfuse](https://langfuse.com/docs) (open source, self-hostable)
+    - [Arize Phoenix](https://docs.arize.com/phoenix) (open source)
+    - [Braintrust](https://www.braintrust.dev/docs)
+    - plain OpenTelemetry with the [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+  - Criteria: self-hosting vs SaaS, vendor neutrality (OTel), eval integration, and cost.
+  - Best decided alongside the eval harness.

@@ -15,9 +15,18 @@ There is no end-to-end path from a question to a cited answer yet. Week 2 (chunk
   - `doc_id` (FK to `documents`), `chunk_index`, `content`, `token_count`.
   - `heading`: text of the nearest preceding markdown heading, ignoring `#` lines inside code fences. It's for citation only and is **not** used to split.
   - `chunk_size`, `chunk_overlap`, `tokenizer`: the parameters used.
-  - A document shorter than one window becomes one chunk. An empty document produces none.
-- AC-2: **Idempotent.** Re-running chunking on the same corpus SHA and parameters produces identical `chunk_id`s and content. Chunks of documents no longer in `documents` are removed, together with their embeddings. Everything happens in one transaction, like ingestion, and only after `corpus.verify()` passes.
-- AC-3: **Embedding.** `make embed` gives each chunk one embedding per model in a `chunk_embeddings` table (`chunk_id`, `model`, `embedding vector`), with the model name recorded. Requests are batched, and rate limits are retried with exponential backoff.
+  - `commit_sha`: the corpus SHA of the document that was chunked.
+  - A document shorter than one window becomes one chunk. An empty or whitespace-only document produces none.
+- AC-2: **Idempotent, with early exit.**
+  - **Early exit:** if the stored chunks for the current parameters were already produced from the current corpus SHA, `make chunk` makes no changes and exits, logging one line: the SHA, the parameters and the existing chunk count. "Already produced" means two things: every such chunk carries the manifest SHA, and every non-empty document has chunks.
+  - **Forced re-run:** `make chunk FORCE=1` skips the early-exit check. This is for a fix to the chunker code itself, which doesn't change the SHA or the parameters.
+  - **When it does run:** the same SHA and parameters give identical `chunk_id`s and content. Chunks of documents no longer in `documents` are removed, together with their embeddings. Everything happens in one transaction, like ingestion, and only after `corpus.verify()` passes.
+  - **Cost:** chunking is local and costs nothing. Embedding spend is protected separately by deterministic `chunk_id`s and AC-4, so a re-chunk never re-embeds unchanged chunks.
+- AC-3: **Embedding.** `make embed` gives each chunk one embedding per model in a `chunk_embeddings` table (`chunk_id`, `model`, `embedding vector`), with the model name recorded. Requests are batched.
+  - **Transient errors** (rate limit, 5xx, timeout, connection) are retried with exponential backoff and jitter, up to a maximum of 6 attempts per request. The SDK's own retries are turned off, so this is the only retry layer.
+  - **Retries exhausted:** the run stops with an error log naming the error, the attempt count and the batch's chunk ID range. Batches already committed are kept, and a re-run resumes (AC-4).
+  - **Bad input** (a non-retryable 4xx such as an invalid input): one bad input fails the whole embeddings request. The batch is then split in half and each half retried, down to single chunks, so only the offending chunks fail. Each one is logged as a permanent failure with its `chunk_id`, `doc_id`, HTTP status and error message. The run continues with the other chunks.
+  - **Run summary:** the run ends with one log line giving the counts embedded, skipped (already embedded) and permanently failed. It exits non-zero if any chunk failed. Failed chunks have no embedding row, so a re-run retries them.
 - AC-4: **Resumable.** If an embedding run dies midway, re-running embeds only chunks that have no embedding for that model. No chunk is ever paid for twice. Each batch is committed as it completes.
 - AC-5: **Retrieval.** `retrieve(question, k)` embeds the question with the same model and returns the top-k chunks for that model by **exact** cosine search: `ORDER BY embedding <=> $q LIMIT k` (ascending, raw operator). No vector index is created.
 - AC-6: **Answer.** One LLM call answers from the retrieved chunks only. It cites the chunks it used, rendered as `url_path` + heading text and never as section numbers. It says it doesn't know when the chunks don't contain the answer. The model cites chunks by number, code maps the numbers to citations, and out-of-range numbers are flagged.
@@ -30,13 +39,17 @@ There is no end-to-end path from a question to a cited answer yet. Week 2 (chunk
   - embedding model, answer model, k
   - question, retrieved `chunk_id`s and distances
   - answer, tokens, latency
+
+  JSONL is a deliberate baseline choice. A production tracing tool is a follow-up in NOTES.md.
 - AC-9: **Tests.**
   - Unit tests for the chunker: sizes, overlap, heading attribution, short doc, and empty edge cases.
   - Embedding and LLM calls are faked. No test spends money or needs an API key.
   - The fakes check real behaviour, against real Postgres:
     - retrieval ordering
     - resumability
-    - backoff
+    - backoff: a capped retry count, then the run stops
+    - a bad input is isolated by splitting the batch: the other chunks embed, and the failure is logged and reported in the summary
+    - chunking early exit on a re-run, and `FORCE=1` overriding it
     - adapter request and response shapes
     - citation mapping
   - The existing tests stay green, and ruff is clean.
@@ -70,6 +83,8 @@ There is no end-to-end path from a question to a cited answer yet. Week 2 (chunk
 | k | 5 | **10:** more lost-in-the-middle and more duplicate overlap hits. 5×512 ≈ 2.6k tokens of context. The eval can sweep k without re-embedding. |
 | Embedding storage | A separate `chunk_embeddings` table, untyped `vector`, PK `(chunk_id, model)` | **A `vector(1536)` column on `chunks`:** a model change would mean a schema change, and two models couldn't coexist. pgvector can still index one model later through an expression index plus a partial index. |
 | Model wiring | `Embedder` / `Answerer` protocols, provider adapters, a factory on `provider:model`, injected into the pipeline | **Calling the SDK inline:** swapping a model would touch every call site, and tests would need network mocks. |
+| Re-chunk on unchanged corpus | Early exit, keyed on the `commit_sha` + parameters already stored on the chunks. `FORCE=1` overrides it. | **Always re-chunk:** wasteful, and the log doesn't show that nothing changed. **A run-log table:** a new table, when the rows already carry the SHA. |
+| Embedding failures | Our own capped retries (6 attempts, exponential backoff with jitter), with SDK retries off. Bad inputs are isolated by splitting the batch. | **The SDK's built-in retries:** they stack with ours, and the attempt count and logging aren't ours to control. **Fail the whole batch:** one bad chunk would block thousands. **A per-chunk request on every failure:** splitting in halves needs about log₂(batch) requests, not one per chunk. **A failures table:** logs plus "no embedding row" already make failures visible and retryable. |
 | Dependencies | `tiktoken`, `openai` | **The `pgvector` Python adapter:** it only converts lists to vector literals and pulls in numpy. psycopg sends `'[…]'::vector` as text. |
 
 ## Open questions
