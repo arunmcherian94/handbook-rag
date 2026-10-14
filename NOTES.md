@@ -164,6 +164,23 @@ Working notes on building this with a coding agent. One bullet per entry: what h
 - **Recency is settled from the statement's own history** (`git log -G`/`-S` on the line), not the footer or blame. Blame misleads after a page delete-and-restore (expenses.md was removed on 18 Mar 2026 and restored whole on 14 May, so every line blames to 14 May), and commit messages mislead (the 13 Sep 2026 "Rename HelpLab to Compass" commit added new access-request content). References cite the pinned corpus only.
 - **Limitation:** 10 traces from one run, so the pattern counts are hypotheses for choosing eval-set dimensions, not measurements.
 
+## 2026-10-14 (eval set design)
+
+- **Logging rule (replaces the old "decisions only, no summary" reading-log rule):** docs/reading-log.md gets one entry per reading with an extended takeaway summary and the decisions it informed. NOTES.md stays short, dated notes and decisions. Sources are paraphrased.
+- **PR #9 final numbers:** 2 retrieval only, 1 generation only, 6 mixed, 1 correct. Top patterns: retrieved but not used (7/10), answer in a section that starts mid-chunk (6/10), right page wrong chunk (6/10). The last two share 5 questions and may have one cause (fixed windows splitting sections); they stay separate until baseline traces confirm it.
+- **(a) Failure categories:** the six question types are coverage strata, not failure categories. Categories come only from coded traces (PR #9 now, baseline traces from Friday). So in the eval set, I will tag each question with its type for coverage, report failures by category, and add a category only when a trace shows it.
+- **(e) Question mix:** a restricted-user answer is a leak, a security failure, not an accuracy miss. So in the eval set, I will score restricted questions as a separate leak rate (target zero), never averaged into accuracy, and scored from week 2 once the ACL pre-filter exists.
+  - Mix 60 / 20 / 20 (answerable / out-of-corpus / restricted). About 80–85 candidates survive the first triage as a buffer; duplicates and unneeded ones are cut at review.
+  - Restricted users get the same in-scope reply, "I don't know based on the provided handbook excerpts." A permission message would confirm hidden content exists, and one string keeps the check an exact match.
+  - Access rule is provisional until week 2: role `contractor` can't see entity-specific benefits and compensation pages (exact paths confirmed from the pinned SHA). Each restricted question must be answerable from the corpus. If the week 2 ACL spec changes the rule, affected questions get a changelog entry.
+  - Out-of-corpus splits about 2:1 between "in scope but not found" and off-topic. Plausible handbook questions with no answer are where the model fills gaps from memory.
+- **(f) Order:** Friday runs the baseline and reads the traces first. Retrieval metrics and code checks need no judge. Saturday codes the new traces, updates categories, then writes judges only for failures code can't detect. So in the eval set, I will run it before any judge exists, and every judge traces back to a coded failure.
+- **Candidate generation: two steps** (dimensions brief and 20 seed tuples in [docs/eval/2026-10-14-dimensions.md](docs/eval/2026-10-14-dimensions.md), reviewed before use → an LLM in a fresh context writes more tuples → a separate prompt turns tuples into questions). Questions only, no corpus reads, marked UNVERIFIED. All answers and expected docs are written by hand from the pinned SHA.
+- **Candidate pool built:** 103 candidates, then a first triage by a fresh subagent with no corpus access, leaving 82 (60 / 21 / 20). Process: [docs/eval/README.md](docs/eval/README.md).
+- **Persona `unstated` added:** real users rarely say who they are. Restricted questions include ones with no stated role, since access must come from the user's role, not the question text.
+- **Gate catch (triage):** the provisional restricted rule ("entity-specific benefits") would also hide the Contractor Benefits section, which contractors must see. To fix Thursday: restrict employee-only benefits and compensation pages, with exact paths from the pinned SHA.
+- **Deferred to Thu 16:00:** (b) criteria drift, (c) judge claims, (d) binary rubric.
+
 ## Corpus: git behaviors, limitations, assumptions
 
 Git behaviors:

@@ -5,6 +5,110 @@ and what it changes in this project. Newest first within each date.
 
 ---
 
+## Wed 14 Oct 2026
+
+### Hamel Husain: Your AI Product Needs Evals
+
+Link: https://hamel.dev/blog/posts/evals/
+
+Summary:
+- Error analysis is the core activity. Open coding first: free notes
+  per trace, recording the first upstream failure. Then axial coding:
+  group the notes into a counted failure taxonomy. Repeat until new
+  traces stop adding categories.
+- Annotate about 30 traces yourself before letting an agent suggest
+  failures. Eval categories come from observed failures, not from
+  predetermined query types.
+- Synthetic data: define dimensions, write about 20 tuples (one value
+  per dimension) by hand, have an LLM generate more tuples, then turn
+  tuples into queries in a separate prompt. The split avoids
+  repetitive phrasing. If a failure is an obvious prompt gap, fix the
+  prompt instead of generating tests for it.
+- Prefer cheap code assertions wherever a rule can detect the failure.
+  Keep LLM judges for persistent failures that need judgment.
+
+Takeaways for handbook-rag:
+- The six question types were set before error analysis, as coverage
+  strata. PR #9's traces confirmed that two of them,
+  contradictions/renames and version/recency, are real failure areas.
+  Failure categories still come only from coded traces.
+- Candidate questions use the two-step method: tuples first, questions
+  in a separate prompt.
+- Spec 0004 uses code checks first (citation present and valid, exact
+  abstention string) and judges only for what code can't detect.
+
+Decisions informed: (a) failure categories, today's two-step
+generation method, (d) binary rubric (Thursday).
+
+### Hamel Husain & Shreya Shankar: How many examples do I need for an eval?
+
+Link: https://hamel.dev/blog/posts/evals-faq/how-many-examples-do-i-need-for-an-eval.html
+AI Evals FAQ, item 3.
+
+Summary:
+- The answer depends on the stage. Discovery: about 100 diverse traces.
+  Code checks: pass and fail examples for each condition. An LLM judge:
+  about 100–200 labels per failure mode. A repeatable regression set
+  often grows past 100.
+
+Takeaways for handbook-rag:
+- The eval set starts at 50–60 questions and grows from later traces.
+  That is a starting set, not a judge-validation set, so the 100–200
+  label count doesn't apply yet and no judge is claimed as validated.
+
+Decisions informed: (c) judge claims (Thursday).
+
+### Hamel Husain & Shreya Shankar: Why binary pass/fail instead of 1–5 ratings?
+
+Link: https://hamel.dev/blog/posts/evals-faq/why-do-you-recommend-binary-passfail-evaluations-instead-of-1-5-ratings-likert-scales.html
+AI Evals FAQ, item 4.
+
+Summary:
+- Binary pass/fail beats 1–5 scales: clearer decisions, more
+  consistent labels. Track gradual progress as several binary
+  sub-checks, e.g. k of n expected facts present.
+
+Takeaways for handbook-rag:
+- Every check in spec 0004 is binary. Partial credit is counted as
+  sub-checks, not a score.
+
+Decisions informed: (d) binary rubric (Thursday).
+
+### Hamel Husain & Shreya Shankar: How do I know if I can trust my automated eval?
+
+Link: https://hamel.dev/blog/posts/evals-faq/how-do-i-know-if-i-can-trust-my-automated-eval.html
+AI Evals FAQ, item 5.
+
+Summary:
+- Validate a judge against human labels with a train / dev / test
+  split (roughly 10–20 / 40–45 / 40–45%). Report true positive and
+  true negative rates, not raw agreement. One judge per failure mode.
+
+Takeaways for handbook-rag:
+- No judge before the baseline traces are read.
+- With 50–60 questions, every judgment is hand-checked instead of
+  claiming a validated judge.
+
+Decisions informed: (f) order, (c) judge claims (Thursday).
+
+### Hamel Husain & Shreya Shankar: How do we evaluate a model's ability to know what it doesn't know?
+
+Link: https://hamel.dev/blog/posts/evals-faq/how-do-we-evaluate-a-models-ability-to-express-uncertainty-or-know-what-it-doesnt-know.html
+AI Evals FAQ, item 6.
+
+Summary:
+- Abstention evals need both answerable and unanswerable questions,
+  roughly balanced. Pass = answers the answerable ones and refuses the
+  unanswerable ones. Diversity matters more than the exact ratio.
+
+Takeaways for handbook-rag:
+- The eval set includes out-of-corpus questions alongside answerable
+  ones, scored against the baseline's two fixed replies.
+
+Decisions informed: (e) question mix.
+
+---
+
 ## Fri 9 Oct 2026
 
 ### Concepts from discussion (no single source)
@@ -224,12 +328,3 @@ Link: https://hamel.dev/blog/posts/evals-faq/#q-do-i-need-a-reference-answer-bef
 
 Key idea: criteria drift. Expected answers must stay revisable once
 real outputs have been read.
-
----
-
-## Pending (Sat 10 Oct, before eval set work)
-
-- [ ] FAQ 3, How many examples: https://hamel.dev/blog/posts/evals-faq/how-many-examples-do-i-need-for-an-eval.html
-- [ ] FAQ 4, Binary vs Likert: https://hamel.dev/blog/posts/evals-faq/why-do-you-recommend-binary-passfail-evaluations-instead-of-1-5-ratings-likert-scales.html
-- [ ] FAQ 5, Trusting the automated eval: https://hamel.dev/blog/posts/evals-faq/how-do-i-know-if-i-can-trust-my-automated-eval.html
-- [ ] FAQ 6, "I don't know": https://hamel.dev/blog/posts/evals-faq/how-do-we-evaluate-a-models-ability-to-express-uncertainty-or-know-what-it-doesnt-know.html
