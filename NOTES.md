@@ -179,6 +179,12 @@ Working notes on building this with a coding agent. One bullet per entry: what h
 - **Candidate pool built:** 103 candidates, then a first triage by a fresh subagent with no corpus access, leaving 82 (60 / 21 / 20). Process: [docs/eval/README.md](docs/eval/README.md).
 - **Persona `unstated` added:** real users rarely say who they are. Restricted questions include ones with no stated role, since access must come from the user's role, not the question text.
 - **Gate catch (triage):** the provisional restricted rule ("entity-specific benefits") would also hide the Contractor Benefits section, which contractors must see. To fix Thursday: restrict employee-only benefits and compensation pages, with exact paths from the pinned SHA.
+- **Every case carries a principal** (the acting user, from a 5-user synthetic fixture), passed by the harness as request context. Identity never comes from the question text. Answerable cases need one too, because the pre-filter runs on every query. D5 is split into D5a (principal) and D5b (role stated in the text: none / matches / conflicts). 4 `conflicts` cases test that access follows the principal.
+- **Restricted case = one question × two principals:** denied (`contractor`) and an entitled control. The control separates "ACL blocked" from "retrieval missed", which give the same reply. It's written once, with no extra answer rows.
+- **Restricted scoring is phased** (`requires: acl`):
+  - Week 1: controls are scored normally; denied runs are reported as a pre-ACL leak rate, never as failures. A leak is measured at retrieval level first: a restricted chunk in the top k.
+  - Week 2: gates are leak 0, over-block 0, and conflicts leak 0.
+  - Week 5: conflicts grow into injection cases.
 - **Deferred to Thu 16:00:** (b) criteria drift, (c) judge claims, (d) binary rubric.
 
 ## Corpus: git behaviors, limitations, assumptions
