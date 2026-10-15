@@ -5,6 +5,71 @@ and what it changes in this project. Newest first within each date.
 
 ---
 
+## Thu 15 Oct 2026
+
+### Research: access control in RAG evals (three research subagents)
+
+Question: should the eval set consider ACLs at all, and how do we keep
+the frozen baseline comparable once week 2 adds a pre-filter?
+
+Read in full or in part:
+- OWASP LLM08:2025 Vector and Embedding Weaknesses: https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/
+- OWASP LLM02:2025 Sensitive Information Disclosure: https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/
+- Azure AI Search, security filter pattern: https://learn.microsoft.com/en-us/azure/search/search-security-trimming-for-azure-search
+- Azure AI Search, document-level access control: https://learn.microsoft.com/en-us/azure/search/search-document-level-access-overview
+- AWS, access control with metadata filtering in Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/access-control-for-vector-stores-using-metadata-filtering-with-knowledge-bases-for-amazon-bedrock/
+- Auth0 / OpenFGA, secure RAG with LangChain: https://auth0.com/blog/building-a-secure-rag-with-python-langchain-and-openfga/
+- AuthZed / SpiceDB, multi-tenant RAG: https://authzed.com/blog/building-a-multi-tenant-rag-with-fine-grain-authorization-using-motia-and-spicedb
+- Oso, authorization in RAG: https://www-webflow.osohq.com/post/right-approach-to-authorization-in-rag
+- Cerbos, RAG authorization recipe: https://docs.cerbos.dev/cerbos/0.42.0/recipes/ai/rag-authorization
+- promptfoo red-team plugins (RBAC, BOLA, BFLA, cross-session leak) and red-team configuration: https://www.promptfoo.dev/docs/red-team/configuration/
+- DeepTeam RBAC: https://www.trydeepteam.com/docs/red-teaming-vulnerabilities-rbac
+- Inspect AI datasets: https://inspect.aisi.org.uk/datasets.html
+- Anthropic, Demystifying evals for AI agents: https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents
+- VaultRAG, enforcing access control inside the retrieval query: https://dev.to/royalpinto007/enforcing-rag-access-control-inside-the-retrieval-query-not-after-it-4gm3
+- vdf.ai, permission-aware private RAG: https://vdf.ai/blog/permission-aware-private-rag-on-premises/
+- pgvector README: https://github.com/pgvector/pgvector
+- ACORN, filtered vector search (SIGMOD 2024): https://arxiv.org/html/2403.04871v1
+- Qdrant, vector search filtering: https://qdrant.tech/articles/vector-search-filtering/
+- Securing the agent, multitenant retrieval (arXiv 2605.05287): https://arxiv.org/html/2605.05287
+
+Abstract or snippet only: Authorization-First Retrieval (TrustNLP 2026),
+arXiv 2603.23710 (filtered search in PostgreSQL), arXiv 2509.07789
+(filtered ANN benchmark), ARBITER (arXiv 2512.20535), Descope on
+post-retrieval checks, LangSmith metadata.
+
+Summary:
+- Every source enforces permissions as a deterministic layer in code or
+  the database, applied before the prompt is built. Pre-filtering is the
+  usual choice. None lets the LLM decide what a user may see.
+- Permission correctness is tested with pass/fail cases (allowed user,
+  denied user, same question across users), packaged apart from quality
+  metrics: promptfoo's red-team config, DeepTeam as a separate package.
+- Practitioner write-ups pair a leak rate (checked on retrieved chunks,
+  target 0) with authorized recall, since denying everything scores zero
+  leaks. One showed a quality-only eval passing a build with the ACL
+  filter removed (leaks 0% → 82%, recall unchanged).
+- With exact search, a pre-filter changes nothing for an all-access user
+  and gives exact top-k over the visible subset for a restricted one.
+  Restricted-user numbers aren't comparable to an unfiltered baseline.
+  Filtered ANN (HNSW) is what breaks comparability, through candidate
+  starvation.
+- No source defines a standard over-blocking metric. Authorized recall
+  per user is the usual stand-in.
+
+Takeaways for handbook-rag:
+- The quality set ignores ACLs and runs as an all-access user, so its
+  numbers stay comparable to the baseline through week 2.
+- Permission cases are deferred until the week 2 ACL design is known.
+  The pointers above go into that spec.
+- When HNSW arrives, recompute exact ground truth and report ANN recall
+  as its own delta.
+
+Decisions informed: ACLs deferred from the eval set (NOTES 2026-10-15),
+(e) mix changed to 60 / 40.
+
+---
+
 ## Wed 14 Oct 2026
 
 ### Hamel Husain: Your AI Product Needs Evals

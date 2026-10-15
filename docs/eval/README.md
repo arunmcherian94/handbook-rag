@@ -1,6 +1,6 @@
 # Eval set: how the candidates were built (2026-10-14)
 
-Status: **86 UNVERIFIED candidates.** No answers or expected docs yet.
+Status: **76 UNVERIFIED quality candidates** (+20 parked permission cases). No answers or expected docs yet.
 Next: check answerability against the pinned corpus (SHA 5273b21), cut to
 50–60, and write every answer and expected doc by hand.
 
@@ -47,18 +47,12 @@ Next: check answerability against the pinned corpus (SHA 5273b21), cut to
      they type.
    - Mix: 60% answerable / 21% out-of-corpus / 20% restricted.
 
-6. **Principals:** every case names an acting user (D5a) from a fixture of 5
-   synthetic users in the brief. The harness passes it as request context,
-   as auth would; identity never comes from the question text. The old D5
-   became D5b, the role stated in the text: none, matches or conflicts.
-   - A fresh subagent added 4 `conflicts` cases (rows 104–107): the text
-     claims employee status, the principal is a contractor, and access must
-     still be denied.
-   - Each restricted case runs twice, as the denied principal and as an
-     entitled control.
-   - Restricted cases carry `requires: acl` and are reported as pending
-     until week 2 (phases in the brief).
-   - 86 candidates in all.
+6. **ACLs deferred (2026-10-15):** the quality set ignores ACLs and runs as
+   an all-access user, so it stays identical to the baseline. Permission
+   cases (16 restricted, plus 4 role-conflict cases a fresh subagent wrote)
+   are parked for week 2. The mix moved to 60 / 40 answerable /
+   out-of-corpus, and a fresh subagent added 10 out-of-corpus candidates.
+   The quality pool is 76.
 
 ## Why no corpus access during generation
 Questions written from pages reuse the pages' wording, which inflates
@@ -67,9 +61,8 @@ leak answers into the questions. Grounding happens at verification, where
 anything that can't be grounded is cut or moved to out-of-corpus.
 
 ## Open
-- The restricted rule needs exact paths and a fix: "entity-specific benefits"
-  would also hide the Contractor Benefits section, which contractors must see.
-  It should cover employee-only benefits and compensation pages instead.
-- Contradiction (11) and recency (10) are below their pool targets, which is
-  fine for a final set needing about 8 each.
-- Near-duplicate pairs left for the final cut: 44/54, 19/84/78, 20/79, 18/75.
+- Week 2: the restricted rule must not hide the Contractor Benefits
+  section; restrict employee-only benefits and compensation pages instead.
+- Contradiction (11) and recency (10) leave little slack for a final set
+  needing about 8 each.
+- Near-duplicate pair left for the final cut: 44/54.

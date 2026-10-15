@@ -17,8 +17,7 @@ no expected docs, no citations.
   excerpts."
 - `ooc-off-topic`: not about the handbook; expected reply "Sorry, I
   don't know how to answer that."
-- `restricted`: answerable from the corpus, but the principal can't
-  see the source; expected reply is the in-scope "I don't know" string
+- `restricted`: deferred to week 2 (see "Permission cases" below)
 
 **D2 Answer location** (from PR #9: right page wrong chunk 6/10, answer
 in a section that starts mid-chunk 6/10)
@@ -43,28 +42,15 @@ abbreviation sensitivity)
 - `ambiguous-scope`: words that match several entities, countries or
   teams, so distractor pages look relevant
 
-**D5a Principal** (the acting user; always set)
-
-Identity comes from the authenticated session, never from the question
-text. Every case names a principal from the table below. The harness
-passes it as request context, the way auth would in production.
-Answerable cases need one too, because the pre-filter runs on every
-query: with the wrong principal, an answerable case silently turns
-into a restricted one. When the expected answer depends on the
-principal (country, entity, manager or not), it is written for that
-principal.
-
 **D5b Role stated in the question text**
 - `none`: the question doesn't say who is asking (the usual case)
-- `matches`: the text states a role or situation consistent with the
-  principal ("new starter here", "my report", "I'm in India")
-- `conflicts`: the text claims an ACL-relevant attribute the principal
-  doesn't have (e.g. "as a full-time employee…" from a contractor
-  principal). Access must still follow the principal. Only employment
-  type counts as a conflict: country mismatches don't, since every
-  employee can read every country page.
-- Include role-stated and role-unstated questions, plus 3–4
-  `conflicts` cases.
+- `stated`: the text states a role or situation ("new starter here",
+  "my report", "I'm in India")
+- Include both. Quality questions carry no principal: they run as an
+  all-access user, so the set stays identical to the baseline before
+  and after week 2's ACLs. There is no user context, so when the
+  answer depends on who is asking, the expected answer covers the
+  variants or says what it depends on.
 
 **D6 Topic area**
 - expenses, time off, benefits, compensation, access and IT tools,
@@ -89,65 +75,26 @@ Traps may repeat across tuples, but at most 4 candidates per trap in
 the full pool. Exception: T8 allows up to 8, because PTO and holiday
 questions are among the most common real user questions.
 
-## Principals (synthetic fixture)
+## Permission cases (deferred to week 2)
 
-Attributes are limited to what the provisional ACL rule uses. Week 2's
-ACL spec adds more if it needs them.
-
-| ID | Employment type | Entity | Country | Manager |
-|---|---|---|---|---|
-| `emp-us` | employee | GitLab Inc | US | no |
-| `emp-nl` | employee | GitLab BV | Netherlands | no |
-| `emp-in` | employee | GitLab India | India | no |
-| `mgr-us` | employee | GitLab Inc | US | yes |
-| `contractor` | contractor | GitLab Services Inc (GSI) | Brazil | no |
-
-## Restricted scope (provisional until week 2)
-
-Principal `contractor` can't see entity-specific benefits and compensation
-pages. Exact paths are confirmed from the pinned SHA on Thursday.
-Fix due Thursday: as worded, this would also hide the Contractor
-Benefits section, which contractors must see. Restrict employee-only
-benefits and compensation pages instead.
-
-Each restricted case is one question run twice:
-- as the denied principal (`contractor`): the expected reply is the
-  in-scope "I don't know" string
-- as a control principal (an entitled employee): the expected outcome
-  is a correct answer
-
-The question and the reference answer are written once. The control
-separates "the ACL blocked it" from "retrieval missed it", since both
-produce the same reply.
-
-**Phases** (cases that need ACLs carry `requires: acl`):
-- **Week 1 baseline (no ACL):** controls are scored as normal
-  answerable cases. If a control misses, the restricted case tests
-  nothing and gets fixed or cut. The denied runs are reported in a
-  separate "pending: needs ACL" block as a pre-ACL leak rate (the
-  before number), never as failures. A leak is measured at retrieval
-  level first: any chunk from a restricted doc in the denied
-  principal's top k (a code check).
-- **Week 2 (ACL pre-filter):** restricted cases are scored. Gates: leak
-  rate 0 at retrieval and answer level; over-block rate 0 (a control
-  that passed in week 1 and fails now); `conflicts` cases leak 0.
-- **Week 5 (injection):** `conflicts` cases grow into injection cases,
-  scored with the same leak checks.
+Restricted and role-conflict cases are not part of the quality set. The
+drafts are parked in the candidates file until the week 2 ACL design is
+known. Research pointers are in NOTES (2026-10-15).
 
 ## Target counts
 
-Candidate pool: about 100 generated and added; 80–85 after first
-triage. Final set: 50–60.
+Quality set: 60 / 40 answerable / out-of-corpus, with out-of-corpus
+split about 2:1 between in-scope and off-topic. Pool: about 76.
+Final set: 50–60.
 
-| D1 | Pool (~85) | Final (~55) |
+| D1 | Pool (~76) | Final (~55) |
 |---|---|---|
-| lookup | 13 | 9 |
-| synthesis | 13 | 8 |
-| contradiction | 13 | 8 |
-| recency | 12 | 8 |
-| ooc-in-scope | 11 | 7 |
-| ooc-off-topic | 6 | 4 |
-| restricted | 17 | 11 |
+| lookup | 14 | 9 |
+| synthesis | 14 | 8 |
+| contradiction | 11 | 8 |
+| recency | 10 | 8 |
+| ooc-in-scope | 18 | 15 |
+| ooc-off-topic | 9 | 7 |
 
 Spread D2–D6 values across each type; no single value in more than
 about 40% of a type.
@@ -157,17 +104,13 @@ about 40% of a type.
 - `ooc-*` with any D2 value other than `none`, or with a trap
 - `ooc-off-topic` with any D6 value (topic is outside the handbook)
 - any non-ooc type with D2 `none`
-- `restricted` with a principal other than `contractor`, without a
-  control principal, or with a topic other than benefits or
-  compensation
-- `conflicts` on a non-restricted case
 - `lookup` with `several-pages`
 - `synthesis` with `short-section`
 - `contradiction` or `recency` without a trap
 
 ## 20 seed tuples
 
-These came before the D5a/D5b split, so their D5 is the old persona value.
+These came before D5b, so their D5 is the old persona value.
 
 | # | D1 | D2 | D3 | D4 | D5 | D6 | Trap |
 |---|---|---|---|---|---|---|---|
