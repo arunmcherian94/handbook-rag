@@ -5,6 +5,175 @@ and what it changes in this project. Newest first within each date.
 
 ---
 
+## Thu 15 Oct 2026
+
+### Research: access control in RAG evals (three research subagents)
+
+Question: should the eval set consider ACLs at all, and how do we keep
+the frozen baseline comparable once week 2 adds a pre-filter?
+
+Read in full or in part:
+- OWASP LLM08:2025 Vector and Embedding Weaknesses: https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/
+- OWASP LLM02:2025 Sensitive Information Disclosure: https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/
+- Azure AI Search, security filter pattern: https://learn.microsoft.com/en-us/azure/search/search-security-trimming-for-azure-search
+- Azure AI Search, document-level access control: https://learn.microsoft.com/en-us/azure/search/search-document-level-access-overview
+- AWS, access control with metadata filtering in Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/access-control-for-vector-stores-using-metadata-filtering-with-knowledge-bases-for-amazon-bedrock/
+- Auth0 / OpenFGA, secure RAG with LangChain: https://auth0.com/blog/building-a-secure-rag-with-python-langchain-and-openfga/
+- AuthZed / SpiceDB, multi-tenant RAG: https://authzed.com/blog/building-a-multi-tenant-rag-with-fine-grain-authorization-using-motia-and-spicedb
+- Oso, authorization in RAG: https://www-webflow.osohq.com/post/right-approach-to-authorization-in-rag
+- Cerbos, RAG authorization recipe: https://docs.cerbos.dev/cerbos/0.42.0/recipes/ai/rag-authorization
+- promptfoo red-team plugins (RBAC, BOLA, BFLA, cross-session leak) and red-team configuration: https://www.promptfoo.dev/docs/red-team/configuration/
+- DeepTeam RBAC: https://www.trydeepteam.com/docs/red-teaming-vulnerabilities-rbac
+- Inspect AI datasets: https://inspect.aisi.org.uk/datasets.html
+- Anthropic, Demystifying evals for AI agents: https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents
+- VaultRAG, enforcing access control inside the retrieval query: https://dev.to/royalpinto007/enforcing-rag-access-control-inside-the-retrieval-query-not-after-it-4gm3
+- vdf.ai, permission-aware private RAG: https://vdf.ai/blog/permission-aware-private-rag-on-premises/
+- pgvector README: https://github.com/pgvector/pgvector
+- ACORN, filtered vector search (SIGMOD 2024): https://arxiv.org/html/2403.04871v1
+- Qdrant, vector search filtering: https://qdrant.tech/articles/vector-search-filtering/
+- Securing the agent, multitenant retrieval (arXiv 2605.05287): https://arxiv.org/html/2605.05287
+
+Abstract or snippet only: Authorization-First Retrieval (TrustNLP 2026),
+arXiv 2603.23710 (filtered search in PostgreSQL), arXiv 2509.07789
+(filtered ANN benchmark), ARBITER (arXiv 2512.20535), Descope on
+post-retrieval checks, LangSmith metadata.
+
+Summary:
+- Every source enforces permissions as a deterministic layer in code or
+  the database, applied before the prompt is built. Pre-filtering is the
+  usual choice. None lets the LLM decide what a user may see.
+- Permission correctness is tested with pass/fail cases (allowed user,
+  denied user, same question across users), packaged apart from quality
+  metrics: promptfoo's red-team config, DeepTeam as a separate package.
+- Practitioner write-ups pair a leak rate (checked on retrieved chunks,
+  target 0) with authorized recall, since denying everything scores zero
+  leaks. One showed a quality-only eval passing a build with the ACL
+  filter removed (leaks 0% → 82%, recall unchanged).
+- With exact search, a pre-filter changes nothing for an all-access user
+  and gives exact top-k over the visible subset for a restricted one.
+  Restricted-user numbers aren't comparable to an unfiltered baseline.
+  Filtered ANN (HNSW) is what breaks comparability, through candidate
+  starvation.
+- No source defines a standard over-blocking metric. Authorized recall
+  per user is the usual stand-in.
+
+Takeaways for handbook-rag:
+- The quality set ignores ACLs and runs as an all-access user, so its
+  numbers stay comparable to the baseline through week 2.
+- Permission cases are deferred until the week 2 ACL design is known.
+  The pointers above go into that spec.
+- When HNSW arrives, recompute exact ground truth and report ANN recall
+  as its own delta.
+
+Decisions informed: ACLs deferred from the eval set (NOTES 2026-10-15),
+(e) mix changed to 60 / 40.
+
+---
+
+## Wed 14 Oct 2026
+
+### Hamel Husain: Your AI Product Needs Evals
+
+Link: https://hamel.dev/blog/posts/evals/
+
+Summary:
+- Error analysis is the core activity. Open coding first: free notes
+  per trace, recording the first upstream failure. Then axial coding:
+  group the notes into a counted failure taxonomy. Repeat until new
+  traces stop adding categories.
+- Annotate about 30 traces yourself before letting an agent suggest
+  failures. Eval categories come from observed failures, not from
+  predetermined query types.
+- Synthetic data: define dimensions, write about 20 tuples (one value
+  per dimension) by hand, have an LLM generate more tuples, then turn
+  tuples into queries in a separate prompt. The split avoids
+  repetitive phrasing. If a failure is an obvious prompt gap, fix the
+  prompt instead of generating tests for it.
+- Prefer cheap code assertions wherever a rule can detect the failure.
+  Keep LLM judges for persistent failures that need judgment.
+
+Takeaways for handbook-rag:
+- The six question types were set before error analysis, as coverage
+  strata. PR #9's traces confirmed that two of them,
+  contradictions/renames and version/recency, are real failure areas.
+  Failure categories still come only from coded traces.
+- Candidate questions use the two-step method: tuples first, questions
+  in a separate prompt.
+- Spec 0004 uses code checks first (citation present and valid, exact
+  abstention string) and judges only for what code can't detect.
+
+Decisions informed: (a) failure categories, today's two-step
+generation method, (d) binary rubric (Thursday).
+
+### Hamel Husain & Shreya Shankar: How many examples do I need for an eval?
+
+Link: https://hamel.dev/blog/posts/evals-faq/how-many-examples-do-i-need-for-an-eval.html
+AI Evals FAQ, item 3.
+
+Summary:
+- The answer depends on the stage. Discovery: about 100 diverse traces.
+  Code checks: pass and fail examples for each condition. An LLM judge:
+  about 100–200 labels per failure mode. A repeatable regression set
+  often grows past 100.
+
+Takeaways for handbook-rag:
+- The eval set starts at 50–60 questions and grows from later traces.
+  That is a starting set, not a judge-validation set, so the 100–200
+  label count doesn't apply yet and no judge is claimed as validated.
+
+Decisions informed: (c) judge claims (Thursday).
+
+### Hamel Husain & Shreya Shankar: Why binary pass/fail instead of 1–5 ratings?
+
+Link: https://hamel.dev/blog/posts/evals-faq/why-do-you-recommend-binary-passfail-evaluations-instead-of-1-5-ratings-likert-scales.html
+AI Evals FAQ, item 4.
+
+Summary:
+- Binary pass/fail beats 1–5 scales: clearer decisions, more
+  consistent labels. Track gradual progress as several binary
+  sub-checks, e.g. k of n expected facts present.
+
+Takeaways for handbook-rag:
+- Every check in spec 0004 is binary. Partial credit is counted as
+  sub-checks, not a score.
+
+Decisions informed: (d) binary rubric (Thursday).
+
+### Hamel Husain & Shreya Shankar: How do I know if I can trust my automated eval?
+
+Link: https://hamel.dev/blog/posts/evals-faq/how-do-i-know-if-i-can-trust-my-automated-eval.html
+AI Evals FAQ, item 5.
+
+Summary:
+- Validate a judge against human labels with a train / dev / test
+  split (roughly 10–20 / 40–45 / 40–45%). Report true positive and
+  true negative rates, not raw agreement. One judge per failure mode.
+
+Takeaways for handbook-rag:
+- No judge before the baseline traces are read.
+- With 50–60 questions, every judgment is hand-checked instead of
+  claiming a validated judge.
+
+Decisions informed: (f) order, (c) judge claims (Thursday).
+
+### Hamel Husain & Shreya Shankar: How do we evaluate a model's ability to know what it doesn't know?
+
+Link: https://hamel.dev/blog/posts/evals-faq/how-do-we-evaluate-a-models-ability-to-express-uncertainty-or-know-what-it-doesnt-know.html
+AI Evals FAQ, item 6.
+
+Summary:
+- Abstention evals need both answerable and unanswerable questions,
+  roughly balanced. Pass = answers the answerable ones and refuses the
+  unanswerable ones. Diversity matters more than the exact ratio.
+
+Takeaways for handbook-rag:
+- The eval set includes out-of-corpus questions alongside answerable
+  ones, scored against the baseline's two fixed replies.
+
+Decisions informed: (e) question mix.
+
+---
+
 ## Fri 9 Oct 2026
 
 ### Concepts from discussion (no single source)
@@ -224,12 +393,3 @@ Link: https://hamel.dev/blog/posts/evals-faq/#q-do-i-need-a-reference-answer-bef
 
 Key idea: criteria drift. Expected answers must stay revisable once
 real outputs have been read.
-
----
-
-## Pending (Sat 10 Oct, before eval set work)
-
-- [ ] FAQ 3, How many examples: https://hamel.dev/blog/posts/evals-faq/how-many-examples-do-i-need-for-an-eval.html
-- [ ] FAQ 4, Binary vs Likert: https://hamel.dev/blog/posts/evals-faq/why-do-you-recommend-binary-passfail-evaluations-instead-of-1-5-ratings-likert-scales.html
-- [ ] FAQ 5, Trusting the automated eval: https://hamel.dev/blog/posts/evals-faq/how-do-i-know-if-i-can-trust-my-automated-eval.html
-- [ ] FAQ 6, "I don't know": https://hamel.dev/blog/posts/evals-faq/how-do-we-evaluate-a-models-ability-to-express-uncertainty-or-know-what-it-doesnt-know.html
