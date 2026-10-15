@@ -196,6 +196,13 @@ Working notes on building this with a coding agent. One bullet per entry: what h
   - an identical-top-5 regression test for the all-access user
   - comparability breaks when HNSW arrives, not when ACLs do
 - **(e) mix changed:** the quality set is 60 / 40 answerable / out-of-corpus, with out-of-corpus about 2:1 in-scope vs off-topic. 10 out-of-corpus candidates added; the pool is 76 (49 / 27).
+- **Eval set v1 committed:** 54 rows, 33 answerable / 21 out-of-corpus (61 / 39); lookup 9, synthesis 8, contradiction 8, recency 8, ooc-in-scope 12, ooc-off-topic 9. [docs/eval/eval-set-v1.md](docs/eval/eval-set-v1.md), [CHANGELOG](docs/eval/CHANGELOG.md).
+  - 16 rows reviewed (every trap verdict checked against its excerpts, plus row 65). 38 rows are `llm-draft, unreviewed`: review them first on 2026-10-16.
+- **Out-of-corpus rule:** if the pin directly answers the question, recode it as answerable. If it asks for a value or personal state the pin doesn't have, keep it out-of-corpus. If the pin gives only a partial answer, cut it, because an exact-string check can't grade it fairly.
+- **Git history decides currency, never facts:** facts cite pinned files only. History only judges which pinned statement is current. Bulk commits make page-level dates weak evidence, so in-page wording ("previously IT BV") is preferred.
+- **Gate catch (reference drafting):** the trap hypotheses came from memory, not the pin. T7's $80 cap and the "HelpLab" name exist only in history, and T8 has no number conflict. Those rows were recoded, cut, or re-noted to what the pin contains. "Customer Success" is still in about 300 pinned files.
+- **Limitation:** per-country probation and notice-period tables are Hugo shortcodes whose data isn't in `content/handbook`. The RAG can't see them either. Follow-up: check whether shortcode data should be ingested.
+- **Gaps accepted for v1:** out-of-corpus is 12 : 9 in-scope vs off-topic, and there is no easy floor row.
 
 ## Corpus: git behaviors, limitations, assumptions
 
