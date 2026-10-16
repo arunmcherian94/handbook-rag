@@ -1,6 +1,6 @@
 # Eval set: how the candidates were built (2026-10-14)
 
-Status: **eval set v1.1** ([eval-set-v1.md](eval-set-v1.md), [CHANGELOG](CHANGELOG.md)):
+Status: **eval set v1.2** ([eval-set-v1.md](eval-set-v1.md), [CHANGELOG](CHANGELOG.md)):
 52 rows, 33 answerable / 19 out-of-corpus. Built from the 76 candidates below
 (+20 parked permission cases).
 
@@ -61,6 +61,9 @@ Status: **eval set v1.1** ([eval-set-v1.md](eval-set-v1.md), [CHANGELOG](CHANGEL
    ([sweep-2026-10-16.md](sweep-2026-10-16.md)); owner hand-reviewed a seeded
    8-row sample plus 3 more rows, then Claude auto-reviewed the remaining 26 on
    the owner's standing approval. Cut to 52 (v1.1).
+9. **Markers (2026-10-16):** `[required]` / `[optional]` on every answerable
+   row, owner-approved, so spec 0004 can compute recall over required facts
+   (v1.2).
 
 ## Why no corpus access during generation
 Questions written from pages reuse the pages' wording, which inflates

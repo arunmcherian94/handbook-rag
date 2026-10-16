@@ -1,6 +1,6 @@
-# Eval set v1.1 (2026-10-16)
+# Eval set v1.2 (2026-10-16)
 
-Status: **v1.1**, 52 live rows: 33 answerable / 19 out-of-corpus (63 / 37).
+Status: **v1.2**, 52 live rows: 33 answerable / 19 out-of-corpus (63 / 37).
 By D1: lookup 9, synthesis 8, contradiction 8, recency 8, ooc-in-scope 10, ooc-off-topic 9.
 Built from the 76 quality rows of [2026-10-14-candidates-UNVERIFIED.md](2026-10-14-candidates-UNVERIFIED.md);
 the parked permission cases are out of scope. Question text is verbatim and row numbers are the original
@@ -9,10 +9,10 @@ ones. Cut rows stay in section 5 with the reason. Changes: [CHANGELOG.md](CHANGE
 - **Reference provenance (`ref_source`):** drafted by Claude (never the model under test) from the pinned corpus only.
   - `llm-draft, reviewed` (26): the owner checked the trap verdict or the facts against the cited excerpts and approved each change (rows 8, 10, 11, 13, 26, 32, 44, 46, 47, 48, 49, 50, 51, 52, 53, 55, 58, 59, 65, 87, 89, 96, 99, 100, 111, 113).
   - `llm-draft, auto-reviewed` (26): a separate Claude review against the cited excerpts and the [sweep](sweep-2026-10-16.md), with its fixes applied on the owner's standing approval (2026-10-16); the owner did not read these excerpts (rows 5, 9, 14, 16, 17, 22, 23, 34, 35, 38, 60, 63, 68, 69, 70, 71, 72, 88, 92, 93, 102, 110, 112, 115, 116, 117).
-  - `human`: rewritten by the owner (none in v1.1).
+  - `human`: rewritten by the owner (none in v1.2).
 - **Source:** pinned corpus SHA `5273b21a9a2ebc01055526f4d4ce245ae7d1a7d7`, files under `content/handbook` only. Paths below are relative to `content/handbook/`.
 - **Method:** fresh session, `rg`/`sed` over the pin, never model memory. Rows were split across three parallel subagents by topic, each given the owner's rules verbatim. Rows 109, 110 and 113 were checked first and decided by the owner. Every `path § "heading" L<a>–<b>` citation was then machine-checked against the pin: the file exists, the range is inside the file, and the heading is the nearest heading above the range (or inside it). The facts were not machine-checked; key names, figures and trap excerpts were spot-checked by hand.
-- **Facts:** each `F<n>` is one binary check (k-of-n). `[variant: X]` marks one branch of a conditional answer. `[required]` facts are the minimum a correct answer must contain; `[optional]` facts are credit only. Rows without markers use the minimum stated in their notes.
+- **Facts:** each `F<n>` is one binary check (k-of-n). `[variant: X]` marks one branch of a conditional answer. `[required]` facts are the minimum a correct answer must contain; `[optional]` facts are credit only. Every answerable row is marked (v1.2).
 - **`recency_basis`** (contradiction and recency rows, added from 2026-10-16): `in-page` when pinned text signals which statement is current, `history-only` when only git history does. The model under test never sees git history, so `history-only` facts are reported separately.
 - **Out-of-corpus expected strings:** in-scope → "I don't know based on the provided handbook excerpts."; off-topic → "Sorry, I don't know how to answer that."
 - **Currency evidence:** `git log -1 --format='%h %ad' --date=short -- <path>` on each conflicting page. History is used only to judge which pinned statement is current, never as a source of facts. Caveat: three bulk commits touched hundreds of pages (`968e3521af` 2026-09-24 Customer Success → Customer Experience rename, 565 files; `bee431b547` 2026-09-13 HelpLab → Compass rename; `4469685d7b` 2026-08-27 marketing link cleanup). A page's last-commit date therefore often says nothing about the sentence in question. Rows note where in-page wording was used instead.
@@ -44,12 +44,12 @@ Q: new starter here - how do i go about buying my laptop and monitor? what are t
 expected_docs: eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md, finance/expenses.md
 citation: "New Hire Laptop Ordering Process" (eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md); "Equipment" (finance/expenses.md); "New Hires- 1,500 USD (or equivalent local currency) Guidelines" (finance/expenses.md)
 facts:
-- F1. You don't buy the laptop. GitLab issues it: fill in the laptop request form linked in the Candidate Experience Specialist's welcome email, as soon as possible. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L24–24
-- F2. The laptop is expected to arrive the week before your start date. If it hasn't arrived near your start date, email it-help@gitlab.com (cc people_operations@gitlab.com). — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L26–26; people-group/general-onboarding/tanewki-tips.md § "Equipment" L74–74
-- F3. [variant: country without vendor delivery, e.g. Brazil or Ukraine] Self-procure the laptop with IT approval (funds can be advanced). Costs are not covered without approval. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "Shipping Locations" L11–11 and § "Self procurement" L99–101
-- F4. The monitor comes from the new-hire home office stipend of 1,500 USD (or local equivalent) for your first year. — finance/expenses.md § "Equipment" L417–417
-- F5. Buy the monitor with your own funds, then submit a claim in Navan with Expense Type "Work From Home – New Hire Stipend". — finance/expenses.md § "New Hires- 1,500 USD (or equivalent local currency) Guidelines" L429–429
-- F6. Monitors and monitor stands are on the approved WFH equipment list. Items outside the list need pre-approval via Compass (`Expenses -> Home Office Equipment`). — finance/expenses.md § "Computer Equipment/Other" L448–448; § "Equipment" L422–422
+- F1. [required] You don't buy the laptop. GitLab issues it: fill in the laptop request form linked in the Candidate Experience Specialist's welcome email, as soon as possible. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L24–24
+- F2. [optional] The laptop is expected to arrive the week before your start date. If it hasn't arrived near your start date, email it-help@gitlab.com (cc people_operations@gitlab.com). — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L26–26; people-group/general-onboarding/tanewki-tips.md § "Equipment" L74–74
+- F3. [optional] [variant: country without vendor delivery, e.g. Brazil or Ukraine] Self-procure the laptop with IT approval (funds can be advanced). Costs are not covered without approval. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "Shipping Locations" L11–11 and § "Self procurement" L99–101
+- F4. [required] The monitor comes from the new-hire home office stipend of 1,500 USD (or local equivalent) for your first year. — finance/expenses.md § "Equipment" L417–417
+- F5. [required] Buy the monitor with your own funds, then submit a claim in Navan with Expense Type "Work From Home – New Hire Stipend". — finance/expenses.md § "New Hires- 1,500 USD (or equivalent local currency) Guidelines" L429–429
+- F6. [optional] Monitors and monitor stands are on the approved WFH equipment list. Items outside the list need pre-approval via Compass (`Expenses -> Home Office Equipment`). — finance/expenses.md § "Computer Equipment/Other" L448–448; § "Equipment" L422–422
 conflict:
 - A: "Purchase the items you need using your own funds and submit a claim in Navan for reimbursement. Select the Expense Type: Work From Home – New Hire Stipend." — finance/expenses.md § "New Hires- 1,500 USD (or equivalent local currency) Guidelines" L429–429 (same text at § "Equipment" L417); currency evidence: bee431b547 2026-09-13 (text introduced by c72b6af5ef 2026-08-31 "Update Equipment New hire Stipend information", which replaced the virtual-card wording)
 - B: "We recommend waiting until your start date, as you'll receive a virtual card with funds for equipment purchases." / "All new team members receive $1,500 USD (or local equivalent) via a [virtual card](...) for office equipment purchases." — people-group/general-onboarding/tanewki-tips.md § "Equipment and Expenses" L126–126, L142–142; currency evidence: bee431b547 2026-09-13 (rename-only touch; the virtual-card sentence dates from 0a32929759 2026-04-22). Also "These virtual cards within Navan ... are used solely for providing new Team Members with a $1,500 USD ... stipend" — finance/expenses.md § "6. Purchase Cards" L753–753 (stale in the same file)
@@ -57,6 +57,7 @@ conflict:
 recency_basis: history-only (only commit c72b6af5ef shows own-funds replaced the virtual card; the pin still has the virtual-card stipend text at finance/expenses.md L753). Scored: F4–F5 (own funds + Navan claim).
 flag: trap T1. The conflict is confirmed in the pin.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F4, F5; all other facts optional.
 notes: A correct answer says to pay with your own funds and claim in Navan, not to use a virtual card. Navan access arrives during your first week (tanewki L134). Distractors: business-technology/enterprise-applications/guides/coupa-virtual-cards (supplier virtual cards) and laptop-management "Laptop Refreshes" (existing staff).
 
 ### Row 49 — contradiction · single-fact · trap T1
@@ -64,10 +65,10 @@ Q: Is the manager responsible for ordering equipment for a new team member?
 expected_docs: eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md, finance/expenses.md
 citation: "New Hire Laptop Ordering Process" (eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md); "Equipment" (finance/expenses.md)
 facts:
-- F1. No. The new hire orders their own laptop through the request form linked in the Candidate Experience Specialist's welcome email. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L24–24
-- F2. The hiring manager (or hiring team) can check the status and contents of the new hire's laptop order in the IT Equipment Order Process project. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L30–30
-- F3. If the laptop isn't available by the start date, the hiring manager or hiring team must request a security exception so the new hire can temporarily use a personal macOS or Linux laptop. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L38–38
-- F4. The new hire buys home-office equipment themselves with their own funds and claims it against the 1,500 USD new-hire stipend in Navan. — finance/expenses.md § "Equipment" L417–417
+- F1. [required] No. The new hire orders their own laptop through the request form linked in the Candidate Experience Specialist's welcome email. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L24–24
+- F2. [optional] The hiring manager (or hiring team) can check the status and contents of the new hire's laptop order in the IT Equipment Order Process project. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L30–30
+- F3. [optional] If the laptop isn't available by the start date, the hiring manager or hiring team must request a security exception so the new hire can temporarily use a personal macOS or Linux laptop. — eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md § "New Hire Laptop Ordering Process" L38–38
+- F4. [required] The new hire buys home-office equipment themselves with their own funds and claims it against the 1,500 USD new-hire stipend in Navan. — finance/expenses.md § "Equipment" L417–417
 conflict:
 - A: "Purchase the items you need using your own funds and submit a claim in Navan for reimbursement." — finance/expenses.md § "New Hires- 1,500 USD (or equivalent local currency) Guidelines" L429–429; currency evidence: bee431b547 2026-09-13 (introduced c72b6af5ef 2026-08-31)
 - B: "All new team members receive $1,500 USD (or local equivalent) via a [virtual card](...) for office equipment purchases." — people-group/general-onboarding/tanewki-tips.md § "Equipment and Expenses" L142–142; currency evidence: bee431b547 2026-09-13 (rename-only; sentence dates from 0a32929759 2026-04-22). Also finance/expenses.md § "6. Purchase Cards" L753–753.
@@ -75,6 +76,7 @@ conflict:
 recency_basis: history-only (as 11). Scored only by F4 (payment); the core answer, who orders, is not contested.
 flag: trap T1. The conflict is confirmed in the pin. Note that the question's actual answer (who orders: the new hire, not the manager) is not itself contested. T1 only affects how the equipment is paid for.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F4; all other facts optional.
 notes: Strong distractor: engineering/careers/training/em-role/work_of_a_manager.md L67 lists "getting new team members their laptops" as manager administrivia. That is an example matrix, not policy. people-group/general-onboarding/tanewki-tips.md L95 says "work with your manager and IT for these standard items" (ergonomic equipment), which a model may over-read as manager responsibility. The welcome email is cc'd to the hiring manager (hiring/talent-acquisition-framework/coordinator.md L397).
 
 ### Row 51 — recency · single-fact · trap T1
@@ -82,10 +84,10 @@ Q: What payment method should new team members use for equipment purchases?
 expected_docs: finance/expenses.md
 citation: "Equipment" (finance/expenses.md); "New Hires- 1,500 USD (or equivalent local currency) Guidelines" (finance/expenses.md)
 facts:
-- F1. New team members pay with their own funds (personal payment method). — finance/expenses.md § "New Hires- 1,500 USD (or equivalent local currency) Guidelines" L429–429
-- F2. They then submit a reimbursement claim in Navan with Expense Type "Work From Home – New Hire Stipend". — finance/expenses.md § "Equipment" L417–417
-- F3. The stipend is 1,500 USD (or local equivalent) toward a home office in the first year. — finance/expenses.md § "Equipment" L417–417
-- F4. (Optional, existing staff) The yearly 500 USD refresh can't use the Navan Virtual Card either; use your own payment method. — finance/expenses.md § "Existing Team Members- 500 USD (or equivalent local currency) Refresh Guidelines" L435–435
+- F1. [required] New team members pay with their own funds (personal payment method). — finance/expenses.md § "New Hires- 1,500 USD (or equivalent local currency) Guidelines" L429–429
+- F2. [required] They then submit a reimbursement claim in Navan with Expense Type "Work From Home – New Hire Stipend". — finance/expenses.md § "Equipment" L417–417
+- F3. [optional] The stipend is 1,500 USD (or local equivalent) toward a home office in the first year. — finance/expenses.md § "Equipment" L417–417
+- F4. [optional] (Optional, existing staff) The yearly 500 USD refresh can't use the Navan Virtual Card either; use your own payment method. — finance/expenses.md § "Existing Team Members- 500 USD (or equivalent local currency) Refresh Guidelines" L435–435
 conflict:
 - A: "As you onboard and start your GitLab journey, new hires will receive a 1,500 USD (or equivalent local currency) stipend ... Purchase the items you need using your own funds and submit a claim in Navan for reimbursement." — finance/expenses.md § "Equipment" L417–417; currency evidence: bee431b547 2026-09-13 (introduced c72b6af5ef 2026-08-31 "Update Equipment New hire Stipend information")
 - B: "We recommend waiting until your start date, as you'll receive a virtual card with funds for equipment purchases." — people-group/general-onboarding/tanewki-tips.md § "Equipment and Expenses" L126–126; and "These virtual cards within Navan are only utilized by the AP team, and they are used solely for providing new Team Members with a $1,500 USD (or local currency equivalent) stipend for their home office set up." — finance/expenses.md § "6. Purchase Cards" L753–753; currency evidence: people-group/general-onboarding/tanewki-tips.md bee431b547 2026-09-13 (sentence from 0a32929759 2026-04-22); finance/expenses.md §6 sentence last changed a47f8fb619 2026-05-14
@@ -93,6 +95,7 @@ conflict:
 recency_basis: history-only (as 11). Scored: F1–F2 (own funds + Navan claim).
 flag: trap T1. The conflict is confirmed in the pin, and it appears both across pages and within finance/expenses.md itself (§Equipment vs §6 Purchase Cards).
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F2; all other facts optional.
 notes: An answer that says "virtual card" is wrong under the recency rule. Distractors: Coupa/Zip virtual-card guides for supplier payments and finance/accounts-payable/corp-credit-cards.md.
 
 ### Row 52 — recency · single-fact · trap T2
@@ -100,9 +103,9 @@ Q: Name of the current tool for submitting access requests?
 expected_docs: eta/corporate-it/compass/compass-guide/_index.md, eta/corporate-it/end-user-services/access-requests/_index.md
 citation: "What you gain" (eta/corporate-it/compass/compass-guide/_index.md); "Requesting Access in Lumos" (eta/corporate-it/end-user-services/access-requests/_index.md)
 facts:
-- F1. Compass (built on the third-party Serval platform) is described as the one place to submit and track access requests, replacing separate tools. — eta/corporate-it/compass/compass-guide/_index.md § "What you gain" L41–41; § "What is Compass?" L14–14
-- F2. The access-requests page says most access requests are now made through the Lumos App Store. — eta/corporate-it/end-user-services/access-requests/_index.md § "Requesting Access in Lumos" L17–17
-- F3. Apps not yet in Lumos still use GitLab access-request issue templates. — eta/corporate-it/end-user-services/access-requests/_index.md § "Approve a request" L39–39
+- F1. [required] Compass (built on the third-party Serval platform) is described as the one place to submit and track access requests, replacing separate tools. — eta/corporate-it/compass/compass-guide/_index.md § "What you gain" L41–41; § "What is Compass?" L14–14
+- F2. [required] The access-requests page says most access requests are now made through the Lumos App Store. — eta/corporate-it/end-user-services/access-requests/_index.md § "Requesting Access in Lumos" L17–17
+- F3. [optional] Apps not yet in Lumos still use GitLab access-request issue templates. — eta/corporate-it/end-user-services/access-requests/_index.md § "Approve a request" L39–39
 conflict:
 - A: "One place for access requests | Submit and track access requests directly through Compass instead of separate tools." — eta/corporate-it/compass/compass-guide/_index.md § "What you gain" L41–41; currency evidence: bee431b547 2026-09-13
 - B: "Most access requests are now made through the [Lumos App Store](https://app.lumosidentity.com/app_store) rather than by opening an issue." — eta/corporate-it/end-user-services/access-requests/_index.md § "Requesting Access in Lumos" L17–17; currency evidence: 8f22e33fea 2026-07-28
@@ -111,6 +114,7 @@ recency_basis: history-only (only commit dates suggest Compass is newer; unresol
 flag: trap T2. The conflict is in the pin. The reference answer needs human adjudication: is "Compass" alone acceptable, or must the answer mention both? Suggest accepting an answer that names Compass and notes Lumos, or names both with the conflict.
 decision: owner 2026-10-15 — accepted as drafted.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F2; all other facts optional.
 notes: The brief's "HelpLab renamed to Compass" has no in-pin text; HelpLab has zero hits. Distractors: issue-template workflow pages (eta/corporate-it/end-user-services/access-requests/access-requests/_index.md) and the Okta FAQ (okta-enduser-faq L209).
 
 ### Row 53 — recency · conditional · trap T2
@@ -118,12 +122,12 @@ Q: Am I the one who approves access requests for my direct reports?
 expected_docs: eta/corporate-it/end-user-services/access-requests/_index.md, security/corporate/systems/lumos/ar/_index.md, eta/corporate-it/end-user-services/access-requests/access-requests/_index.md
 citation: "Requesting Access in Lumos" / "Approve a request" (eta/corporate-it/end-user-services/access-requests/_index.md); "Overview" (security/corporate/systems/lumos/ar/_index.md); "Individual or Bulk Access Request" (eta/corporate-it/end-user-services/access-requests/access-requests/_index.md)
 facts:
-- F1. Yes, as the manager you are an approver. Lumos automatically routes your report's request to you, plus the system owner and any other required approvers. — eta/corporate-it/end-user-services/access-requests/_index.md § "Requesting Access in Lumos" L17–17; security/corporate/systems/lumos/ar/_index.md § "Overview" L9–9
-- F2. You are not the only approver. The system owner and others also approve, and Infrastructure-owned systems additionally need `@gitlab-com/gl-infra/managers` approval (~InfrastructureApproved). — security/corporate/systems/lumos/ar/_index.md § "Overview" L9–9; eta/corporate-it/end-user-services/access-requests/access-requests/_index.md § "Individual or Bulk Access Request" L41–41
-- F3. [variant: Lumos] Approve, comment on or deny from the Slack/email notification or in Lumos. You can edit which groups the user is added to before approving. — eta/corporate-it/end-user-services/access-requests/_index.md § "Approve a request" L37–37
-- F4. [variant: issue-template AR for apps not in Lumos] The manager adds `AR-Approval::Manager Approved` and `ReadyForProvisioning` labels, then assigns the issue to the system provisioner. — eta/corporate-it/end-user-services/access-requests/access-requests/_index.md § "Individual or Bulk Access Request" L54–57
-- F5. [variant: bulk request across several managers in one department] Approval can come from the highest-level manager (Director, VP or Executive). — eta/corporate-it/end-user-services/access-requests/access-requests/_index.md § "Individual or Bulk Access Request" L52–52
-- F6. [variant: Compass] Compass can grant time-bound app access automatically "based on your team's policy", without a stated manager step. — eta/corporate-it/compass/compass-guide/_index.md § "What Compass can resolve automatically" L109–109
+- F1. [required] Yes, as the manager you are an approver. Lumos automatically routes your report's request to you, plus the system owner and any other required approvers. — eta/corporate-it/end-user-services/access-requests/_index.md § "Requesting Access in Lumos" L17–17; security/corporate/systems/lumos/ar/_index.md § "Overview" L9–9
+- F2. [optional] You are not the only approver. The system owner and others also approve, and Infrastructure-owned systems additionally need `@gitlab-com/gl-infra/managers` approval (~InfrastructureApproved). — security/corporate/systems/lumos/ar/_index.md § "Overview" L9–9; eta/corporate-it/end-user-services/access-requests/access-requests/_index.md § "Individual or Bulk Access Request" L41–41
+- F3. [optional] [variant: Lumos] Approve, comment on or deny from the Slack/email notification or in Lumos. You can edit which groups the user is added to before approving. — eta/corporate-it/end-user-services/access-requests/_index.md § "Approve a request" L37–37
+- F4. [optional] [variant: issue-template AR for apps not in Lumos] The manager adds `AR-Approval::Manager Approved` and `ReadyForProvisioning` labels, then assigns the issue to the system provisioner. — eta/corporate-it/end-user-services/access-requests/access-requests/_index.md § "Individual or Bulk Access Request" L54–57
+- F5. [optional] [variant: bulk request across several managers in one department] Approval can come from the highest-level manager (Director, VP or Executive). — eta/corporate-it/end-user-services/access-requests/access-requests/_index.md § "Individual or Bulk Access Request" L52–52
+- F6. [optional] [variant: Compass] Compass can grant time-bound app access automatically "based on your team's policy", without a stated manager step. — eta/corporate-it/compass/compass-guide/_index.md § "What Compass can resolve automatically" L109–109
 conflict:
 - A: "App access request | Grants time-bound access via Okta SSO or direct provisioning, based on your team's policy." — eta/corporate-it/compass/compass-guide/_index.md § "What Compass can resolve automatically" L109–109; currency evidence: bee431b547 2026-09-13
 - B: "Lumos automatically routes the request to your manager, the system owner, and any other required approvers" — eta/corporate-it/end-user-services/access-requests/_index.md § "Requesting Access in Lumos" L17–17; currency evidence: 8f22e33fea 2026-07-28 (also security/corporate/systems/lumos/ar/_index.md, edd8c6568d 2026-04-09)
@@ -131,6 +135,7 @@ conflict:
 recency_basis: history-only (unresolved by the pin). Conflict not scored: manager approval holds under both tools.
 flag: trap T2. The tool conflict is in the pin, but it doesn't change the core answer (manager approval is required in both the Lumos and issue routes). Consider whether T2 is a good fit for this row.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1; all other facts optional.
 notes: Related manager duty: if the baseline-entitlements AR isn't auto-created for a new hire, the manager must create it (eta/corporate-it/end-user-services/access-requests/_index.md L98). Distractors: eta/css/zendesk/api/_index.md L213 (Zendesk-specific manager approval) and engineering/infrastructure-platforms/gitlab-dedicated/_index.md L166 (Dedicated-specific double approval).
 
 ### Row 8 — contradiction · single-fact · trap T3
@@ -138,10 +143,10 @@ Q: After I submit an expense in the US, how long until the money actually hits m
 expected_docs: finance/expenses.md, finance/accounting/_index.md
 citation: "Legal entities" (finance/expenses.md); "Paying Navan Reports" (finance/accounting/_index.md)
 facts:
-- F1. GitLab Inc and GitLab Federal expenses are reimbursed via Navan within 7 business days: in-policy expenses after submission, out-of-policy expenses after Accounts Payable approval. — finance/expenses.md § "Legal entities" L698–698
-- F2. Your bank account must be set up in Navan for payment to complete. — finance/expenses.md § "Legal entities" L699–699
-- F3. Navan batches approved expenses into a single weekly payment paid out on Mondays, covering approvals through the prior Sunday evening. The money should reach your bank on Tuesday or Wednesday. The page says Navan "will be implementing" this. — finance/expenses.md § "Legal entities" L701–701
-- F4. The answer should note that the accounting page gives a different figure: 1–4 business days after the report is "final approved". — finance/accounting/_index.md § "Paying Navan Reports" L459–459
+- F1. [required] GitLab Inc and GitLab Federal expenses are reimbursed via Navan within 7 business days: in-policy expenses after submission, out-of-policy expenses after Accounts Payable approval. — finance/expenses.md § "Legal entities" L698–698
+- F2. [optional] Your bank account must be set up in Navan for payment to complete. — finance/expenses.md § "Legal entities" L699–699
+- F3. [optional] Navan batches approved expenses into a single weekly payment paid out on Mondays, covering approvals through the prior Sunday evening. The money should reach your bank on Tuesday or Wednesday. The page says Navan "will be implementing" this. — finance/expenses.md § "Legal entities" L701–701
+- F4. [required] The answer should note that the accounting page gives a different figure: 1–4 business days after the report is "final approved". — finance/accounting/_index.md § "Paying Navan Reports" L459–459
 conflict:
 - A: "Expenses for GitLab Inc, GitLab Federal, ... are reimbursed via Navan within 7 business days for the expenses within policy or after approval by the Accounts Payable team (for out of policy expenses)." — finance/expenses.md § "Legal entities" L698–698; currency evidence: bee431b547 2026-09-13 (this line was last introduced or changed in a47f8fb619 2026-05-14)
 - B: "Team members in a US expense policy will be automatically reimbursed through Navan after their report is \"final approved\" within 1-4 business days." — finance/accounting/_index.md § "Paying Navan Reports" L459–459; currency evidence: c2934665d9 2026-03-18
@@ -149,6 +154,7 @@ conflict:
 recency_basis: in-page (the accounting page defers to the expense policy, finance/accounting/_index.md L444). Scored: F1 (7 business days) and F4 (notes the other figure).
 flag: trap T3. The conflict exists in the pin as described: 7 business days (plus a weekly Monday batch landing Tue/Wed) versus 1–4 business days.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F4; all other facts optional.
 notes: Grading should accept an answer that gives the 7-business-day figure and the Tue/Wed batch, and ideally notes the 1–4 day statement. An answer that gives only "1–4 business days" relies on the older page. "Final approved" means manager approval plus AP audit (accounting L450). Distractor: "Expense Reimbursement for Terminated Team Members" (L817, "within 1 week").
 
 ### Row 32 — synthesis · process · trap T3
@@ -156,20 +162,21 @@ Q: walk me through expenses end to end, from submitting a receipt to getting pai
 expected_docs: finance/expenses.md, finance/accounting/_index.md
 citation: "3. General Guidelines" (finance/expenses.md); "2. Responsibilities" (finance/expenses.md); "Legal entities" (finance/expenses.md); "PEO (Professional Employer Organization/ Employer of Record and not a GitLab entity or Branch)" (finance/expenses.md); "Processing Navan Reports" (finance/accounting/_index.md)
 facts:
-- F1. Submit expenses in Navan with receipts. Non-US team members need receipts for everything; US team members only for expenses over $50. Receipts must show vendor, date, items and a subtotal/tax breakout. — finance/expenses.md § "3. General Guidelines" L53–53
-- F2. The Navan description box is required: what the expense is and why. Blank descriptions are bounced back. — finance/expenses.md § "3. General Guidelines" L58–60
-- F3. Submit by the end of the fiscal quarter in which the expense was incurred. Claims over 90 days old need manager approval. — finance/expenses.md § "2. Responsibilities" L26–26; § "3. General Guidelines" L57–57
-- F4. If you're missing a receipt, attach a completed Missing Receipt Affidavit as a PDF. — finance/expenses.md § "4.3 Missing Receipt Affidavit" L689–689
-- F5. The report is approved by your manager and then audited by Accounts Payable ("final approved"). AP reviews reports that need admin review within 7 working days. — finance/accounting/_index.md § "Processing Navan Reports" L450–450; finance/expenses.md § "2. Responsibilities" L44–44
-- F6. [variant: GitLab entity employees, incl. US] Payment comes via Navan within 7 business days, once your bank account is set up in Navan. Navan batches a weekly Monday payout that lands Tue/Wed. — finance/expenses.md § "Legal entities" L698–701
-- F7. [variant: PEO / CXC / iiPay contractors] Expenses must be submitted and approved by the 3rd of the month to be included in that month's payroll or payment. iiPay pays by the 22nd. — finance/expenses.md § "PEO (Professional Employer Organization/ Employer of Record and not a GitLab entity or Branch)" L709–709, L729–729, L735–735
-- F8. [variant: France and Finland entities] Submit and get approval by the 6th of the month for inclusion in that month's payroll. — finance/expenses.md § "Legal entities" L700–700
+- F1. [required] Submit expenses in Navan with receipts. Non-US team members need receipts for everything; US team members only for expenses over $50. Receipts must show vendor, date, items and a subtotal/tax breakout. — finance/expenses.md § "3. General Guidelines" L53–53
+- F2. [optional] The Navan description box is required: what the expense is and why. Blank descriptions are bounced back. — finance/expenses.md § "3. General Guidelines" L58–60
+- F3. [required] Submit by the end of the fiscal quarter in which the expense was incurred. Claims over 90 days old need manager approval. — finance/expenses.md § "2. Responsibilities" L26–26; § "3. General Guidelines" L57–57
+- F4. [optional] If you're missing a receipt, attach a completed Missing Receipt Affidavit as a PDF. — finance/expenses.md § "4.3 Missing Receipt Affidavit" L689–689
+- F5. [required] The report is approved by your manager and then audited by Accounts Payable ("final approved"). AP reviews reports that need admin review within 7 working days. — finance/accounting/_index.md § "Processing Navan Reports" L450–450; finance/expenses.md § "2. Responsibilities" L44–44
+- F6. [required] [variant: GitLab entity employees, incl. US] Payment comes via Navan within 7 business days, once your bank account is set up in Navan. Navan batches a weekly Monday payout that lands Tue/Wed. — finance/expenses.md § "Legal entities" L698–701
+- F7. [optional] [variant: PEO / CXC / iiPay contractors] Expenses must be submitted and approved by the 3rd of the month to be included in that month's payroll or payment. iiPay pays by the 22nd. — finance/expenses.md § "PEO (Professional Employer Organization/ Employer of Record and not a GitLab entity or Branch)" L709–709, L729–729, L735–735
+- F8. [optional] [variant: France and Finland entities] Submit and get approval by the 6th of the month for inclusion in that month's payroll. — finance/expenses.md § "Legal entities" L700–700
 conflict:
 - A: "... are reimbursed via Navan within 7 business days for the expenses within policy or after approval by the Accounts Payable team (for out of policy expenses)." — finance/expenses.md § "Legal entities" L698–698; currency evidence: bee431b547 2026-09-13
 - B: "Team members in a US expense policy will be automatically reimbursed through Navan after their report is \"final approved\" within 1-4 business days." — finance/accounting/_index.md § "Paying Navan Reports" L459–459; currency evidence: c2934665d9 2026-03-18. A third timing statement on the same page: non-US entities are paid in the weekly AP run if final-approved by EOD Tuesday (L466–468).
 - current: A because finance/expenses.md is the canonical, more recently edited policy, and the accounting page defers to it (L444).
 flag: trap T3. The conflict is confirmed in the pin.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F3, F5, F6; all other facts optional.
 notes: The long process has many optional details. Core checks are F1, F3, F5 and F6. Distractors: Coupa/Zip procurement guides (supplier payments), finance/accounts-payable/corp-credit-cards.md (physical card), and "Expense Reimbursement for Terminated Team Members" (L817).
 
 ### Row 10 — contradiction · list · trap T4
@@ -177,14 +184,14 @@ Q: Please list the GitLab company values.
 expected_docs: values/_index.md, company/operating-principles.md
 citation: "CREDIT" (values/_index.md); "Acknowledging CREDIT" (company/operating-principles.md)
 facts:
-- F1. Collaboration is a GitLab value. — values/_index.md § "CREDIT" L14–15
-- F2. Results (for Customers) is a GitLab value. — values/_index.md § "CREDIT" L14, L16
-- F3. Efficiency is a GitLab value. — values/_index.md § "CREDIT" L14, L17
-- F4. Diversity, Inclusion & Belonging is a GitLab value. — values/_index.md § "CREDIT" L14, L18
-- F5. Iteration is a GitLab value. — values/_index.md § "CREDIT" L14, L19
-- F6. Transparency is a GitLab value. — values/_index.md § "CREDIT" L14, L20
-- F7. Together the six values spell CREDIT. — values/_index.md § "CREDIT" L21–22
-- F8. The newer Operating Principles page says GitLab is moving its focus from CREDIT to three operating principles (Speed with Quality, Ownership Mindset, Customer Outcomes), built on a Culture of Excellence, and that the CREDIT values "remain part of who we are". — company/operating-principles.md § "Acknowledging CREDIT" L77–79; (front matter) L3
+- F1. [required] Collaboration is a GitLab value. — values/_index.md § "CREDIT" L14–15
+- F2. [required] Results (for Customers) is a GitLab value. — values/_index.md § "CREDIT" L14, L16
+- F3. [required] Efficiency is a GitLab value. — values/_index.md § "CREDIT" L14, L17
+- F4. [required] Diversity, Inclusion & Belonging is a GitLab value. — values/_index.md § "CREDIT" L14, L18
+- F5. [required] Iteration is a GitLab value. — values/_index.md § "CREDIT" L14, L19
+- F6. [required] Transparency is a GitLab value. — values/_index.md § "CREDIT" L14, L20
+- F7. [optional] Together the six values spell CREDIT. — values/_index.md § "CREDIT" L21–22
+- F8. [required] The newer Operating Principles page says GitLab is moving its focus from CREDIT to three operating principles (Speed with Quality, Ownership Mindset, Customer Outcomes), built on a Culture of Excellence, and that the CREDIT values "remain part of who we are". — company/operating-principles.md § "Acknowledging CREDIT" L77–79; (front matter) L3
 conflict:
 - A: "GitLab's six core values are [Collaboration], [Results for Customers], [Efficiency], [Diversity, Inclusion & Belonging], [Iteration], and [Transparency], and together they spell the **CREDIT** we give each other by assuming good intent." — values/_index.md § "CREDIT" L14–22; currency evidence: 4469685d7b 2026-08-27 (only a link-path tweak in the "Bias towards asynchronous communication" section; the CREDIT list wasn't touched)
 - B: "We aren't retiring CREDIT because those values were wrong. We are choosing to focus on something different for an era that demands a different operating posture. The values CREDIT represented remain part of who we are. They live in the principles above…" — company/operating-principles.md § "Acknowledging CREDIT" L79; currency evidence: 7c0a88b0a2 2026-06-10 ("Add new operating principles page"); in-text `last_updated: "2026-05-15"` (L6), `status: active` (L4). The mission page (L67, 1b7fdfe2d1 2026-05-13) also names the three principles.
@@ -193,6 +200,7 @@ recency_basis: in-page (the Operating Principles page frames the move from CREDI
 flag: T4 trap. The pin really has the conflict. The owner needs to decide whether "company values" should be answered as CREDIT (A) or the three operating principles (B). The draft expects both.
 decision: owner 2026-10-15 — accepted as drafted.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F2, F3, F4, F5, F6, F8; all other facts optional.
 notes: The pin names the value "Results for Customers" on values/_index.md (L16) but "Results" on company/history.md L135 and company/culture/all-remote/onboarding.md L192. Either name should pass. Distractors: the "Operating principles" section on values/_index.md (L896–901), which treats operating principles as sub-behaviours of CREDIT, not a replacement; and ceo/_index.md "My Personal Values" (Integrity, Curious, Results), which are the CEO's personal values, not the company's.
 
 ### Row 50 — contradiction · process · trap T4
@@ -222,11 +230,11 @@ Q: Explain how a new team member should apply the operating principles to day-to
 expected_docs: company/operating-principles.md
 citation: "Speed with Quality", "Ownership Mindset", "Customer Outcomes", "Culture of Excellence" (company/operating-principles.md)
 facts:
-- F1. There are three operating principles, Speed with Quality, Ownership Mindset, and Customer Outcomes, built on a foundation of Culture of Excellence. — company/operating-principles.md (front matter / intro) L3, L10
-- F2. Speed with Quality: move fast with discipline. Build, experiment, and fail fast, especially on two-way-door decisions. Automate what an agent can do. Tolerate no unnecessary bureaucracy. — company/operating-principles.md § "Speed with Quality" L18, L24–26
-- F3. Ownership Mindset: the people closest to the work make the decisions and own the result. "It is never someone else's problem". Be efficient with budget, people, and time. — company/operating-principles.md § "Ownership Mindset" L35, L40, L43
-- F4. Customer Outcomes: judge work by what changes for the customer, not by activity. Be able to explain how your work connects to a customer outcome. — company/operating-principles.md § "Customer Outcomes" L51, L55
-- F5. Culture of Excellence: Excellence in Thought, Excellence in Action, Interpersonal Excellence (be a good human, assume good intent). — company/operating-principles.md § "Culture of Excellence" L65–71
+- F1. [required] There are three operating principles, Speed with Quality, Ownership Mindset, and Customer Outcomes, built on a foundation of Culture of Excellence. — company/operating-principles.md (front matter / intro) L3, L10
+- F2. [required] Speed with Quality: move fast with discipline. Build, experiment, and fail fast, especially on two-way-door decisions. Automate what an agent can do. Tolerate no unnecessary bureaucracy. — company/operating-principles.md § "Speed with Quality" L18, L24–26
+- F3. [required] Ownership Mindset: the people closest to the work make the decisions and own the result. "It is never someone else's problem". Be efficient with budget, people, and time. — company/operating-principles.md § "Ownership Mindset" L35, L40, L43
+- F4. [required] Customer Outcomes: judge work by what changes for the customer, not by activity. Be able to explain how your work connects to a customer outcome. — company/operating-principles.md § "Customer Outcomes" L51, L55
+- F5. [optional] Culture of Excellence: Excellence in Thought, Excellence in Action, Interpersonal Excellence (be a good human, assume good intent). — company/operating-principles.md § "Culture of Excellence" L65–71
 conflict:
 - A: "Operating principles are behaviors that empower GitLab team members to definitively live out a given value. They clarify what a given core value means and looks like *at GitLab*. Understanding this distinction is critical to thriving at GitLab, particularly for [newer team members]…" — values/_index.md § "Operating principles" L898–900; currency evidence: 4469685d7b 2026-08-27 (unrelated link edit)
 - B: "These three principles are built on a foundation of **Culture of Excellence**, which we expect every team member to uphold." … "We aren't retiring CREDIT because those values were wrong. We are choosing to focus on something different…" — company/operating-principles.md L10, § "Acknowledging CREDIT" L79; currency evidence: 7c0a88b0a2 2026-06-10 "Add new operating principles page"; in-text `last_updated: "2026-05-15"`, `status: active`
@@ -234,6 +242,7 @@ conflict:
 recency_basis: in-page (the Operating Principles page frames CREDIT as the previous framework; company/mission.md L67 names the three principles). Scored: F1–F4.
 flag: T4 trap. The pin contains two meanings of "operating principles": the CREDIT sub-behaviours (values page) and the three new principles (operating-principles page). The values page isn't marked deprecated. Owner review: confirm B as the expected answer.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F2, F3, F4; all other facts optional.
 notes: Supporting detail: leadership/building-trust.md § "How trust connects to our operating principles" L84–92. Distractors: values page operating principles such as "Bias towards asynchronous communication" and "Make two-way door decisions" (values/_index.md L735), which an answer built on A would cite.
 
 ### Row 13 — recency · conditional · trap T5
@@ -241,11 +250,11 @@ Q: I'm a contractor — do I get any benefits through my contracting entity?
 expected_docs: total-rewards/benefits/general-and-entity-benefits/_index.md, people-group/time-off-and-absence/time-off-types.md, people-group/employment-solutions.md
 citation: "Contractor Benefits" (total-rewards/benefits/general-and-entity-benefits/_index.md); "Overview" (people-group/time-off-and-absence/time-off-types.md); "Team Members Hired as Contractors via our GitLab Services Inc Entity" (people-group/employment-solutions.md)
 facts:
-- F1. Contractors get company-wide benefits but not entity-specific benefits. — total-rewards/benefits/general-and-entity-benefits/_index.md § "Contractor Benefits" L426; people-group/time-off-and-absence/time-off-types.md § "Overview" L60
-- F2. Contractors are responsible for their own health insurance, social security taxes, and payroll administration. — total-rewards/benefits/general-and-entity-benefits/_index.md § "Contractor Benefits" L426
-- F3. Company-wide benefits are available to all GitLab team members worldwide, regardless of location (unless stated otherwise). — total-rewards/benefits/general-and-entity-benefits/_index.md § "How Our Benefits Work" L9
-- F4. Contractors aren't eligible for entity-specific public holidays, but GitLab gives them a standard allocation of 12 public holidays. — people-group/time-off-and-absence/time-off-types.md § "Overview" L60
-- F5. [rewording: depends on entity?] In locations with no GitLab entity or PEO, team members contract with GitLab Services Inc (GSI), previously IT BV, as independent or C2C contractors. Entity-specific benefits apply only to team members employed through a GitLab entity or a PEO. — people-group/employment-solutions.md § "Team Members Hired as Contractors via our GitLab Services Inc Entity" L69; people-group/time-off-and-absence/time-off-types.md § "Overview" L60; total-rewards/benefits/general-and-entity-benefits/_index.md § "How Our Benefits Work" L11
+- F1. [required] Contractors get company-wide benefits but not entity-specific benefits. — total-rewards/benefits/general-and-entity-benefits/_index.md § "Contractor Benefits" L426; people-group/time-off-and-absence/time-off-types.md § "Overview" L60
+- F2. [required] Contractors are responsible for their own health insurance, social security taxes, and payroll administration. — total-rewards/benefits/general-and-entity-benefits/_index.md § "Contractor Benefits" L426
+- F3. [optional] Company-wide benefits are available to all GitLab team members worldwide, regardless of location (unless stated otherwise). — total-rewards/benefits/general-and-entity-benefits/_index.md § "How Our Benefits Work" L9
+- F4. [optional] Contractors aren't eligible for entity-specific public holidays, but GitLab gives them a standard allocation of 12 public holidays. — people-group/time-off-and-absence/time-off-types.md § "Overview" L60
+- F5. [optional] [rewording: depends on entity?] In locations with no GitLab entity or PEO, team members contract with GitLab Services Inc (GSI), previously IT BV, as independent or C2C contractors. Entity-specific benefits apply only to team members employed through a GitLab entity or a PEO. — people-group/employment-solutions.md § "Team Members Hired as Contractors via our GitLab Services Inc Entity" L69; people-group/time-off-and-absence/time-off-types.md § "Overview" L60; total-rewards/benefits/general-and-entity-benefits/_index.md § "How Our Benefits Work" L11
 conflict:
 - A: "GitLab IT BV contractors are eligible for company-wide benefits but not entity-specific benefits." — total-rewards/benefits/general-and-entity-benefits/_index.md § "Contractor Benefits" L426; currency evidence: f96a52e199 2026-09-28 ("Removing Finland benefits page"; that commit didn't touch the contractor sentence)
 - B: "Contractors of GitLab GSI (previously IT BV) are eligible for general benefits but not entity-specific benefits (including public holidays)." — people-group/time-off-and-absence/time-off-types.md § "Overview" L60; currency evidence: bee431b547 2026-09-13 (bulk HelpLab→Compass rename). Also: "Where we do not have an entity or a PEO, team members contract with our GitLab Services Inc entity as independent or C2C contractors." — people-group/employment-solutions.md L69; currency evidence: 7593cd32dc 2026-04-09
@@ -253,6 +262,7 @@ conflict:
 recency_basis: in-page ("GitLab GSI (previously IT BV)"). Conflict barely scored: eligibility is the same under both names; only F5 names the entity.
 flag: T5 trap. The pin has the old/new entity name (IT BV vs GSI), but the benefits answer is the same under both. The hypothesis is confirmed as a naming conflict, not a policy conflict.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F2; all other facts optional.
 notes: Distractors: entity-specific benefit pages (e.g. total-rewards/benefits/general-and-entity-benefits/remote-com.md, inc-benefits-us), which apply only to employees or PEO hires. legal/esg/_index.md L242 mentions team members "who contract with CXC or directly with GitLab IT BV" (a third contracting route the pin doesn't explain). hiring/talent-acquisition-framework/coordinator.md L1212–1216 still issues "IT BV contractor agreements".
 
 ### Row 48 — contradiction · conditional · trap T5
@@ -260,11 +270,11 @@ Q: I'm a contractor, who do I invoice?
 expected_docs: finance/_index.md, people-group/employment-solutions.md
 citation: "Invoice template and where to send", "Correspondence" (finance/_index.md); "Team Members Hired as Contractors via our GitLab Services Inc Entity" (people-group/employment-solutions.md)
 facts:
-- F1. Contractor invoices go to payroll@gitlab.com, and an "Invoice Template" is provided. — finance/_index.md § "Invoice template and where to send" L100
-- F2. [variant: non-US contractors not from Hungary, Italy, Japan, New Zealand, Nigeria, South Africa, Switzerland, Ukraine] You are paid through iiPay. Submit your monthly salary/bonus/commission invoice via Google form by the 8th, submit expenses in Navan by the 8th, and payment is scheduled for the 22nd. — finance/_index.md § "Invoice template and where to send" L102–109
-- F3. [variant: non-US contractors from Italy, Nigeria, South Africa, Switzerland, Ukraine] Email your monthly invoice and expenses to payroll@gitlab.com by the 15th. — finance/_index.md § "Invoice template and where to send" L111
-- F4. Questions about contractor invoices go to nonuspayroll@gitlab.com. — finance/_index.md § "Correspondence" L35
-- F5. [rewording: which entity] The contracting entity is GitLab Services Inc (GSI, formerly IT BV) where GitLab has no entity or PEO. — people-group/employment-solutions.md § "Team Members Hired as Contractors via our GitLab Services Inc Entity" L69; people-group/time-off-and-absence/time-off-types.md § "Overview" L60
+- F1. [required] Contractor invoices go to payroll@gitlab.com, and an "Invoice Template" is provided. — finance/_index.md § "Invoice template and where to send" L100
+- F2. [optional] [variant: non-US contractors not from Hungary, Italy, Japan, New Zealand, Nigeria, South Africa, Switzerland, Ukraine] You are paid through iiPay. Submit your monthly salary/bonus/commission invoice via Google form by the 8th, submit expenses in Navan by the 8th, and payment is scheduled for the 22nd. — finance/_index.md § "Invoice template and where to send" L102–109
+- F3. [optional] [variant: non-US contractors from Italy, Nigeria, South Africa, Switzerland, Ukraine] Email your monthly invoice and expenses to payroll@gitlab.com by the 15th. — finance/_index.md § "Invoice template and where to send" L111
+- F4. [optional] Questions about contractor invoices go to nonuspayroll@gitlab.com. — finance/_index.md § "Correspondence" L35
+- F5. [required] [rewording: which entity] The contracting entity is GitLab Services Inc (GSI, formerly IT BV) where GitLab has no entity or PEO. — people-group/employment-solutions.md § "Team Members Hired as Contractors via our GitLab Services Inc Entity" L69; people-group/time-off-and-absence/time-off-types.md § "Overview" L60
 conflict:
 - A: "VAT shifted to recipient … along with the VAT-number of GitLab IT BV (NL860316828B01)." — finance/_index.md § "Invoice template and where to send" L113–118; and "Generate IT BV Contractor Agreement - Independent or the IT BV Contractor Agreement - C2C" — hiring/talent-acquisition-framework/coordinator.md § "Employment Agreements for GitLab team members located everywhere else (IT BV contractor agreements)" L1212–1216; currency evidence: finance/_index.md 0067cfa872 2026-02-12; hiring/talent-acquisition-framework/coordinator.md bee431b547 2026-09-13 (bulk rename)
 - B: "Where we do not have an entity or a PEO, team members contract with our GitLab Services Inc entity as independent or C2C contractors." — people-group/employment-solutions.md L69; currency evidence: 7593cd32dc 2026-04-09. Plus "Contractors of GitLab GSI (previously IT BV)…" — people-group/time-off-and-absence/time-off-types.md § "Overview" L60; currency evidence: bee431b547 2026-09-13
@@ -272,6 +282,7 @@ conflict:
 recency_basis: in-page ("GitLab GSI (previously IT BV)"). Scored: F5 (GSI as the contracting entity).
 flag: T5 trap. The pin contains the IT BV vs GSI naming conflict as hypothesised. Also flagged: the two country lists in finance/_index.md disagree (L102 excludes Hungary, Japan, New Zealand from iiPay; L111 lists only Italy, Nigeria, South Africa, Switzerland, Ukraine for email invoicing), so Hungary/Japan/NZ contractors aren't covered.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F5; all other facts optional.
 notes: Distractors: finance/_index.md L31 (ap@gitlab.com is for vendor invoices), finance/procurement/contingent-worker-policy.md (third-party contingent workers, IT BV for India/Philippines L275–276), communication/chat.md L33 (#payroll channel; links to the internal handbook).
 
 ### Row 44 — contradiction · list · trap T6
@@ -279,11 +290,11 @@ Q: Who's on the Customer Success team? Need the full list of roles for a reorg d
 expected_docs: customer-experience/_index.md, customer-experience/roles-overview/_index.md, customer-experience/csm/segment/_index.md
 citation: "Customer Experience Teams" (customer-experience/_index.md); "Role Comparison", "1. The \"Hands on Keyboard\" Boundary" (customer-experience/roles-overview/_index.md)
 facts:
-- F1. The Customer Success organization is now named Customer Experience, a department within the GitLab Sales function. — customer-experience/_index.md § (front matter / intro) L2, L6
-- F2. Customer Success Manager (CSM) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L31; customer-experience/roles-overview/_index.md § "Role Comparison" L14
-- F3. Customer Success Engineer (CSE) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L32; customer-experience/roles-overview/_index.md § "Role Comparison" L15
-- F4. Customer Success Architect (CSA) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L33; customer-experience/roles-overview/_index.md § "Role Comparison" L16
-- F5. Renewals Manager (RM) is a role on the team ("Global Renewals Organization within CS"). — customer-experience/_index.md § "Customer Experience Teams" L34; customer-experience/roles-overview/_index.md § "Role Comparison" L18
+- F1. [required] The Customer Success organization is now named Customer Experience, a department within the GitLab Sales function. — customer-experience/_index.md § (front matter / intro) L2, L6
+- F2. [required] Customer Success Manager (CSM) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L31; customer-experience/roles-overview/_index.md § "Role Comparison" L14
+- F3. [required] Customer Success Engineer (CSE) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L32; customer-experience/roles-overview/_index.md § "Role Comparison" L15
+- F4. [required] Customer Success Architect (CSA) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L33; customer-experience/roles-overview/_index.md § "Role Comparison" L16
+- F5. [required] Renewals Manager (RM) is a role on the team ("Global Renewals Organization within CS"). — customer-experience/_index.md § "Customer Experience Teams" L34; customer-experience/roles-overview/_index.md § "Role Comparison" L18
 - F6. [optional] Professional Services Engineers (PSE), Solutions Architects (SA), and Assigned Support Engineers (ASE) are related customer-facing roles, but they are distinct from the advisory "Customer Success roles (CSM, CSE, CSA)". — customer-experience/roles-overview/_index.md § "1. The \"Hands on Keyboard\" Boundary" L26; (intro) L6
 conflict:
 - A: "- [VP, Customer Success](/job-description-library/sales/customer-success-leadership/#vice-president-of-customer-success)" (listed as reporting to the CRO) — sales/_index.md § "Who We Are" L75, L80; also "Roles covered include Customer Success Manager (CSM), Customer Success Engineer (CSE), Customer Success Architect (CSA)…" — customer-experience/roles-overview/_index.md (intro) L6; currency evidence: 968e3521af 2026-09-24 (both files, bulk rename commit)
@@ -300,9 +311,9 @@ Q: Who leads Customer Success these days? need a contact
 expected_docs: eba/_index.md, customer-experience/csm/csm-manager/_index.md
 citation: "Executive Business Administrator Team" (eba/_index.md); "CS Leadership" (customer-experience/csm/csm-manager/_index.md)
 facts:
-- F1. Sherrod Patching leads Customer Success (now Customer Experience). Name only; the title is not checked. — eba/_index.md § "Executive Business Administrator Team" L36
-- F2. Sherrod Patching is the Global, VP-level head in the CS Leadership table. — customer-experience/csm/csm-manager/_index.md § "CS Leadership" L14–18
-- F3. Executive support (EBA) contact for Sherrod Patching is Lauren Traylor (Sr EBA). — eba/_index.md § "Executive Business Administrator Team" L36
+- F1. [required] Sherrod Patching leads Customer Success (now Customer Experience). Name only; the title is not checked. — eba/_index.md § "Executive Business Administrator Team" L36
+- F2. [optional] Sherrod Patching is the Global, VP-level head in the CS Leadership table. — customer-experience/csm/csm-manager/_index.md § "CS Leadership" L14–18
+- F3. [optional] Executive support (EBA) contact for Sherrod Patching is Lauren Traylor (Sr EBA). — eba/_index.md § "Executive Business Administrator Team" L36
 conflict:
 - A: "the [Senior Director, Technical Account Management](https://gitlab.com/spatching) who reports the [Vice President, Customer Success](https://gitlab.com/dsakamoto)." — customer-experience/apj-customer-success.md § "APJ Customer Success Team" L32–33; also "| Executive Sponsor | David Sakamoto | VP, Customer Success |" — company/working-groups/lighthouse-metric-definitions.md § "Roles and Responsibilities" L49; currency evidence: customer-experience/apj-customer-success.md 968e3521af 2026-09-24 (bulk rename only); company/working-groups/lighthouse-metric-definitions.md 2b66c7af25 2025-03-28 (target end date 2024-01-31, L28)
 - B: "| [Sales](/handbook/sales/) | **Lauren Traylor**<br>Sr EBA | Sherrod Patching (Chief Customer Officer)<br>Ted Ohr (VP, Professional Services) |" — eba/_index.md § "Executive Business Administrator Team" L36; currency evidence: 1ff992d7b4 2026-08-26 (content edit "Update Engineering/IT executive support alignments")
@@ -311,6 +322,7 @@ recency_basis: history-only (the EBA table's 2026-08-26 content edit is the only
 flag: T6 trap. Owner review requested: no pinned page says outright "Customer Experience is led by X". The answer comes from the EBA table and the CS Leadership table. Titles disagree even in current pages (Chief Customer Officer in eba L36 vs "VP" in csm-manager L18). Older pages still name David Sakamoto as VP Customer Success (several company/working-groups pages; sales/field-manager-development.md L92).
 decision: owner 2026-10-15 — F1 checks the name only (Sherrod Patching); title not required.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1; all other facts optional.
 notes: The question uses the old name "Customer Success". The answer should map it to Customer Experience. Distractors: sales/_index.md L80 links only a job-description, no name; security plan "VP Customer Success" (role, no name); engineering/_index.md L442 "VP, Customer Success Management - Sherrod Patching" (older title).
 
 ### Row 46 — contradiction · single-fact · trap T8
@@ -318,10 +330,10 @@ Q: Just started — do I need to give PTO notice for a half day off?
 expected_docs: people-group/time-off-and-absence/time-off-types.md, people-group/time-off-and-absence/time-away-philosophy.md
 citation: "PTO Protocols (Planning and Coordination)" (people-group/time-off-and-absence/time-off-types.md); "Timely & Transparent Communication" (people-group/time-off-and-absence/time-away-philosophy.md)
 facts:
-- F1. Yes: discuss planned time off with your manager first, giving as much notice as possible and at least twice as many days as the time off. — people-group/time-off-and-absence/time-off-types.md § "PTO Protocols (Planning and Coordination)" L25
-- F2. The 2x advance-notice rule covers planned PTO, Public Holidays and Volunteer time. — people-group/time-off-and-absence/time-away-philosophy.md § "Timely & Transparent Communication" L69
-- F3. By the 2x rule, a half day off needs at least 1 day of notice (derived from the 2x rule; the pin has no half-day example). — derived from people-group/time-off-and-absence/time-off-types.md L25
-- F4. The time off must also be logged in Workday. — people-group/time-off-and-absence/time-off-types.md § "How to Enter PTO in Workday" L37
+- F1. [required] Yes: discuss planned time off with your manager first, giving as much notice as possible and at least twice as many days as the time off. — people-group/time-off-and-absence/time-off-types.md § "PTO Protocols (Planning and Coordination)" L25
+- F2. [optional] The 2x advance-notice rule covers planned PTO, Public Holidays and Volunteer time. — people-group/time-off-and-absence/time-away-philosophy.md § "Timely & Transparent Communication" L69
+- F3. [optional] By the 2x rule, a half day off needs at least 1 day of notice (derived from the 2x rule; the pin has no half-day example). — derived from people-group/time-off-and-absence/time-off-types.md L25
+- F4. [optional] The time off must also be logged in Workday. — people-group/time-off-and-absence/time-off-types.md § "How to Enter PTO in Workday" L37
 conflict:
 - A: "provide as much notice as possible, but at least twice as many days as your planned time off (e.g., 6 business days notice for 3 days off)" — people-group/time-off-and-absence/time-off-types.md § "PTO Protocols (Planning and Coordination)" L25; currency evidence: bee431b547 2026-09-13
 - B: "Share PTO plans 2-3 weeks in advance or more when possible" — people-group/time-off-and-absence/time-away-philosophy.md § "Summary of Best Practices: Results-Focused Approach" L140; currency evidence: bee431b547 2026-09-13
@@ -330,6 +342,7 @@ recency_basis: in-page (binding "at least" rule vs a "when possible" best practi
 trap note (T8): no "PTO" vs "paid time off" conflict in the pin; both terms are used for the same rule. The conflict in the pin is the notice rule: the binding minimum "at least twice as many days as your planned time off" (people-group/time-off-and-absence/time-off-types.md L25) vs the best practice "Share PTO plans 2-3 weeks in advance or more when possible" (people-group/time-off-and-absence/time-away-philosophy.md L140). The only half-day rule is Support-only (support/support-time-off.md L94–96). Nothing differs for new hires.
 decision: owner 2026-10-15 — keep D1; trap note rewritten to the conflict actually in the pin.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1; all other facts optional.
 notes: Distractors: the Support half-day rule above. Answers that apply it to everyone should fail. India entity requires entering scheduled time off 30 days ahead for payroll (entity/india-pvt-ltd.md § "India Specific Leave" L262), an entity variant. Public holidays cannot be partial (people-group/time-off-and-absence/time-off-types.md L93).
 
 ### Row 58 — recency · conditional · trap T8
@@ -360,12 +373,12 @@ Q: Joining next month and I already have a trip booked in my first few weeks. Ca
 expected_docs: people-group/general-onboarding/tanewki-tips.md, people-group/time-off-and-absence/time-off-types.md
 citation: "Payroll & Benefits" (people-group/general-onboarding/tanewki-tips.md); "Overview" under "Flexible Paid Time Off (PTO)" (people-group/time-off-and-absence/time-off-types.md)
 facts:
-- F1. For pre-planned vacations, discuss them with your manager as soon as possible to arrange cover, then enter them in Workday once you have access after starting. — people-group/general-onboarding/tanewki-tips.md § "Payroll & Benefits" L150–152
-- F2. Flexible PTO has no stated tenure or waiting period. Time off is approved once you've coordinated with your manager and made a coverage plan. — people-group/time-off-and-absence/time-off-types.md § "Overview" L17
-- F3. Give at least twice as many days of notice as the time off. — people-group/time-off-and-absence/time-off-types.md § "PTO Protocols (Planning and Coordination)" L25
-- F4. [variant: Japan] Statutory annual leave starts at 10 days only after six months of service. — total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md § "Time Off & Leave Policies" L185
-- F5. [variant: Singapore] Statutory holiday allowance accrual by tenure starts after 3 months of employment (runs concurrently with GitLab PTO). — total-rewards/benefits/general-and-entity-benefits/singapore-pte-ltd.md § "Annual Leave" L234, L244
-- F6. [variant: Germany] Statutory vacation accrues from the start date at 1.67 days/month. — entity/gmbh-germany.md § "Vacation Entitlement" L551
+- F1. [required] For pre-planned vacations, discuss them with your manager as soon as possible to arrange cover, then enter them in Workday once you have access after starting. — people-group/general-onboarding/tanewki-tips.md § "Payroll & Benefits" L150–152
+- F2. [required] Flexible PTO has no stated tenure or waiting period. Time off is approved once you've coordinated with your manager and made a coverage plan. — people-group/time-off-and-absence/time-off-types.md § "Overview" L17
+- F3. [optional] Give at least twice as many days of notice as the time off. — people-group/time-off-and-absence/time-off-types.md § "PTO Protocols (Planning and Coordination)" L25
+- F4. [optional] [variant: Japan] Statutory annual leave starts at 10 days only after six months of service. — total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md § "Time Off & Leave Policies" L185
+- F5. [optional] [variant: Singapore] Statutory holiday allowance accrual by tenure starts after 3 months of employment (runs concurrently with GitLab PTO). — total-rewards/benefits/general-and-entity-benefits/singapore-pte-ltd.md § "Annual Leave" L234, L244
+- F6. [optional] [variant: Germany] Statutory vacation accrues from the start date at 1.67 days/month. — entity/gmbh-germany.md § "Vacation Entitlement" L551
 conflict:
 - A: "Our Flexible PTO policy means that as long as you have coordinated with your manager about your planned time off and made a coverage plan, you are free to take PTO." — people-group/time-off-and-absence/time-off-types.md § "Overview" L17; currency evidence: bee431b547 2026-09-13
 - B: "Guaranteed annual leave starting at 10 days after six months, increasing to maximum 20 days." — total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md § "Time Off & Leave Policies" L185; currency evidence: bee431b547 2026-09-13
@@ -373,6 +386,7 @@ conflict:
 trap note (T8): no "PTO" vs "paid time off" conflict in the pin. The conflict in the pin is waiting periods: Flexible PTO states no tenure condition (people-group/time-off-and-absence/time-off-types.md L17), while some entity statutory annual leave has one (Japan: from six months, total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md L185; Singapore: from three months). "Available from day one" is inferred from the absence of a condition, not stated.
 decision: owner 2026-10-15 — keep D1; trap note rewritten to the conflict actually in the pin.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F2; all other facts optional.
 notes: Strong distractors: "available from their first day of work" applies to Sick Time (people-group/time-off-and-absence/time-off-types.md L124), Bereavement (L245) and Emergency Leave (people-group/time-off-and-absence/leave-types.md L95), not Flexible PTO. New-hire public holiday balance is pro-rated (people-group/time-off-and-absence/time-off-types.md L97–102). India requires scheduled time off to be entered 30 days ahead (entity/india-pvt-ltd.md L262). Onboarding buddies are asked to be available in the first two weeks (people-group/general-onboarding/onboarding-buddies.md L43), which is not a rule for new hires.
 
 ### Row 100 — contradiction · single-fact · trap T8
@@ -380,12 +394,12 @@ Q: Does unused PTO carry over into next year?
 expected_docs: people-group/time-off-and-absence/time-off-types.md
 citation: "Overview" under "Flexible Paid Time Off (PTO)" (people-group/time-off-and-absence/time-off-types.md); "Global Statutory Requirements" (people-group/time-off-and-absence/time-off-types.md); "Overview" under "Public Holiday" (people-group/time-off-and-absence/time-off-types.md)
 facts:
-- F1. GitLab Flexible PTO has no annual limit and no balance to carry over. Germany's page states GitLab PTO "does not accrue". — people-group/time-off-and-absence/time-off-types.md § "Overview" L18; entity/gmbh-germany.md § "Vacation Entitlement" L554
-- F2. Carryover rules for statutory leave depend on location and are on the entity pages. — people-group/time-off-and-absence/time-off-types.md § "Global Statutory Requirements" L47
-- F3. Unused public holiday balance does not roll over to the next calendar year. — people-group/time-off-and-absence/time-off-types.md § "Overview" (Public Holiday) L58
-- F4. [variant: Germany] Statutory vacation must be taken in the calendar year. It can carry over to March 31 only in special circumstances. — entity/gmbh-germany.md § "Vacation Entitlement" L552–553
-- F5. [variant: Netherlands] Unused days carry over but expire July 1. — total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md § "Vacation Time" L533
-- F6. [variant: Belgium / Ireland / Japan / India] Belgium: no carryover (total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md § "Vacation Leave" L217). Ireland: only with written approval (total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md § "Time Off Policies" L402). Japan: carries over up to two years (total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md § "Time Off & Leave Policies" L189). India: individual contributors carry over up to 30 days, the excess is encashed, and people managers can't carry over (entity/india-pvt-ltd.md § "Statutory Leave Entitlement" L268–269).
+- F1. [required] GitLab Flexible PTO has no annual limit and no balance to carry over. Germany's page states GitLab PTO "does not accrue". — people-group/time-off-and-absence/time-off-types.md § "Overview" L18; entity/gmbh-germany.md § "Vacation Entitlement" L554
+- F2. [required] Carryover rules for statutory leave depend on location and are on the entity pages. — people-group/time-off-and-absence/time-off-types.md § "Global Statutory Requirements" L47
+- F3. [optional] Unused public holiday balance does not roll over to the next calendar year. — people-group/time-off-and-absence/time-off-types.md § "Overview" (Public Holiday) L58
+- F4. [optional] [variant: Germany] Statutory vacation must be taken in the calendar year. It can carry over to March 31 only in special circumstances. — entity/gmbh-germany.md § "Vacation Entitlement" L552–553
+- F5. [optional] [variant: Netherlands] Unused days carry over but expire July 1. — total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md § "Vacation Time" L533
+- F6. [optional] [variant: Belgium / Ireland / Japan / India] Belgium: no carryover (total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md § "Vacation Leave" L217). Ireland: only with written approval (total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md § "Time Off Policies" L402). Japan: carries over up to two years (total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md § "Time Off & Leave Policies" L189). India: individual contributors carry over up to 30 days, the excess is encashed, and people managers can't carry over (entity/india-pvt-ltd.md § "Statutory Leave Entitlement" L268–269).
 conflict:
 - A: "GitLab does not set a specific limit on the amount of PTO a team member can take per year." — people-group/time-off-and-absence/time-off-types.md § "Overview" L18; currency evidence: bee431b547 2026-09-13
 - B: "Unused days carry over to the next calendar year but expire July 1st" — total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md § "Vacation Time" L533; currency evidence: bee431b547 2026-09-13
@@ -395,6 +409,7 @@ recency_basis: in-page (not a currency conflict: the text separates non-accruing
 trap note (T8): the conflict in the pin is terminology. Global "PTO" means non-accruing Flexible PTO, so there is nothing to carry over (people-group/time-off-and-absence/time-off-types.md L18). Entity pages log statutory vacation as "Paid Time Off" in Workday, each with its own carryover rule (e.g. Netherlands: carries over, expires July 1, total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md L533). The Singapore page also contradicts itself (L234 vs L247).
 decision: owner 2026-10-15 — keep D1; trap note rewritten to the conflict actually in the pin.
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1, F2; all other facts optional.
 notes: The minimum correct answer is F1 + F2 (+F3). Entity variants are k-of-n optional. Distractors: FSA/HSA "rollover" (total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md L501–513), Modern Health "Unused sessions do not roll over" (total-rewards/benefits/modern-health.md L86), and India sick/casual leave with no carry forward (entity/india-pvt-ltd.md L317–319).
 
 ## 2. Flags (non-trap, resolved)
@@ -491,13 +506,14 @@ Q: do i have to turn on disk encryption on my laptop
 expected_docs: eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md
 citation: "Overview" (eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md); "Apple macOS"; "Linux"
 facts:
-- F1. Yes. All laptops are required to have disk encryption enabled. — eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Overview" L7–7
-- F2. [variant: macOS] Jamf enables FileVault automatically, so no configuration is needed, though you are encouraged to verify it is on. — eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Apple macOS" L15–15
-- F3. [variant: macOS onboarding] FileVault is required. You'll be prompted to enable it at next login and can't proceed without doing so. — eta/corporate-it/end-user-services/onboarding101/_index.md § "MacBook Step 3: System Configuration" L105–105
-- F4. [variant: Linux] LUKS full-disk encryption is required and must be enabled when you first set up the OS. — eta/corporate-it/end-user-services/laptop-management/_index.md § "Requirements" L55–55; eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Linux" L28–28
-- F5. Proof of disk encryption must be provided in the new laptop order or onboarding issue. — eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Overview" L9–9
+- F1. [required] Yes. All laptops are required to have disk encryption enabled. — eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Overview" L7–7
+- F2. [optional] [variant: macOS] Jamf enables FileVault automatically, so no configuration is needed, though you are encouraged to verify it is on. — eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Apple macOS" L15–15
+- F3. [optional] [variant: macOS onboarding] FileVault is required. You'll be prompted to enable it at next login and can't proceed without doing so. — eta/corporate-it/end-user-services/onboarding101/_index.md § "MacBook Step 3: System Configuration" L105–105
+- F4. [optional] [variant: Linux] LUKS full-disk encryption is required and must be enabled when you first set up the OS. — eta/corporate-it/end-user-services/laptop-management/_index.md § "Requirements" L55–55; eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Linux" L28–28
+- F5. [optional] Proof of disk encryption must be provided in the new laptop order or onboarding issue. — eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Overview" L9–9
 flag: none
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1; all other facts optional.
 notes: There is a mild tension on macOS: Jamf enables encryption automatically ("No Action Required") while onboarding101 has you click "Enable Now" for FileVault. Either way it is mandatory. Distractors: security/policies_and_standards/cryptographic-standard.md L84 (algorithms) and finance/travel/_index.md L122 (power off before security checkpoints).
 
 ### Row 34 — synthesis · list · trap –
@@ -557,8 +573,9 @@ Q: Where's the seating plan for the office floor?
 expected_docs: company/culture/inclusion/_index.md, security/corporate/_index.md
 citation: "Fully distributed and completely connected" (company/culture/inclusion/_index.md); "Mission" (security/corporate/_index.md)
 facts:
-- F1. There is no office seating plan because GitLab is all-remote and has no offices. Either citation passes. — company/culture/inclusion/_index.md § "Fully distributed and completely connected" L147; security/corporate/_index.md § "Mission" L25
+- F1. [required] There is no office seating plan because GitLab is all-remote and has no offices. Either citation passes. — company/culture/inclusion/_index.md § "Fully distributed and completely connected" L147; security/corporate/_index.md § "Mission" L25
 ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — `[required]`/`[optional]` markers added (v1.2). Required: F1; all other facts optional.
 notes: Distractors: "open office floor plan" and "hot desking" in all-remote essays (company/culture/all-remote/getting-started.md L70, company/culture/all-remote/workspace.md L215, company/culture/all-remote/stages.md L81); event seating (marketing/growth-marketing/corporate-events.md).
 
 ### Row 88 — lookup · process · trap –
@@ -582,12 +599,12 @@ Q: whats our exit policy
 expected_docs: people-group/offboarding/_index.md, people-group/offboarding/faq.md
 citation: "Prior to Resignation" (people-group/offboarding/_index.md); "Resignation" (people-group/offboarding/_index.md); "Involuntary Terminations" (people-group/offboarding/_index.md); "Laptop Wipe" (people-group/offboarding/faq.md)
 facts:
-- F1. Before resigning, talk to your direct manager about the handover and communication plan, check your location's notice period, and prepare a resignation letter. — people-group/offboarding/_index.md § "Prior to Resignation" L28–30
+- F1. [optional] Before resigning, talk to your direct manager about the handover and communication plan, check your location's notice period, and prepare a resignation letter. — people-group/offboarding/_index.md § "Prior to Resignation" L28–30
 - F2. [required] You resign by submitting it directly in Workday (via Okta). Your manager then completes the offboarding/termination in Workday, and you receive an offboarding packet (final pay, benefits, device return). — people-group/offboarding/_index.md § "Resignation" L34–35
-- F3. Some countries have extra resignation steps, e.g. Germany requires a wet-ink signed resignation letter, and Belgium/France must email the letter to legal-employment@gitlab.com. — people-group/offboarding/_index.md § "Belgium" / "France" / "Germany" L42–50
+- F3. [optional] Some countries have extra resignation steps, e.g. Germany requires a wet-ink signed resignation letter, and Belgium/France must email the letter to legal-employment@gitlab.com. — people-group/offboarding/_index.md § "Belgium" / "France" / "Germany" L42–50
 - F4. [required] Involuntary terminations are handled only by Team Member Relations (TMR), after the underperformance guidelines have been followed. — people-group/offboarding/_index.md § "Involuntary Terminations" L86–87
-- F5. Your laptop must be wiped by IT Ops on your last day; you must not wipe it yourself. — people-group/offboarding/faq.md § "Laptop Wipe" L68–70
-- F6. Benefits coverage typically ends on your last day (US medical/dental/vision run to the end of that month). — people-group/offboarding/faq.md § "When will my benefits coverage end?" L110
+- F5. [optional] Your laptop must be wiped by IT Ops on your last day; you must not wipe it yourself. — people-group/offboarding/faq.md § "Laptop Wipe" L68–70
+- F6. [optional] Benefits coverage typically ends on your last day (US medical/dental/vision run to the end of that month). — people-group/offboarding/faq.md § "When will my benefits coverage end?" L110
 - F7. [optional] Exit interviews take place during a voluntary leaver's last week. — people-group/_index.md § "People Operations Team" L136
 flag: none (vocabulary mapped)
 ref_source: llm-draft, reviewed
@@ -632,10 +649,10 @@ expected_docs: people-group/time-off-and-absence/time-off-types.md, engineering/
 citation: "Overview" under "Public Holiday" (people-group/time-off-and-absence/time-off-types.md); "Public holidays" (engineering/infrastructure-platforms/incident-management/on-call/tier-2.md)
 facts:
 - F1. [required] Effectively yes. Public holidays aren't pre-loaded in Workday; you choose which dates to take against a country-specific annual balance, so working a public holiday doesn't use up the balance. — people-group/time-off-and-absence/time-off-types.md § "Overview" L53
-- F2. The public holiday balance must be used within the calendar year and does not roll over. — people-group/time-off-and-absence/time-off-types.md § "Overview" L58
-- F3. Public holidays are logged as whole days; partial public holidays aren't allowed. — people-group/time-off-and-absence/time-off-types.md § "Frequently Asked Public Holiday Questions" L93
-- F4. [variant: on-call engineers] Team members who choose to work a public holiday may move it to a different day under the Public Holiday Policy; this is voluntary. — engineering/infrastructure-platforms/incident-management/on-call/tier-2.md § "Public holidays" L313
-- F5. [variant: Support Shift Engineers] Shift Engineers may work a holiday and float it to another day, ideally within one month before or after. — support/support-time-off.md § "Holidays as a Shift Engineer" L350
+- F2. [optional] The public holiday balance must be used within the calendar year and does not roll over. — people-group/time-off-and-absence/time-off-types.md § "Overview" L58
+- F3. [optional] Public holidays are logged as whole days; partial public holidays aren't allowed. — people-group/time-off-and-absence/time-off-types.md § "Frequently Asked Public Holiday Questions" L93
+- F4. [optional] [variant: on-call engineers] Team members who choose to work a public holiday may move it to a different day under the Public Holiday Policy; this is voluntary. — engineering/infrastructure-platforms/incident-management/on-call/tier-2.md § "Public holidays" L313
+- F5. [optional] [variant: Support Shift Engineers] Shift Engineers may work a holiday and float it to another day, ideally within one month before or after. — support/support-time-off.md § "Holidays as a Shift Engineer" L350
 - F6. [optional] [variant: New Zealand] NZ employment law requires work on a formal public holiday (including on-call) to be compensated with time-in-lieu. — total-rewards/benefits/general-and-entity-benefits/pty-benefits-new-zealand.md § "On-Call Support (Engineering Only)" L126
 flag: none
 ref_source: llm-draft, reviewed
