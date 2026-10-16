@@ -2,6 +2,14 @@
 
 Every run records the eval-set version it used. Scores from different versions are not compared directly.
 
+## v1.2 (2026-10-16)
+
+- **Counts:** unchanged from v1.1 (52 live rows, 33 / 19).
+- **Markers on every answerable row:** `[required]` / `[optional]` added to the 17 rows that had none (8, 10, 11, 13, 26, 32, 46, 48, 49, 51, 52, 53, 55, 59, 65, 99, 100), from each row's `Scored:` line and notes, owner-approved. Exception: row 10 F7 (the six values spell CREDIT) is optional although its `Scored:` line lists F1–F7. Variant facts are optional. Each row has a `decision:` line naming its required facts.
+- **Markers completed on 44, 89, 96:** facts left unmarked in v1.1 now carry the markers their 2026-10-16 owner decisions already stated.
+- **Why:** spec 0004 computes recall over required facts, so every answerable row needs machine-readable markers.
+- **Unchanged:** question text, fact text, citations, expected docs, row types, out-of-corpus strings. Checked by diff against v1.1: only marker tokens, `decision:` lines and the header changed.
+
 ## v1.1 (2026-10-16)
 
 - **Counts:** 52 live rows, 33 answerable / 19 out-of-corpus (63 / 37). By type: lookup 9, synthesis 8, contradiction 8, recency 8, ooc-in-scope 10, ooc-off-topic 9.
