@@ -211,7 +211,7 @@ Working notes on building this with a coding agent. One bullet per entry: what h
 - **Gate catch:** row 62 (personal phone device management) was labelled out-of-corpus, but the pin partly answers it (Okta Verify enrolment, posture checks). Cut, along with 114 (performance review score) for the same reason. Missing expected docs on 44 and 96 would have scored correct retrievals as misses.
 - **Abstention scoring:** exact match stays pass/fail, because the prompt says "reply exactly". "Starts with" was rejected: it would pass off-topic answers that add training-knowledge text. Failures that start with the right string get a diagnostic label, `abstain+extra`, which doesn't change any score.
 - **`recency_basis`:** a contradiction or recency fact settled only by git history can't be met by a model that never sees history. Those facts are kept, labelled `history-only` and reported separately, so a later recency fix can be measured against the same facts. All 16 contradiction and recency rows are labelled: 8 `history-only` (11, 44, 49, 50, 51, 52, 53, 55) and 8 `in-page`. Rows 50, 53 and 58 don't score their conflict at all; report that alongside the per-type results.
-- **Spec 0004 inputs from the review:** the pages behind `[required]` facts are the must-retrieve set (recall as a fraction); other expected docs are acceptable alternates (any hit).
+- *(Superseded 2026-10-16: recall counts required facts, any cited source satisfies; markers on every row in v1.2. See spec 0004.)* **Spec 0004 inputs from the review:** the pages behind `[required]` facts are the must-retrieve set (recall as a fraction); other expected docs are acceptable alternates (any hit).
 
 ## 2026-10-16 (eval metric decisions, reading)
 
