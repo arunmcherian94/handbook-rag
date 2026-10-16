@@ -196,6 +196,22 @@ Working notes on building this with a coding agent. One bullet per entry: what h
   - an identical-top-5 regression test for the all-access user
   - comparability breaks when HNSW arrives, not when ACLs do
 - **(e) mix changed:** the quality set is 60 / 40 answerable / out-of-corpus, with out-of-corpus about 2:1 in-scope vs off-topic. 10 out-of-corpus candidates added; the pool is 76 (49 / 27).
+- **Eval set v1 committed:** 54 rows, 33 answerable / 21 out-of-corpus (61 / 39); lookup 9, synthesis 8, contradiction 8, recency 8, ooc-in-scope 12, ooc-off-topic 9. [docs/eval/eval-set-v1.md](docs/eval/eval-set-v1.md), [CHANGELOG](docs/eval/CHANGELOG.md).
+  - 16 rows reviewed (every trap verdict checked against its excerpts, plus row 65). 38 rows are `llm-draft, unreviewed`: review them first on 2026-10-16.
+- **Out-of-corpus rule:** if the pin directly answers the question, recode it as answerable. If it asks for a value or personal state the pin doesn't have, keep it out-of-corpus. If the pin gives only a partial answer, cut it, because an exact-string check can't grade it fairly.
+- **Git history decides currency, never facts:** facts cite pinned files only. History only judges which pinned statement is current. Bulk commits make page-level dates weak evidence, so in-page wording ("previously IT BV") is preferred.
+- **Gate catch (reference drafting):** the trap hypotheses came from memory, not the pin. T7's $80 cap and the "HelpLab" name exist only in history, and T8 has no number conflict. Those rows were recoded, cut, or re-noted to what the pin contains. "Customer Success" is still in about 300 pinned files.
+- **Limitation:** per-country probation and notice-period tables are Hugo shortcodes whose data isn't in `content/handbook`. The RAG can't see them either. Follow-up: check whether shortcode data should be ingested.
+- **Gaps accepted for v1:** out-of-corpus is 12 : 9 in-scope vs off-topic, and there is no easy floor row.
+
+## 2026-10-16 (eval set v1.1 review)
+
+- **Reference-rule change (dated 2026-10-15, recorded now):** references may be drafted by Claude in a fresh session from the pin, never from model memory and never by gpt-5.4-mini. Reason: time. Mitigations: every fact tied to an excerpt, trap rows reviewed first, a `ref_source` field on every row.
+- **Sample 8/38 hand-reviewed, 1 answer-level error (3 counting missing expected docs); sweep flagged 33, all triaged.** The decision rule triggered a review of all remaining rows. The owner reviewed 3 more, and 26 were auto-reviewed by Claude subagents with fixes applied on the owner's standing approval (`ref_source: llm-draft, auto-reviewed`). Fact lists of auto-reviewed rows should be hand-checked before the first judge uses them.
+- **Gate catch:** row 62 (personal phone device management) was labelled out-of-corpus, but the pin partly answers it (Okta Verify enrolment, posture checks). Cut, along with 114 (performance review score) for the same reason. Missing expected docs on 44 and 96 would have scored correct retrievals as misses.
+- **Abstention scoring:** exact match stays pass/fail, because the prompt says "reply exactly". "Starts with" was rejected: it would pass off-topic answers that add training-knowledge text. Failures that start with the right string get a diagnostic label, `abstain+extra`, which doesn't change any score.
+- **`recency_basis`:** a contradiction or recency fact settled only by git history can't be met by a model that never sees history. Those facts are kept, labelled `history-only` and reported separately, so a later recency fix can be measured against the same facts. All 16 contradiction and recency rows are labelled: 8 `history-only` (11, 44, 49, 50, 51, 52, 53, 55) and 8 `in-page`. Rows 50, 53 and 58 don't score their conflict at all; report that alongside the per-type results.
+- **Spec 0004 inputs from the review:** the pages behind `[required]` facts are the must-retrieve set (recall as a fraction); other expected docs are acceptable alternates (any hit).
 
 ## Corpus: git behaviors, limitations, assumptions
 
@@ -222,6 +238,7 @@ Assumptions (unverified):
 
 ## Follow-ups (not built)
 
+- **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts.
 - **Incremental sync:**
   1. `git fetch`.
   2. `git diff --name-status OLD..NEW -- content/handbook`.
