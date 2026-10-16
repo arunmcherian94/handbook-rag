@@ -1,18 +1,19 @@
-# Eval set v1 (2026-10-15)
+# Eval set v1.1 (2026-10-16)
 
-Status: **v1**, 54 live rows: 33 answerable / 21 out-of-corpus (61 / 39).
-By D1: lookup 9, synthesis 8, contradiction 8, recency 8, ooc-in-scope 12, ooc-off-topic 9.
+Status: **v1.1**, 52 live rows: 33 answerable / 19 out-of-corpus (63 / 37).
+By D1: lookup 9, synthesis 8, contradiction 8, recency 8, ooc-in-scope 10, ooc-off-topic 9.
 Built from the 76 quality rows of [2026-10-14-candidates-UNVERIFIED.md](2026-10-14-candidates-UNVERIFIED.md);
 the parked permission cases are out of scope. Question text is verbatim and row numbers are the original
 ones. Cut rows stay in section 5 with the reason. Changes: [CHANGELOG.md](CHANGELOG.md).
 
 - **Reference provenance (`ref_source`):** drafted by Claude (never the model under test) from the pinned corpus only.
-  - `llm-draft, reviewed`: the owner checked the trap verdict or the facts against the cited excerpts (rows 8, 10, 11, 13, 32, 46, 48, 49, 51, 52, 53, 55, 59, 65, 99, 100).
-  - `llm-draft, unreviewed`: draft not yet checked by the owner; first review item for 2026-10-16.
-  - `human`: rewritten by the owner (none in v1).
+  - `llm-draft, reviewed` (26): the owner checked the trap verdict or the facts against the cited excerpts and approved each change (rows 8, 10, 11, 13, 26, 32, 44, 46, 47, 48, 49, 50, 51, 52, 53, 55, 58, 59, 65, 87, 89, 96, 99, 100, 111, 113).
+  - `llm-draft, auto-reviewed` (26): a separate Claude review against the cited excerpts and the [sweep](sweep-2026-10-16.md), with its fixes applied on the owner's standing approval (2026-10-16); the owner did not read these excerpts (rows 5, 9, 14, 16, 17, 22, 23, 34, 35, 38, 60, 63, 68, 69, 70, 71, 72, 88, 92, 93, 102, 110, 112, 115, 116, 117).
+  - `human`: rewritten by the owner (none in v1.1).
 - **Source:** pinned corpus SHA `5273b21a9a2ebc01055526f4d4ce245ae7d1a7d7`, files under `content/handbook` only. Paths below are relative to `content/handbook/`.
 - **Method:** fresh session, `rg`/`sed` over the pin, never model memory. Rows were split across three parallel subagents by topic, each given the owner's rules verbatim. Rows 109, 110 and 113 were checked first and decided by the owner. Every `path § "heading" L<a>–<b>` citation was then machine-checked against the pin: the file exists, the range is inside the file, and the heading is the nearest heading above the range (or inside it). The facts were not machine-checked; key names, figures and trap excerpts were spot-checked by hand.
-- **Facts:** each `F<n>` is one binary check (k-of-n). `[variant: X]` marks one branch of a conditional answer.
+- **Facts:** each `F<n>` is one binary check (k-of-n). `[variant: X]` marks one branch of a conditional answer. `[required]` facts are the minimum a correct answer must contain; `[optional]` facts are credit only. Rows without markers use the minimum stated in their notes.
+- **`recency_basis`** (contradiction and recency rows, added from 2026-10-16): `in-page` when pinned text signals which statement is current, `history-only` when only git history does. The model under test never sees git history, so `history-only` facts are reported separately.
 - **Out-of-corpus expected strings:** in-scope → "I don't know based on the provided handbook excerpts."; off-topic → "Sorry, I don't know how to answer that."
 - **Currency evidence:** `git log -1 --format='%h %ad' --date=short -- <path>` on each conflicting page. History is used only to judge which pinned statement is current, never as a source of facts. Caveat: three bulk commits touched hundreds of pages (`968e3521af` 2026-09-24 Customer Success → Customer Experience rename, 565 files; `bee431b547` 2026-09-13 HelpLab → Compass rename; `4469685d7b` 2026-08-27 marketing link cleanup). A page's last-commit date therefore often says nothing about the sentence in question. Rows note where in-page wording was used instead.
 
@@ -192,19 +193,21 @@ Q: if i disagree with a decision how does disagree and commit actually work
 expected_docs: values/_index.md
 citation: "Disagree, commit, and advocate" (values/_index.md); "Escalate to unblock" (values/_index.md)
 facts:
-- F1. Once a decision is in place, you commit to executing it. Past decisions are open to questioning as long as you act in line with them until they change. — values/_index.md § "Disagree, commit, and advocate" L315
-- F2. Every decision can be changed. — values/_index.md § "Disagree, commit, and advocate" L316–317
-- F3. In a manager-report relationship the report is usually the DRI. The manager may disagree but still commits to the DRI's decision. — values/_index.md § "Disagree, commit, and advocate" L318–319
-- F4. Voice your disagreement (dissent) based on facts rather than agreeing just to avoid conflict. — values/_index.md § "Disagree, commit, and advocate" L321–322
-- F5. To reopen a decision, show your argument builds on previous conversations and assume best intent. Keep delivering results while the decision stands, and take it to the DRI who can change it. — values/_index.md § "Disagree, commit, and advocate" L324–326
-- F6. If the disagreement blocks progress, agree to escalate to one or both managers. — values/_index.md § "Escalate to unblock" L330
+- F1. [required] Once a decision is in place, you commit to executing it. Past decisions are open to questioning as long as you act in line with them until they change. — values/_index.md § "Disagree, commit, and advocate" L315
+- F2. [optional] Every decision can be changed. — values/_index.md § "Disagree, commit, and advocate" L316–317
+- F3. [optional] In a manager-report relationship the report is usually the DRI. The manager may disagree but still commits to the DRI's decision. — values/_index.md § "Disagree, commit, and advocate" L318–319
+- F4. [required] Voice your disagreement (dissent) based on facts rather than agreeing just to avoid conflict. — values/_index.md § "Disagree, commit, and advocate" L321–322
+- F5. [required] To reopen a decision, show your argument builds on previous conversations and assume best intent. Keep delivering results while the decision stands, and take it to the DRI who can change it. — values/_index.md § "Disagree, commit, and advocate" L324–326
+- F6. [optional] If the disagreement blocks progress, agree to escalate to one or both managers. — values/_index.md § "Escalate to unblock" L330
 conflict:
 - A: "##### Disagree, commit, and advocate {#disagree-and-commit}" — values/_index.md § "Disagree, commit, and advocate" L313; currency evidence: 4469685d7b 2026-08-27 (link-only edit elsewhere on the page)
 - B: "Once a DRI has made a decision, team members are asked to [disagree, commit, and disagree](/handbook/values/#disagree-and-commit)." — leadership/making-decisions.md § "Making decisions" L28; currency evidence: 5ab934bec3 2025-12-01. Also "exercise our [disagree, commit, and disagree value]" — product/product-management/_index.md L378 (968e3521af 2026-09-24, bulk rename commit).
 - current: A. It's the defining section that B links to (#disagree-and-commit), and values/_index.md was committed more recently than leadership/making-decisions.md. B uses an older name for the same sub-value.
+recency_basis: history-only (no pinned page states which name replaced which; no fact checks the name, so the conflict is a distractor, not scored)
 trap note (T4): the conflict in the pin is an old vs new name, not CREDIT vs operating principles. "disagree, commit, and disagree" (leadership/making-decisions.md L28; product/product-management/_index.md L378) vs the current values heading "Disagree, commit, and advocate" (values/_index.md L313). company/operating-principles.md does not mention disagree-and-commit.
 decision: owner 2026-10-15 — keep D1; trap note rewritten to the conflict actually in the pin.
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — F1, F4, F5 required; F2, F3, F6 optional; recency_basis history-only; expected docs unchanged (values/_index.md defines the value; other pages only name it).
 notes: Other variant names in the pin: "Disagree, Commit, Disagree" (leadership/emotional-intelligence/psychological-safety-short-course.md L76, called an "operating principle"), and "Disagree and commit" (people-group/directly-responsible-individuals.md L88; product/ux/navigation/_index.md L40). Distractor: values/_index.md "Collaboration is not consensus" (L202–208), which is related but doesn't define the process.
 
 ### Row 59 — recency · process · trap T4
@@ -263,7 +266,7 @@ notes: Distractors: finance/_index.md L31 (ap@gitlab.com is for vendor invoices)
 
 ### Row 44 — contradiction · list · trap T6
 Q: Who's on the Customer Success team? Need the full list of roles for a reorg doc.
-expected_docs: customer-experience/_index.md, customer-experience/roles-overview/_index.md
+expected_docs: customer-experience/_index.md, customer-experience/roles-overview/_index.md, customer-experience/csm/segment/_index.md
 citation: "Customer Experience Teams" (customer-experience/_index.md); "Role Comparison", "1. The \"Hands on Keyboard\" Boundary" (customer-experience/roles-overview/_index.md)
 facts:
 - F1. The Customer Success organization is now named Customer Experience, a department within the GitLab Sales function. — customer-experience/_index.md § (front matter / intro) L2, L6
@@ -271,13 +274,15 @@ facts:
 - F3. Customer Success Engineer (CSE) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L32; customer-experience/roles-overview/_index.md § "Role Comparison" L15
 - F4. Customer Success Architect (CSA) is a role on the team. — customer-experience/_index.md § "Customer Experience Teams" L33; customer-experience/roles-overview/_index.md § "Role Comparison" L16
 - F5. Renewals Manager (RM) is a role on the team ("Global Renewals Organization within CS"). — customer-experience/_index.md § "Customer Experience Teams" L34; customer-experience/roles-overview/_index.md § "Role Comparison" L18
-- F6. Professional Services Engineers (PSE), Solutions Architects (SA), and Assigned Support Engineers (ASE) are related customer-facing roles, but they are distinct from the advisory "Customer Success roles (CSM, CSE, CSA)". — customer-experience/roles-overview/_index.md § "1. The \"Hands on Keyboard\" Boundary" L26; (intro) L6
+- F6. [optional] Professional Services Engineers (PSE), Solutions Architects (SA), and Assigned Support Engineers (ASE) are related customer-facing roles, but they are distinct from the advisory "Customer Success roles (CSM, CSE, CSA)". — customer-experience/roles-overview/_index.md § "1. The \"Hands on Keyboard\" Boundary" L26; (intro) L6
 conflict:
 - A: "- [VP, Customer Success](/job-description-library/sales/customer-success-leadership/#vice-president-of-customer-success)" (listed as reporting to the CRO) — sales/_index.md § "Who We Are" L75, L80; also "Roles covered include Customer Success Manager (CSM), Customer Success Engineer (CSE), Customer Success Architect (CSA)…" — customer-experience/roles-overview/_index.md (intro) L6; currency evidence: 968e3521af 2026-09-24 (both files, bulk rename commit)
 - B: "The Customer Experience department is part of the [GitLab Sales](/handbook/sales/) function who partners with our customers to deliver value and positive business outcomes throughout their journey with GitLab." — customer-experience/_index.md (intro) L6; currency evidence: 968e3521af 2026-09-24 "Rename Customer Success handbook to Customer Experience, delete the stale CX handbook"
 - current: B (Customer Experience) is the department name. The commit message explicitly renames Customer Success to Customer Experience. Role titles still use "Customer Success" (CSM/CSE/CSA), so both names stay valid inside the org.
+recency_basis: history-only (no pinned page states the rename; only commit 968e3521af does)
 flag: T6 trap. Owner review requested: "Customer Success" appears in ~300 files at the pin (rg count 303) next to "Customer Experience" (20 files), so the old name is everywhere in pinned text, not only in history. Also, whether PSE (and Demo Systems / Digital Strategy staff) count as "on the team" is ambiguous: the CX index lists only CSM/CSE/CSA/RM under "Customer Experience Teams".
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — added customer-experience/csm/segment/_index.md L9–19 (same four roles under "The Customer Success team"); F6 optional (question doesn't fix team scope); F1–F5 required.
 notes: Distractors: customer-experience/account-team.md (the account team includes AE/SAE and SA, who aren't CX); customer-experience/csm/csm-manager/_index.md "CS Leadership" table (people, not roles); support/ pages (Support is a separate org).
 
 ### Row 55 — recency · single-fact · trap T6
@@ -320,20 +325,22 @@ Q: What's the time-off policy for my entity?
 expected_docs: people-group/time-off-and-absence/time-off-types.md, total-rewards/benefits/general-and-entity-benefits/_index.md
 citation: "Overview" under "Flexible Paid Time Off (PTO)" (people-group/time-off-and-absence/time-off-types.md); "Global Statutory Requirements" (people-group/time-off-and-absence/time-off-types.md); "Entity-Specific Benefits" (total-rewards/benefits/general-and-entity-benefits/_index.md)
 facts:
-- F1. The answer depends on which entity or employment type you are under. The question doesn't say. A correct answer asks, or gives the general policy plus where to find the entity rules.
-- F2. All team members get GitLab's Flexible PTO: no set annual limit; coordinate with your manager and have a coverage plan; more than 25 consecutive calendar days needs special approval. — people-group/time-off-and-absence/time-off-types.md § "Overview" L17–18
-- F3. Statutory minimums, accrual and carryover rules vary by location and are on the location-specific (entity) benefits pages. — people-group/time-off-and-absence/time-off-types.md § "Global Statutory Requirements" L47
-- F4. The entity pages are listed in the Entity-Specific Benefits table (e.g. GitLab BV Netherlands/Belgium, GitLab Inc/Fed US, GmbH Germany, GK Japan, India Pvt Ltd, plus the Remote Technology and Global Expansion partner pages). — total-rewards/benefits/general-and-entity-benefits/_index.md § "Entity-Specific Benefits" L17–29
-- F5. [variant: contractor] GitLab GSI contractors don't get entity-specific benefits but receive a standard 12 public holidays. — people-group/time-off-and-absence/time-off-types.md § "Overview" (Public Holiday) L60
-- F6. "Time off" (annual leave/holiday/vacation, sick days, public holidays) is distinct from "leave" (longer, circumstance-specific absences such as parental or medical leave). — people-group/time-off-and-absence/_index.md § "About Our Terminology" L12–15
+- F1. [required] The answer depends on which entity or employment type you are under. The question doesn't say. A correct answer asks, or gives the general policy plus where to find the entity rules.
+- F2. [required] All team members get GitLab's Flexible PTO: no set annual limit; coordinate with your manager and have a coverage plan; more than 25 consecutive calendar days needs special approval. — people-group/time-off-and-absence/time-off-types.md § "Overview" L17–18
+- F3. [required] Statutory minimums, accrual and carryover rules vary by location and are on the location-specific (entity) benefits pages. — people-group/time-off-and-absence/time-off-types.md § "Global Statutory Requirements" L47
+- F4. [optional] The entity pages are listed in the Entity-Specific Benefits table (e.g. GitLab BV Netherlands/Belgium, GitLab Inc/Fed US, GmbH Germany, GK Japan, India Pvt Ltd, plus the Remote Technology and Global Expansion partner pages). — total-rewards/benefits/general-and-entity-benefits/_index.md § "Entity-Specific Benefits" L17–29
+- F5. [optional] [variant: contractor] GitLab GSI contractors don't get entity-specific benefits but receive a standard 12 public holidays. — people-group/time-off-and-absence/time-off-types.md § "Overview" (Public Holiday) L60
+- F6. [optional] "Time off" (annual leave/holiday/vacation, sick days, public holidays) is distinct from "leave" (longer, circumstance-specific absences such as parental or medical leave). — people-group/time-off-and-absence/_index.md § "About Our Terminology" L12–15
 conflict:
 - A: "[Remote Technology (Brazil, Italy, Switzerland, Hungary, Luxembourg, and Sweden)] ... [Global Expansion (Austria, Denmark, Kenya, Mexico, Philippines, Poland, South Africa, and UAE)]" — total-rewards/benefits/general-and-entity-benefits/_index.md § "Entity-Specific Benefits" L21–22; currency evidence: f96a52e199 2026-09-28
 - B: "[Remote Technology (Brazil, Denmark, Italy, Switzerland, Hungary, and Sweden)] ... [Global Expansion (Austria, Kenya, Mexico, Philippines, South Africa, and UAE)]" — people-policies/leave-of-absence/_index.md § "Company-Wide Leave of Absence Policies" L28–29; currency evidence: f96a52e199 2026-09-28
 - current: A. Git history doesn't separate them (same commit, "Removing Finland benefits page"). The target pages settle it: total-rewards/benefits/general-and-entity-benefits/remote-com.md has a "Luxembourg 🇱🇺" section (L494) and no Denmark section, and total-rewards/benefits/general-and-entity-benefits/global-expansion.md has "Denmark 🇩🇰" (L100) and "Poland 🇵🇱" (L457). So the list in B is stale.
 - secondary (T8 framing): "GitLab does not set a specific limit on the amount of PTO" (people-group/time-off-and-absence/time-off-types.md § "Overview" L18) vs "Flexible time off ... with the option to take up to 25 consecutive calendar days for vacation" (total-rewards/benefits/general-and-entity-benefits/_index.md § "Flexible Paid Time Off" L239). These are compatible: 25 consecutive days is the threshold for special approval, not a cap. currency: bee431b547 2026-09-13 vs f96a52e199 2026-09-28.
+recency_basis: in-page (cross-page; resolved from remote-com.md and global-expansion.md, not git). Conflict not scored on this row: F4 names no countries.
 trap note (T8): no "PTO" vs "paid time off" number conflict in the pin. The conflict in the pin is two country-to-provider lists that disagree on Denmark, Poland and Luxembourg: current in total-rewards/benefits/general-and-entity-benefits/_index.md L21–22, stale in people-policies/leave-of-absence/_index.md L28–29 (see conflict above). The terminology issue is company-wide Flexible PTO vs entity statutory vacation/annual leave.
 decision: owner 2026-10-15 — keep D1; trap note rewritten to the conflict actually in the pin.
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — F1–F3 required, F4–F6 optional; recency_basis in-page; conflict not scored; entity pages not added to expected docs (retrieving one entity's page is the trap for this ambiguous question).
 notes: The question is ambiguous by design. Penalize answers that pick one entity without saying so. Germany's statutory vacation "Runs separately to with GitLab's PTO policy, which can be used, but does not accrue" (entity/gmbh-germany.md L554), while Belgium/Singapore say "Runs concurrently with GitLab PTO" (total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md L212, total-rewards/benefits/general-and-entity-benefits/singapore-pte-ltd.md L244). That difference is per entity, not a contradiction.
 
 ### Row 99 — synthesis · conditional · trap T8
@@ -381,16 +388,18 @@ notes: The minimum correct answer is F1 + F2 (+F3). Entity variants are k-of-n o
 
 ### Row 87 — synthesis · list · trap –
 Q: who are our competitiors
-expected_docs: marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/cicd.md, marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/application-security.md, marketing/product-and-technical-marketing/product-and-solution-marketing/usecase-gtm/delivery-automation.md, marketing/corporate-communications/analyst-relations/forrester-tei.md
+expected_docs: marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/cicd.md, marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/application-security.md, marketing/product-and-technical-marketing/product-and-solution-marketing/usecase-gtm/delivery-automation.md, marketing/product-and-technical-marketing/product-and-solution-marketing/usecase-gtm/devops-platform/_index.md, marketing/corporate-communications/analyst-relations/forrester-tei.md
 citation: "Competitor Scope - Continuous Integration" (…/competitive-intelligence/cicd.md); "Competitor Scope" (…/competitive-intelligence/application-security.md); "Competitors" (…/usecase-gtm/delivery-automation.md); "Frequently Asked Questions" (…/analyst-relations/forrester-tei.md)
 facts:
-- F1. GitLab has many competitors because it operates across many product categories. The handbook has no single company-wide list; competitors are listed per category. — sales/sales-development/tanuki-tech.md § "Curriculum" L62
-- F2. GitHub and Atlassian are named as competitors. — marketing/corporate-communications/analyst-relations/forrester-tei.md § "Frequently Asked Questions" L96
-- F3. [variant: CI/CD] CircleCI, Azure DevOps, Jenkins, Travis CI, and Bitbucket are listed as CI competitors. — marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/cicd.md § "Competitor Scope - Continuous Integration" L84
-- F4. [variant: automated software delivery] Key competitors are GitHub, Jenkins, JFrog, CircleCI, and Weaveworks Flux CD. — marketing/product-and-technical-marketing/product-and-solution-marketing/usecase-gtm/delivery-automation.md § "Competitors" L185–191
-- F5. [variant: application security] Competitors include BlackDuck, Veracode, IBM AppScan, Fortify, SonarQube, Sonatype, WhiteSource, Snyk, Synopsys, Checkmarx, TwistLock, and Aqua. — marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/application-security.md § "Competitor Scope" L54–68
+- F1. [required] GitLab has many competitors because it operates across many product categories. The handbook has no single company-wide list; competitors are listed per category. — sales/sales-development/tanuki-tech.md § "Curriculum" L62
+- F2. [required] GitHub and Atlassian are named as competitors. — marketing/corporate-communications/analyst-relations/forrester-tei.md § "Frequently Asked Questions" L96
+- F3. [optional] [variant: CI/CD] CircleCI, Azure DevOps, Jenkins, Travis CI, and Bitbucket are listed as CI competitors. — marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/cicd.md § "Competitor Scope - Continuous Integration" L84
+- F4. [optional] [variant: automated software delivery] Key competitors are GitHub, Jenkins, JFrog, CircleCI, and Weaveworks Flux CD. — marketing/product-and-technical-marketing/product-and-solution-marketing/usecase-gtm/delivery-automation.md § "Competitors" L185–191
+- F5. [optional] [variant: application security] Competitors include BlackDuck, Veracode, IBM AppScan, Fortify, SonarQube, Sonatype, WhiteSource, Snyk, Synopsys, Checkmarx, TwistLock, and Aqua. — marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/application-security.md § "Competitor Scope" L54–68
+- F6. [optional] [variant: DevOps platform] The nearest platform-level competitor is Microsoft's Azure DevOps; Microsoft is building toward the same vision with GitHub. — marketing/product-and-technical-marketing/product-and-solution-marketing/usecase-gtm/devops-platform/_index.md § "Competitive comparisons" L221
 flag: Partial answer only. There's no authoritative, current company-level competitor list. Detailed competitor cards live in Crayon/Highspot, outside the handbook (marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/_index.md L29). Several per-category tables look dated (e.g. Travis CI, XebiaLabs, Weaveworks). Owner: keep as answerable synthesis or downgrade.
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — F1, F2 required (per 2026-10-15), F3–F6 optional; added F6 and devops-platform/_index.md (only company-level competitor statement).
 notes: The vocabulary maps directly ("competitors" is used in the pin; the typo in the question doesn't matter). Other per-category lists: marketing/sales-plays/gitops/_index.md L171 (Flux, Argo CD, Terraform Cloud); company/working-groups/ci-build-speed.md L26 (GitHub, Harness.io); marketing/product-and-technical-marketing/product-and-solution-marketing/competitive-intelligence/cicd.md L109 (Spinnaker, Azure DevOps, XebiaLabs, ElectricFlow, CodeFresh).
 
 ## 3. Rest: answerable
@@ -400,62 +409,69 @@ Q: I'm in Germany and off sick — how many days can I take before I need a doct
 expected_docs: entity/gmbh-germany.md, people-group/time-off-and-absence/time-off-types.md
 citation: "Sick Leave Protection" (entity/gmbh-germany.md); "For Sick Absences 1-5 Consecutive Days" (people-group/time-off-and-absence/time-off-types.md); "Reporting Procedures" (people-group/time-off-and-absence/time-off-types.md)
 facts:
-- F1. [variant: Germany] For days 1–3 you notify your manager and enter "Out Sick" in Workday. From day 4 you email leaves@gitlab.com with the dates. — entity/gmbh-germany.md § "Sick Leave Protection" L593–594
-- F2. [variant: Germany, private insurance] Private insurance holders must submit an AU certificate by day 4. — entity/gmbh-germany.md § "Sick Leave Protection" L595
-- F3. [variant: Germany, statutory insurance] Statutory insurance holders submit the AU certificate electronically. — entity/gmbh-germany.md § "Sick Leave Protection" L584
-- F4. [variant: global default] Under the global policy, an absence of less than 6 consecutive days needs no sick note unless local statutory reporting rules say otherwise. — people-group/time-off-and-absence/time-off-types.md § "For Sick Absences 1-5 Consecutive Days" L138
-- F5. Statutory reporting requirements vary by country and always override the global reporting requirements. — people-group/time-off-and-absence/time-off-types.md § "Reporting Procedures" L129
-- F6. [variant: UK] For 4–7 days you complete a self-certification form. For 7+ days you provide a fit note to leaves@gitlab.com. — total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md § "Sick Leave" L663–664
-- F7. [variant: Ireland] A medical certificate is required for absences of 3 or more successive calendar days. — total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md § "Time Off Policies" L412
-- F8. [variant: 6+ days, global] A sick absence of 6 days or more counts as a leave of absence and needs evidence (e.g. medical certificate or doctor's note) in line with local requirements. — people-group/time-off-and-absence/time-off-types.md § "For Sick Absences that Exceed 6+ Consecutive Days" L146–155
+- F1. [required] [variant: Germany] For days 1–3 you notify your manager and enter "Out Sick" in Workday. From day 4 you email leaves@gitlab.com with the dates. — entity/gmbh-germany.md § "Sick Leave Protection" L593–594
+- F2. [required] [variant: Germany, private insurance] Private insurance holders must submit an AU certificate by day 4. — entity/gmbh-germany.md § "Sick Leave Protection" L595
+- F3. [optional] [variant: Germany, statutory insurance] AU certificate submission is electronic for statutory insurance holders. — entity/gmbh-germany.md § "Sick Leave Protection" L584
+- F4. [required] [variant: global default] Under the global policy, an absence of less than 6 consecutive days needs no sick note unless your statutory reporting requirements state otherwise. — people-group/time-off-and-absence/time-off-types.md § "For Sick Absences 1-5 Consecutive Days" L138
+- F5. [optional] Statutory reporting requirements vary by country/location and always supersede the global reporting requirements. — people-group/time-off-and-absence/time-off-types.md § "Reporting Procedures" L129
+- F6. [optional] [variant: UK] For 4–7 days you complete a self-certification form. For 7+ days you provide a fit note to leaves@gitlab.com. — total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md § "Sick Leave" L663–664
+- F7. [optional] [variant: Ireland] A medical certificate is required for absences of 3 or more successive calendar days. — total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md § "Time Off Policies" L412
+- F8. [optional] [variant: 6+ days, global] A sick absence of 6 days or more counts as a leave of absence. Eligibility for GitLab's Sick Time policy requires evidence in line with local requirements; the documentation varies by location (e.g. medical certificate, doctor's note, fit note). — people-group/time-off-and-absence/time-off-types.md § "For Sick Absences that Exceed 6+ Consecutive Days" L146–155
+- F9. [optional] [variant: Austria] If the absence lasts longer than three consecutive calendar days, a medical certificate (Krankenstandsbestätigung) from a doctor must be provided. — total-rewards/benefits/general-and-entity-benefits/global-expansion.md § "Austria 🇦🇹" L79
 flag: none
-ref_source: llm-draft, unreviewed
-notes: The pin never expands "AU" (Arbeitsunfähigkeitsbescheinigung = German doctor's sick note). A correct answer should treat the AU certificate as the doctor's note. Germany's page has the 6-weeks-full-pay sick text under the heading "Vacation Entitlement" (entity/gmbh-germany.md L537), which looks like a misplacement and could confuse retrieval. Other variants a grader may accept: Austria requires a doctor's certificate when the absence is longer than 3 consecutive calendar days (total-rewards/benefits/general-and-entity-benefits/global-expansion.md § "Austria 🇦🇹" L79). Israel requires a medical certificate on return (entity/israel-ltd.md L165). Distractor: Germany "Education Leave (Bildungsurlaub)" certificate (L632). F6–F8 are k-of-n optional; the minimum is F1–F2 or F1–F3, plus F4 or F5.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — tagged required set (F1, F2, F4); F3/F5/F8 reworded to the pin's wording; added F9 Austria variant from sweep
+notes: The pin never expands "AU" (Arbeitsunfähigkeitsbescheinigung = German doctor's sick note). A correct answer should treat the AU certificate as the doctor's note. Germany's page has the 6-weeks-full-pay sick text under the heading "Vacation Entitlement" (entity/gmbh-germany.md L537), which looks like a misplacement and could confuse retrieval. Other variants a grader may accept: Israel requires a medical certificate on return (entity/israel-ltd.md L165). Distractor: Germany "Education Leave (Bildungsurlaub)" certificate (L632). The minimum is F1, F2 and F4; F5 can stand in for F4 as the answer to "is it different in other countries". F6–F9 are k-of-n optional. global-expansion.md, ltd-benefits-uk.md and gitlab-ireland-ltd.md are left out of expected_docs because each is entity- or country-specific.
 
 ### Row 9 — lookup · single-fact · trap –
 Q: What is the maximum monthly reimbursement for home internet expenses?
 expected_docs: finance/expenses.md
 citation: "Internet" (finance/expenses.md)
 facts:
-- F1. The internet policy cap is $100; claims above that amount are not reimbursed. — finance/expenses.md § "Internet" L509–509
-- F2. Exceptions are no longer assessed individually at the claim stage. — finance/expenses.md § "Internet" L509–509
-- F3. Only monthly service charges are reimbursable, expensed monthly. Setup, equipment, change fees and insurance are excluded. — finance/expenses.md § "Internet" L503–504
-- F4. [variant: Netherlands] Do not expense internet in Navan; use the Regeling Internet Thuis form via HRSavvy. — finance/expenses.md § "Internet" L505–506
-- F5. [variant: Germany (GitLab GmbH)] Refer to the payroll page for country-specific guidelines. — finance/expenses.md § "Internet" L514–514
+- F1. [required] The internet policy cap is $100; claims above that amount are not reimbursed. — finance/expenses.md § "Internet" L509–509
+- F2. [optional] Exceptions are no longer assessed individually at the claim stage. — finance/expenses.md § "Internet" L509–509
+- F3. [optional] Only monthly service charges are reimbursable, expensed monthly. Setup, equipment, change fees and insurance are excluded. — finance/expenses.md § "Internet" L503–504
+- F4. [optional] [variant: Netherlands] If you didn't complete it at onboarding, fill in and sign the Regeling Internet Thuis form and send it to the HRSavvy team. Don't expense internet via Navan, because those claims are rejected. — finance/expenses.md § "Internet" L505–506
+- F5. [optional] [variant: Germany (GitLab GmbH)] Refer to the payroll page for country-specific guidelines. — finance/expenses.md § "Internet" L514–514
 decision: owner 2026-10-15 — D1 → lookup, trap T7 → none. The pin has only the $100 internet cap (finance/expenses.md L509); the $80 cap exists only in git history.
-ref_source: llm-draft, unreviewed
-notes: Distractors: "Internet - Travelling" L306 ($50/day while traveling), the $80 meal limits, and entity allowances in total-rewards/benefits/general-and-entity-benefits/global-expansion.md (MX 2,200 MXN at L321 and PL 185 PLN at L473 for internet plus electricity), which apply only to those countries. Also "Phone Service" (finance/expenses.md L591) has the same "$100" sentence; a model may conflate it with internet.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — tagged required set (F1); F4 reworded to the pin's wording; no sweep additions
+notes: Distractors: "Internet - Travelling" L306 ($50/day while traveling), the $80 meal limits, and entity allowances in total-rewards/benefits/general-and-entity-benefits/global-expansion.md (MX 2,200 MXN at L321 and PL 185 PLN at L473 for internet plus electricity), which apply only to those countries. Also "Phone Service" (finance/expenses.md L591) has the same "$100" sentence; a model may conflate it with internet. total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md § "Internet Support" only links to the internal expense policy and states no amount.
 
 ### Row 22 — lookup · conditional · trap –
 Q: How do I enroll in the pension plan at our European entity?
 expected_docs: entity/gmbh-germany.md, total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md, total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md, total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md, total-rewards/benefits/general-and-entity-benefits/france-sas.md, total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md
 citation: "Retirement Planning - Support Fund & Direct Insurance Plan" (entity/gmbh-germany.md); "Retirement Plan" (total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md); "Pension Scheme" (total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md); "Pension Plan" (total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md); "Retirement Planning" (total-rewards/benefits/general-and-entity-benefits/france-sas.md); "Government Benefits Integration" (total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md)
 facts:
-- F1. The answer depends on which European entity employs you. There is no single European pension plan.
-- F2. [variant: Germany, GitLab GmbH] Support Fund enrollment is automatic (opt out via Total-Rewards@gitlab.com). For the Direct Insurance plan, complete the Direct Insurance agreement and submit it to Total-Rewards@gitlab.com and Profion before the 5th of the month. — entity/gmbh-germany.md § "Retirement Planning - Support Fund & Direct Insurance Plan" L132–136
-- F3. [variant: Netherlands, GitLab BV] Team members over 21 on a GitLab BV contract are enrolled automatically on hire in the ASR pension plan. Contact ASR for questions or changes. — total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md § "Retirement Plan" L169, L175–177, L199–200
-- F4. [variant: UK, GitLab Ltd] Enrollment in the Scottish Widows Group Personal Pension Plan is automatic if you earn over £10,000 a year, are aged 22 or over, and are under State Pension Age. Payroll (Papaya) adds you to the monthly pension file during onboarding. — total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md § "Pension Scheme" L237, L242–246, L277–284
-- F5. [variant: Ireland, GitLab Ireland Ltd] New hires are enrolled automatically in the Aviva DC plan (effective 2025-11-01). To enroll or change contributions, submit the Aviva Pension Form. — total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md § "Pension Plan" L110, L137
-- F6. [variant: France / Belgium] There's no supplementary GitLab pension to enroll in. France: team members are enrolled automatically in the state National Pension Scheme. Belgium: no additional pension benefits are planned. — total-rewards/benefits/general-and-entity-benefits/france-sas.md § "Retirement Planning" L134; total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md § "Government Benefits Integration" L251
+- F1. [required] Pension enrollment is described separately for each entity, with a different provider and process, so the answer depends on which European entity employs you. A correct answer asks which entity, or gives the entity variants. — framing derived from the per-entity sections cited in F2–F6 (no single pin line states it)
+- F2. [optional] [variant: Germany, GitLab GmbH] Support Fund enrollment is automatic (opt out via Total-Rewards@gitlab.com). For the Direct Insurance plan, complete the Direct Insurance agreement and submit it to Total-Rewards@gitlab.com and Profion before the 5th of the month. — entity/gmbh-germany.md § "Retirement Planning - Support Fund & Direct Insurance Plan" L132–136
+- F3. [optional] [variant: Netherlands, GitLab BV] Team members over 21 on a GitLab BV contract are enrolled automatically on hire in the ASR pension plan. Contact ASR for questions or changes. — total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md § "Retirement Plan" L169, L175–177, L199–200
+- F4. [optional] [variant: UK, GitLab Ltd] Enrollment in the Scottish Widows Group Personal Pension Plan is automatic if you earn over £10,000 a year, are aged 22 or over, and are under State Pension Age. During onboarding, the Payroll Team informs Papaya Payroll, which adds you to the Scottish Widows pension file. — total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md § "Pension Scheme" L237, L242–246, L277–284
+- F5. [optional] [variant: Ireland, GitLab Ireland Ltd] New hires are enrolled automatically in the Aviva DC plan (effective 2025-11-01). To enroll or change contributions, submit the Aviva Pension Form. — total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md § "Pension Plan" L110, L137
+- F6. [optional] [variant: France / Belgium] There's no supplementary GitLab pension to enroll in. France: team members are enrolled automatically in the state National Pension Scheme. Belgium: no additional pension benefits are planned. — total-rewards/benefits/general-and-entity-benefits/france-sas.md § "Retirement Planning" L134; total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md § "Government Benefits Integration" L251
+- F7. [optional] [variant: Denmark] The pension is through TopDanmark (4% team member, 8% employer contribution). TopDanmark contacts team members when they join GitLab to discuss their options. — total-rewards/benefits/general-and-entity-benefits/global-expansion.md § "Denmark 🇩🇰" L127–135
+- F8. [optional] [variant: Sweden, via Remote (PEO)] Enrollment in the Nordnet Hållbar/SPP pension plan is mandatory, and the company pays all contributions. — total-rewards/benefits/general-and-entity-benefits/remote-com.md § "**Sweden 🇸🇪**" L176, L182
 flag: none
-ref_source: llm-draft, unreviewed
-notes: The question's scope is ambiguous ("our European entity"). A good answer either asks which entity or lists the variants. Not covered here: Spain (entity/iberia-srl-spain.md has no pension text) and PEO countries (Italy, Switzerland, Sweden, Hungary, Luxembourg via Remote; total-rewards/benefits/general-and-entity-benefits/remote-com.md). Israel (entity/israel-ltd.md "Pension" L67–80) isn't in Europe but is a likely retrieval distractor.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — F1 reworded (the "no single plan" claim was unsourced); F4 actor fix; tagged required (F1); added F7 Denmark and F8 Sweden variants from sweep
+notes: The question's scope is ambiguous ("our European entity"). A good answer either asks which entity or lists the variants. Not covered: Spain (entity/iberia-srl-spain.md has no pension text) and the other PEO countries in remote-com.md (Italy: mandatory social security contributions, supplementary options under review, L264; Switzerland L330+; Hungary L449–451). F8 is a PEO variant, not a GitLab entity. Italy dirigente funds (total-rewards/benefits/general-and-entity-benefits/papaya-global-benefits.md L28–41) describe the funds but give no enrollment step: treat as a distractor. global-expansion.md and remote-com.md are multi-country hubs, so they are not in expected_docs. Israel (entity/israel-ltd.md "Pension" L67–80) isn't in Europe but is a likely retrieval distractor.
 
 ### Row 23 — lookup · process · trap –
 Q: Describe the approval chain for submitting a promotion for one of my direct reports.
 expected_docs: people-group/promotions-transfers.md
 citation: "Twice per Year Promotion Calibration Process & Timeline"; "Calibration"; "Exception Approvals"; "Workday Out-of-Cycle Promotion Approval Process" (people-group/promotions-transfers.md)
 facts:
-- F1. Standard path: promotions run twice a year in three stages: Planning, Calibration, Processing. The manager works with their People Business Partner (PBP) and leadership, prepares a promotion document, and submits the nomination in Workday. — people-group/promotions-transfers.md § "Twice per Year Promotion Calibration Process & Timeline" L100; § "Process for Managers: Requesting a Promotion" L448; § "FY27-Q2 (May 1)" L135–137
-- F2. Calibration level depends on the promotion level: under Director is calibrated at Department level, Director/Sr Director at Division level (Sr Director shared with E-Group), and VP at E-Group level. — people-group/promotions-transfers.md § "Calibration" L240–246
-- F3. [variant: out-of-cycle exception] The manager emails their PBP with the promotion document, the justification, and next-level manager approval for any increase above 10%. The PBP approves the exception and submits it in Workday. — people-group/promotions-transfers.md § "How to Process an Exception: Submitting an out-of-cycle Promotion request in Workday" L309
-- F4. [variant: out-of-cycle, under Director] Approvals: 1) Direct Manager, 2) Department Head, 3) PBP, 4) Total Rewards, 5) FP&A. — people-group/promotions-transfers.md § "Exception Approvals" L313–315
-- F5. [variant: out-of-cycle, Director+] Same chain plus 6) E-Group Leader. — people-group/promotions-transfers.md § "Exception Approvals" L316–318
-- F6. After the PBP submits in Workday, the request routes to the manager, next-level manager, and E-Group leader. Once approved, People Operations stages the Job Change Letter in DocuSign. — people-group/promotions-transfers.md § "Workday Out-of-Cycle Promotion Approval Process" L480–483
+- F1. [required] Standard path: promotions run twice a year in three stages: Planning, Calibration, Processing. The manager works with their People Business Partner (PBP) and leadership, prepares a promotion document, and submits the nomination in Workday. Promotion approvals happen during the calibration sessions. — people-group/promotions-transfers.md § "Twice per Year Promotion Calibration Process & Timeline" L100; § "Process for Managers: Requesting a Promotion" L448; § "FY27-Q2 (May 1)" L135–139
+- F2. [required] Calibration level depends on the promotion level: under Director is calibrated at Department level, Director/Sr Director at Division level (Sr Director shared with E-Group), and VP at E-Group level. — people-group/promotions-transfers.md § "Calibration" L240–246
+- F3. [optional] [variant: out-of-cycle exception] The manager emails their PBP with the promotion document, the justification, and next-level manager approval for any compensation increase recommendation above 10%. Once the PBP approves the exception, the PBP submits it in Workday. — people-group/promotions-transfers.md § "How to Process an Exception: Submitting an out-of-cycle Promotion request in Workday" L309
+- F4. [optional] [variant: out-of-cycle, under Director] Approvals: 1) Direct Manager, 2) Department Head, 3) PBP, 4) Total Rewards, 5) FP&A. — people-group/promotions-transfers.md § "Exception Approvals" L313–315
+- F5. [optional] [variant: out-of-cycle, Director+] Same chain plus 6) E-Group Leader. — people-group/promotions-transfers.md § "Exception Approvals" L316–318
+- F6. [optional] After the PBP submits in Workday, the request routes to the manager, next-level manager, and E-Group leader. Once approved, People Operations stages the Job Change Letter in DocuSign. — people-group/promotions-transfers.md § "Workday Out-of-Cycle Promotion Approval Process" L480–483
 flag: none
 decision: owner 2026-10-15 — accepted as drafted.
-ref_source: llm-draft, unreviewed
-notes: The page itself says (L6–8) "This page is currently under review and construction… go to [this Loop page]". There's also an internal inconsistency: the Exception Approvals table (L313–316) lists 5–6 approvers, but the Workday routing (L482) names manager → next-level manager → E-Group leader. Either should get credit if cited. Increases above 10% need extra justification for Total Rewards and the executive approver (L467–468). Distractor: people-group/promotion-document-style-guide.md.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — tagged required (F1, F2); F1 citation extended to L139 (approvals in calibration window); F3 wording tightened; no sweep additions
+notes: The page itself says (L6–8) "This page is currently under review and construction… go to [this Loop page]". There's also an internal inconsistency: the Exception Approvals table (L313–316) lists 5–6 approvers, but the Workday routing (L482) names manager → next-level manager → E-Group leader. Either should get credit if cited. Increases above 10% need extra justification for Total Rewards and the executive approver (L467–468). Calibration structure may vary by division and department (L248). Distractors: people-group/promotion-document-style-guide.md; the Support-team-only processes (support/managers/promoting-a-support-team-member.md, support/workflows/team/promotions.md); company/structure.md L205 (don't discuss promotions until approved).
 
 ### Row 26 — lookup · single-fact · trap –
 Q: do i have to turn on disk encryption on my laptop
@@ -468,7 +484,7 @@ facts:
 - F4. [variant: Linux] LUKS full-disk encryption is required and must be enabled when you first set up the OS. — eta/corporate-it/end-user-services/laptop-management/_index.md § "Requirements" L55–55; eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Linux" L28–28
 - F5. Proof of disk encryption must be provided in the new laptop order or onboarding issue. — eta/corporate-it/end-user-services/laptop-management/laptop-security/encryption/_index.md § "Overview" L9–9
 flag: none
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, reviewed
 notes: There is a mild tension on macOS: Jamf enables encryption automatically ("No Action Required") while onboarding101 has you click "Enable Now" for FileVault. Either way it is mandatory. Distractors: security/policies_and_standards/cryptographic-standard.md L84 (algorithms) and finance/travel/_index.md L122 (power off before security checkpoints).
 
 ### Row 34 — synthesis · list · trap –
@@ -476,45 +492,51 @@ Q: What are the requirements for submitting a relocation request?
 expected_docs: people-group/relocation.md
 citation: "Considerations and Eligibility" (people-group/relocation.md); "Eligibility to Work"; "Team Member"; "Relocations To New Country or Different Location Factor"; "Relocation Within Same Country and Same Location Factor"
 facts:
-- F1. You must have completed the required one year of tenure. — people-group/relocation.md § "Considerations and Eligibility" L86–86 (also § "Relocations To New Country or Different Location Factor" L124–124)
-- F2. The destination must be a country where GitLab has an entity open for hiring with no hiring restrictions or headcount caps (and not a US-embargoed location). — people-group/relocation.md § "Considerations and Eligibility" L80–80; § "Long-Term Relocation Definition" L63–65
-- F3. You must already have the right to work there without GitLab visa sponsorship (except the Netherlands) and upload proof of eligibility to Workday. — people-group/relocation.md § "Eligibility to Work" L90–90; § "Team Member" L98–98
-- F4. Start at least 3 months before the move for a new country, or 30 days for the same country. — people-group/relocation.md § "Team Member" L97–97
-- F5. Submit the Relocation Request Form via Compass. It goes to People Operations, and your manager reviews whether the role works from the new location. — people-group/relocation.md § "Team Member" L99–99
-- F6. The request must be future-dated (no retroactive relocations), state the reason, and confirm whether employer-sponsored visa support is needed. — people-group/relocation.md § "Team Member" L102–102; § "Relocations To New Country or Different Location Factor" L119–123
-- F7. [variant: same country and same location factor] No approval or form is needed; just update your address in Workday. — people-group/relocation.md § "Relocation Within Same Country and Same Location Factor" L110–110
+- F1. [required] You must have completed the required one year of tenure. — people-group/relocation.md § "Considerations and Eligibility" L86–86 (also § "Relocations To New Country or Different Location Factor" L124–124)
+- F2. [required] The destination must be a country where GitLab has an entity open for hiring with no hiring restrictions or headcount caps (and not a US-embargoed location). — people-group/relocation.md § "Considerations and Eligibility" L80–80; § "Long-Term Relocation Definition" L63–65
+- F3. [required] You must already have the right to work there without GitLab visa sponsorship (except the Netherlands). If moving to a different country, upload proof of eligibility to Workday. — people-group/relocation.md § "Eligibility to Work" L90–90; § "Team Member" L98–98
+- F4. [optional] Start at least 3 months before the move for a new country, or 30 days for the same country. — people-group/relocation.md § "Team Member" L97–97
+- F5. [optional] Submit the Relocation Request Form via Compass. It goes to People Operations, and your manager reviews whether the role works from the new location. — people-group/relocation.md § "Team Member" L99–99
+- F6. [optional] The request must be future-dated (no retroactive relocations), state the reason, and confirm whether employer-sponsored visa support is needed. — people-group/relocation.md § "Team Member" L102–102; § "Relocations To New Country or Different Location Factor" L119–123
+- F7. [optional] [variant: same country and same location factor] No approval is needed. Update your address in the Contact tab of your Workday profile; a People Operations team member approves the address in Workday. — people-group/relocation.md § "Relocation Within Same Country and Same Location Factor" L110–110
+- F8. [optional] [variant: Netherlands] To relocate to the Netherlands you first need relocation approval under the relocation process. You then need the Dutch highly-skilled-migrant salary requirement, one year at GitLab, and not to be on a Performance Improvement Plan. — people-group/visas.md § "Right to Immigrate to the Netherlands" L157–164
 flag: none
-ref_source: llm-draft, unreviewed
-notes: Relocation can change compensation and equity (L68). Distractors: short-term stay/digital nomad sections (L24–L52), people-group/visas.md, and the Compass "Relocation Evaluation" request (L78), which is an exploratory request rather than the actual application.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — F7 "or form" removed (not in the pin); F3 qualified (new country); tagged required (F1–F3); added F8 Netherlands variant from sweep
+notes: Relocation can change compensation and equity (L68). Distractors: short-term stay/digital nomad sections (L24–L52), and the Compass "Relocation Evaluation" request (L78), which is an exploratory request rather than the actual application. people-group/visas.md is Netherlands-specific, so it is covered by optional F8 and kept out of expected_docs. Its tenure waiver for team members in unsafe environments (L166–173) is a further optional detail.
 
 ### Row 35 — synthesis · process · trap –
 Q: My report is leaving next week — what do I need to kick off to get their app access removed?
 expected_docs: people-group/offboarding/_index.md, people-group/offboarding/offboarding_standards.md
 citation: "Termination" (people-group/offboarding/_index.md); "Offboarding" (people-group/offboarding/_index.md); "Notice of Offboarding" (people-group/offboarding/offboarding_standards.md); "Offboarding Compliance" (people-group/offboarding/_index.md)
 facts:
-- F1. Complete the termination in Workday. If they resigned in Workday, act on the prompt in your Workday inbox; otherwise initiate it from their profile via Actions → Job Change → Terminate Employee. — people-group/offboarding/_index.md § "Termination" L66–66
-- F2. Submitting the Workday termination does not remove access immediately. Deprovisioning starts with the offboarding issue/case opened on their last day worked. — people-group/offboarding/_index.md § "Termination" L67–67
-- F3. On the last working day, Offboarding Parent and Child Cases are created automatically in Compass, and each system owner (deprovisioner) gets a Child Case to remove the person from their app. — people-group/offboarding/_index.md § "Offboarding" L77–78; people-group/offboarding/offboarding_standards.md § "Notice of Offboarding" L32–32
-- F4. Deprovisioning tasks must be done within 5 days; critical systems (e.g. 1Password, Slack) within 24 hours. — people-group/offboarding/_index.md § "Offboarding Compliance" L216–216
-- F5. If deprovisioning is needed outside the scheduled window (4–5pm local time, Mon–Fri), the manager should contact IT Operations to arrange it. — people-group/offboarding/offboarding_standards.md § "Notice of Offboarding" L34–36
+- F1. [required] Complete the termination in Workday. If they resigned in Workday, act on the prompt in your Workday inbox; otherwise initiate it from their profile via Actions → Job Change → Terminate Employee. — people-group/offboarding/_index.md § "Termination" L66–66
+- F2. [optional] Submitting the termination in Workday does not immediately terminate access. The offboarding issue, opened on the team member's last day worked, initiates the deprovisioning process. — people-group/offboarding/_index.md § "Termination" L67–67
+- F3. [required] On the last working day, Offboarding Parent and Child Cases are created automatically in Compass, and each system owner (deprovisioner) gets a Child Case to remove the person from their app. — people-group/offboarding/_index.md § "Offboarding" L77–78; people-group/offboarding/offboarding_standards.md § "Notice of Offboarding" L32–32
+- F4. [optional] All offboarding tasks by all departments must be completed within 5 days of the offboarding date; critical, time-sensitive systems (e.g. 1Password, Slack) within the first 24 hours. — people-group/offboarding/_index.md § "Offboarding Compliance" L216–216
+- F5. [optional] Scheduled offboardings are opened between 4:00–5:00pm in the team member's local timezone, Monday–Friday. If deprovisioning must be initiated outside these times, the team member or their manager should reach out to IT Operations to arrange an alternate time. — people-group/offboarding/offboarding_standards.md § "Notice of Offboarding" L34–36
 flag: none
-ref_source: llm-draft, unreviewed
-notes: Within the pin, "Managing the Offboarding Tasks → Offboarding Issue" (people-group/offboarding/_index.md L311) still says "please open an offboarding issue", while the standards say cases are created automatically in Compass (and L54 flags the manual `/pops` steps as outdated). Not a trap, but a grader should accept the Compass-case answer. Distractors: the "Access Change Request" template (eta/corporate-it/end-user-services/access-requests/access-requests/_index.md L105) applies to role changes, not departures; laptop returns (L313–L319).
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — F2/F4/F5 reworded to the pin's wording; required set F1, F3; notes path fix; no sweep pages added
+notes: Within the pin, "Managing the Offboarding Tasks → Offboarding Issue" (people-group/offboarding/_index.md L311) still says "please open an offboarding issue", while the standards say cases are created automatically in Compass (and people-group/offboarding/offboarding_standards.md L54 flags the manual `/pops` steps as outdated). Not a trap, but a grader should accept the Compass-case answer. people-group/offboarding/faq.md L8–12 (offboarding issue created automatically on the last working day) is a related retrieval, written for the departing team member. Distractors: the "Access Change Request" template (eta/corporate-it/end-user-services/access-requests/access-requests/_index.md L105) applies to role changes, not departures; laptop returns (L313–L319).
 
 ### Row 38 — synthesis · list · trap –
 Q: which departments own communication during an incident
-expected_docs: engineering/infrastructure-platforms/incident-management/_index.md, security/security-operations/sirt/security-incident-communication-plan.md
-citation: "Incident Response Roles", "Tier 2", "Role-Team Mapping", "Status" (engineering/infrastructure-platforms/incident-management/_index.md); "Security team roles and responsibilities", "Designated key approvers" (security/security-operations/sirt/security-incident-communication-plan.md)
+expected_docs: engineering/infrastructure-platforms/incident-management/_index.md, security/security-operations/sirt/security-incident-communication-plan.md, engineering/infrastructure-platforms/incident-management/roles/communications-lead.md, marketing/corporate-communications/incident-communications-plan.md
+citation: "Incident Response Roles", "Tier 2", "Role-Team Mapping", "Status" (engineering/infrastructure-platforms/incident-management/_index.md); "Security team roles and responsibilities", "Designated key approvers" (security/security-operations/sirt/security-incident-communication-plan.md); "Role Assignment", "Internal Communications" (engineering/infrastructure-platforms/incident-management/roles/communications-lead.md); "Core Communication Escalation Response Team Roles and Responsibilities" (marketing/corporate-communications/incident-communications-plan.md)
 facts:
-- F1. [variant: GitLab.com / production incident] The Communications Lead role owns external communications and status updates. It is needed for S1/S2 incidents or when significant communication is required. — engineering/infrastructure-platforms/incident-management/_index.md § "Incident Response Roles" L106
-- F2. [variant: production incident] The Communications Lead is staffed by the Communications Manager On Call (CMOC), which is generally a member of the Support team. — engineering/infrastructure-platforms/incident-management/_index.md § "Tier 2" L136; § "Role-Team Mapping" L148
-- F3. [variant: production incident] The CMOC updates status.io / status.gitlab.com. — engineering/infrastructure-platforms/incident-management/_index.md § "Status" L527
-- F4. [variant: production incident] Infrastructure Leadership (Staff+ or EM in the Infrastructure, Platform department) keeps #cto updated for high-severity incidents. — engineering/infrastructure-platforms/incident-management/_index.md § "Tier 2" L137
-- F5. [variant: security incident] The Security team owns communications: the SIMOC/SecCMOC coordinates external communications, and Security External Communications reviews messaging and liaises with marketing. — security/security-operations/sirt/security-incident-communication-plan.md § "Security team roles and responsibilities" L51–53
-- F6. [variant: security incident] The required approver groups for external communications are Security, Legal, Customer Success, and Investor Relations. The Director of Corp Comms is DRI for media responses. — security/security-operations/sirt/security-incident-communication-plan.md § "Designated key approvers" L147, L155
+- F1. [required] [variant: GitLab.com / production incident] The Communications Lead role owns external communications and status updates. It is needed for S1/S2 incidents or when significant communication is required. — engineering/infrastructure-platforms/incident-management/_index.md § "Incident Response Roles" L106
+- F2. [required] [variant: production incident] The Communications Lead is staffed by the Communications Manager On Call (CMOC), which is generally a member of the Support team. — engineering/infrastructure-platforms/incident-management/_index.md § "Tier 2" L136; § "Role-Team Mapping" L148
+- F3. [optional] [variant: production incident] The CMOC updates status.io / status.gitlab.com. — engineering/infrastructure-platforms/incident-management/_index.md § "Status" L527
+- F4. [optional] [variant: production incident] Infrastructure Leadership (Staff+ or EM in the Infrastructure, Platform department) keeps #cto updated for high-severity incidents. — engineering/infrastructure-platforms/incident-management/_index.md § "Tier 2" L137
+- F5. [optional] [variant: security incident] The Security Communications Manager on Call (SecCMOC), who is the SIMOC, Security Incident Commander or Security Assurance Engineer, coordinates external communications. Security External Communications reviews messaging for external audiences and liaises with marketing teams. — security/security-operations/sirt/security-incident-communication-plan.md § "Security team roles and responsibilities" L52–53
+- F6. [optional] [variant: security incident] The 4 required approver groups for external communications are Security, Legal, Customer Success, and Investor Relations. The Director of Corp Comms is DRI/Contributor for media responses. — security/security-operations/sirt/security-incident-communication-plan.md § "Designated key approvers" L147, L155
+- F7. [optional] [variant: production incident] The Communications Lead is the CMOC for GitLab.com and the GitLab Dedicated Communications Manager On Call (GDCMOC) for Dedicated. It also owns internal communications during incidents, except e-group communications, which the Infrastructure Liaison oversees. — engineering/infrastructure-platforms/incident-management/roles/communications-lead.md § "Role Assignment" L9–12; § "Internal Communications" L27–29
+- F8. [optional] [variant: corporate / reputational incident] For a communication escalation, the Corporate Communications team coordinates external communications (and social media), Internal Communications coordinates internal communications, the CLO provides legal input, and the CMO is DRI on the final external message. — marketing/corporate-communications/incident-communications-plan.md § "Core Communication Escalation Response Team Roles and Responsibilities" L49–53
 flag: none
-ref_source: llm-draft, unreviewed
-notes: The question's scope is ambiguous (production vs. security vs. other incidents). The security plan still says "Customer Success" (T6 old name) at L147, L153, L168. Distractors: people-group/incident-response.md (People incidents), marketing/emergency-response.md, support/support-incident-response.md, and the GitLab Dedicated IMOC page.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — F5/F6 reworded to the pin; added communications-lead.md (F7) and the corporate comms incident plan (F8); required F1, F2; removed the unsupported "old name" note
+notes: The question's scope is ambiguous (production vs. security vs. corporate incidents). A grader should accept a security-scoped answer covering F5 in place of F1–F2. The security plan says "Customer Success" at L147, L153, L168. The security plan L34 points Support/Infrastructure incidents needing external-comms guidance to the corporate communications plan. support/workflows/cmoc_workflows.md L9 (CMOC as "the voice of GitLab") is an acceptable related retrieval. Distractors: people-group/incident-response.md (People incidents), marketing/emergency-response.md, support/support-incident-response.md, and the GitLab Dedicated IMOC page.
 
 ### Row 65 — lookup · single-fact · trap –
 Recoded from ooc-in-scope, 2026-10-15 (D1 lookup, D2 short-section). Premise correction.
@@ -531,15 +553,16 @@ Q: what is our appraisal cycle
 expected_docs: people-group/talent-assessment.md
 citation: "Cadence" (people-group/talent-assessment.md); "Timeline" under "FY26 Talent Assessment" (people-group/talent-assessment.md); "Overview" (people-group/talent-assessment.md)
 facts:
-- F1. GitLab's appraisal equivalent is the Talent Assessment. It runs once a year, with a recommended informal mid-year check-in. — people-group/talent-assessment.md § "Cadence" L475
-- F2. It uses a Performance/Growth Potential Matrix ("9-Box") completed in Workday, and Key Talent is reviewed annually. — people-group/talent-assessment.md § "Overview" L116, L119
-- F3. The FY26 cycle ran January–April, combined with Q2 promotion nominations, with promotions and compensation changes effective May 1, 2026. — people-group/talent-assessment.md § "Timeline" L443
-- F4. Steps: self-assessment in Workday (opens Jan 12, due Jan 23) → manager ratings via "Assess My Team" (Jan 26–30) → leadership calibration (Feb 2–27) → manager submits the form (Mar 13) → Annual Compensation Review (March) → manager communication window (end of April). — people-group/talent-assessment.md § "Timeline" L449–463
-- F5. Self-evaluations are voluntary but strongly encouraged. — people-group/talent-assessment.md § "Team Member Self-Evaluations" L483
-- F6. The page is under review as the FY27 Check-In cycle launches in August 2026. Current details are on The Loop. — people-group/talent-assessment.md § (top of page, before "Quick Start: What You Need to Know Now") L7–10
+- F1. [required] GitLab's appraisal equivalent is the Talent Assessment. It runs once a year, with a recommended informal mid-year check-in. — people-group/talent-assessment.md § "Cadence" L475
+- F2. [optional] It uses a Performance/Growth Potential Matrix ("9-Box") completed in Workday, and Key Talent is reviewed annually. — people-group/talent-assessment.md § "Overview" L116, L119
+- F3. [optional] The FY26 cycle ran January–April, combined with Q2 promotion nominations, with promotions and compensation changes effective May 1, 2026. — people-group/talent-assessment.md § "Timeline" L443
+- F4. [optional] Steps: self-assessment in Workday (opens Jan 12, due Jan 23) → manager ratings via "Assess My Team" (Jan 26–30) → leadership calibration (Feb 2–27) → manager submits the form (Mar 13) → Annual Compensation Review (March) → manager communication window (end of April). — people-group/talent-assessment.md § "Timeline" L449–463
+- F5. [optional] Self-evaluations are voluntary but strongly encouraged. — people-group/talent-assessment.md § "Team Member Self-Evaluations" L483
+- F6. [optional] The page is under review as the FY27 Check-In cycle launches in August 2026. Current details are on The Loop. — people-group/talent-assessment.md § (top of page, before "Quick Start: What You Need to Know Now") L7–10
 flag: none (vocabulary mapped)
-ref_source: llm-draft, unreviewed
-notes: "Appraisal" maps to "Talent Assessment" (performance/growth potential review). F6 matters for recency: the FY26 dates may already be superseded at the pin date (2026-10). Staff hired too recently are "Too New to Rate" (L127). Distractors: people-group/quarterly-talent-review.md (quarterly reporting, not appraisal), people-group/360-feedback.md, Mid-Year Check In (L753–811, recommended and informal; FY27 timeline "to be updated" L811). L123 still says "The FY25 talent assessment should consider performance from the period FY25Q1 - FY25Q4" (stale text in the same page).
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — required set tagged (F1); facts verified, no wording change; no sweep pages added
+notes: "Appraisal" maps to "Talent Assessment" (performance/growth potential review). F6 matters for recency: the FY26 dates may already be superseded at the pin date (2026-10). Staff hired too recently are "Too New to Rate" (L127). Distractors: people-group/quarterly-talent-review.md (quarterly reporting, not appraisal), people-group/360-feedback.md, total-rewards/compensation/compensation-review-cycle/_index.md (ACR, downstream of the assessment), Mid-Year Check In (L753–811, recommended and informal; FY27 timeline "to be updated" L811). L123 still says "The FY25 talent assessment should consider performance from the period FY25Q1 - FY25Q4" (stale text in the same page).
 
 ### Row 89 — synthesis · process · trap –
 Q: whats our exit policy
@@ -547,57 +570,63 @@ expected_docs: people-group/offboarding/_index.md, people-group/offboarding/faq.
 citation: "Prior to Resignation" (people-group/offboarding/_index.md); "Resignation" (people-group/offboarding/_index.md); "Involuntary Terminations" (people-group/offboarding/_index.md); "Laptop Wipe" (people-group/offboarding/faq.md)
 facts:
 - F1. Before resigning, talk to your direct manager about the handover and communication plan, check your location's notice period, and prepare a resignation letter. — people-group/offboarding/_index.md § "Prior to Resignation" L28–30
-- F2. You resign by submitting it directly in Workday (via Okta). Your manager then completes the offboarding/termination in Workday, and you receive an offboarding packet (final pay, benefits, device return). — people-group/offboarding/_index.md § "Resignation" L34–35
+- F2. [required] You resign by submitting it directly in Workday (via Okta). Your manager then completes the offboarding/termination in Workday, and you receive an offboarding packet (final pay, benefits, device return). — people-group/offboarding/_index.md § "Resignation" L34–35
 - F3. Some countries have extra resignation steps, e.g. Germany requires a wet-ink signed resignation letter, and Belgium/France must email the letter to legal-employment@gitlab.com. — people-group/offboarding/_index.md § "Belgium" / "France" / "Germany" L42–50
-- F4. Involuntary terminations are handled only by Team Member Relations (TMR), after the underperformance guidelines have been followed. — people-group/offboarding/_index.md § "Involuntary Terminations" L86–87
+- F4. [required] Involuntary terminations are handled only by Team Member Relations (TMR), after the underperformance guidelines have been followed. — people-group/offboarding/_index.md § "Involuntary Terminations" L86–87
 - F5. Your laptop must be wiped by IT Ops on your last day; you must not wipe it yourself. — people-group/offboarding/faq.md § "Laptop Wipe" L68–70
 - F6. Benefits coverage typically ends on your last day (US medical/dental/vision run to the end of that month). — people-group/offboarding/faq.md § "When will my benefits coverage end?" L110
+- F7. [optional] Exit interviews take place during a voluntary leaver's last week. — people-group/_index.md § "People Operations Team" L136
 flag: none (vocabulary mapped)
-ref_source: llm-draft, unreviewed
-notes: "Exit policy" maps to Offboarding (voluntary and involuntary). The "notice period" link (L29) points to people-group/contracts-probation-periods.md#probation-period, but that page renders the location tables from Hugo shortcodes that aren't in content/handbook, so per-country notice periods are not answerable from the pin. Other optional facts: final pay varies by location (people-group/offboarding/faq.md L86), final expenses at least one week before departure (people-group/offboarding/faq.md L94), offboarding issue opened on the last day to deprovision access (_index.md L36, L67). Distractor: people-group/offboarding/offboarding_standards.md (internal People Ops procedure).
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — F2 and F4 required (voluntary + involuntary exit), the rest optional; added optional F7 (exit interviews). offboarding_standards.md stays a distractor (access-deprovisioning standard); the People Ops offboarding SLA (people-group/_index.md L128) is internal, not a fact.
+notes: "Exit policy" maps to Offboarding (voluntary and involuntary). The "notice period" link (L29) points to people-group/contracts-probation-periods.md#probation-period, but that page renders the location tables from Hugo shortcodes that aren't in content/handbook, so per-country notice periods are not answerable from the pin. Other optional facts: final pay varies by location (people-group/offboarding/faq.md L86), final expenses at least one week before departure (people-group/offboarding/faq.md L94), offboarding issue opened on the last day to deprovision access (_index.md L36, L67). Distractor: people-group/offboarding/offboarding_standards.md (internal People Ops procedure). Acceptable optional content: job abandonment, three consecutive workdays absent without contact may lead to termination (people-policies/_index.md § "Job Abandonment" L142–144).
 
 ### Row 92 — lookup · process · trap –
 Q: Whats our POSH policy
 expected_docs: people-policies/india-ltd/india-sexual-harassment-policy.md, people-group/anti-harassment.md
 citation: "1.1 Introduction" (people-policies/india-ltd/india-sexual-harassment-policy.md); "1 Internal Committee" (people-policies/india-ltd/india-sexual-harassment-policy.md); "GitLab India Private Limited" (people-group/anti-harassment.md)
 facts:
-- F1. GitLab's POSH equivalent is the "GitLab India Private Limited Policy Against Sexual Harassment", issued under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act 2013. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1.1 Introduction" L22
-- F2. It has an effective date of 1 November 2025. — people-policies/india-ltd/india-sexual-harassment-policy.md (panel above "Roles and Responsibilities") L6
-- F3. It covers all permanent and temporary team members (including during probation), interns, and contract workers or vendors/consultants, including remote and off-site work interactions. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1.2 Scope" L26–28
-- F4. Complaints go to an Internal Committee, which investigates and makes recommendations. The page says GitLab "will" form the committee and will update the policy once members are appointed. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1 Internal Committee" L58–60
-- F5. Complaints must be in writing and made within 3 months of the incident (or of the last incident in a series). The Internal Committee may extend this by up to 3 more months. — people-policies/india-ltd/india-sexual-harassment-policy.md § "2 Procedures for Resolution, Settlement or Prosecution of Acts of Sexual Harassment" L68–70
-- F6. Inquiries are confidential and retaliation is prohibited. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1.5 Confidentiality" L135; § "1.6 Protection against Retaliation" L141
+- F1. [required] GitLab's POSH equivalent is the "GitLab India Private Limited Policy Against Sexual Harassment", a framework provided in accordance with the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act 2013. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1.1 Introduction" L22
+- F2. [optional] It has an effective date of 1 November 2025. — people-policies/india-ltd/india-sexual-harassment-policy.md (panel above "Roles and Responsibilities") L6
+- F3. [optional] It covers all permanent and temporary team members (including during probation), interns, and contract workers or vendors/consultants, including remote and off-site work interactions. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1.2 Scope" L26–28
+- F4. [required] Complaints go to an Internal Committee, which investigates and makes recommendations. The page says GitLab "will" form the committee and will update the policy once members are appointed. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1 Internal Committee" L58–60
+- F5. [optional] A formal complaint is made by writing to the Internal Committee or by contacting the Presiding Officer or any committee member. It should be made within 3 months of the incident (or of the last incident in a series). The Internal Committee may extend this by up to 3 more months. — people-policies/india-ltd/india-sexual-harassment-policy.md § "2 Procedures for Resolution, Settlement or Prosecution of Acts of Sexual Harassment" L68–70
+- F6. [optional] Inquiries are confidential and retaliation is prohibited. — people-policies/india-ltd/india-sexual-harassment-policy.md § "1.5 Confidentiality" L135; § "1.6 Protection against Retaliation" L141
 flag: none (vocabulary mapped)
-ref_source: llm-draft, unreviewed
-notes: "POSH" (India term) maps to the India Policy Against Sexual Harassment. The description field (L3) literally says "Prevention of Sexual Harassment Policy". Outside India, the global Anti-Harassment Policy applies: report to the CPO, Team Member Relations or a PBP (people-group/anti-harassment.md § "Reporting Alleged Harassment" L95–100). people-group/anti-harassment.md L241–243 links to the India policy. Distractor: people-policies/india-ltd/india-eop-policy.md.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — F1/F5 reworded to the pin ("in accordance with"; written or by contacting the Presiding Officer; "should" within 3 months); required F1, F4; no sweep pages added
+notes: "POSH" (India term) maps to the India Policy Against Sexual Harassment. The description field (L3) literally says "Prevention of Sexual Harassment Policy". Outside India, the global Anti-Harassment Policy applies: report to the CPO, Team Member Relations or a PBP (people-group/anti-harassment.md § "Reporting Alleged Harassment" L95–100). people-group/anti-harassment.md L241–243 links to the India policy. Distractors: people-policies/india-ltd/india-eop-policy.md; people-policies/_index.md § "Ireland" L332–336 (Ireland Bullying, Harassment, and Sexual Harassment Policy link, a different entity).
 
 ### Row 93 — lookup · conditional · trap –
 Q: Is there a probation policy
 expected_docs: people-group/contracts-probation-periods.md
 citation: "Probation Period" (people-group/contracts-probation-periods.md); "Important steps during the Probation Period" (people-group/contracts-probation-periods.md)
 facts:
-- F1. Yes. Some team members, depending on location, have a probation period of 1 to 9 months. Contracts commonly use the maximum allowed in each country. — people-group/contracts-probation-periods.md § "Probation Period" L80
-- F2. If you relocate or change contract with unbroken service and have already passed probation, you don't do probation again. — people-group/contracts-probation-periods.md § "Probation Period" L80
-- F3. People Operations manages the process, and probation status is recorded in Workday. — people-group/contracts-probation-periods.md § "Probation Period" L81–83
-- F4. Managers review performance halfway through probation and raise underperformance with Team Member Relations right away. Workday reminds them 28 days before the end (14 days for the Netherlands/Austria) to submit the outcome. — people-group/contracts-probation-periods.md § "Important steps during the Probation Period" L91–95
-- F5. Team members who pass receive a probation confirmation letter in Workday. — people-group/contracts-probation-periods.md § "Important steps during the Probation Period" L99–100
-- F6. Ending probation early is an exception request escalated by the manager to a skip-level and the PBP/TMR specialist, with no expectation of approval. — people-group/contracts-probation-periods.md § "Probation Period" L85
+- F1. [required] Yes. Some team members, depending on location, have a probation period of 1 to 9 months. Contracts commonly use the maximum allowed in each country. — people-group/contracts-probation-periods.md § "Probation Period" L80
+- F2. [optional] If you relocate or change contract with unbroken service and have already passed probation, you don't do probation again. — people-group/contracts-probation-periods.md § "Probation Period" L80
+- F3. [optional] People Operations manages the process, and probation status is recorded in Workday. — people-group/contracts-probation-periods.md § "Probation Period" L81–83
+- F4. [optional] Managers review performance halfway through probation and raise underperformance with Team Member Relations right away. Workday reminds them 28 days before the end (14 days for the Netherlands/Austria) to submit the outcome. — people-group/contracts-probation-periods.md § "Important steps during the Probation Period" L91–95
+- F5. [optional] Team members who pass receive a probation confirmation letter in Workday. — people-group/contracts-probation-periods.md § "Important steps during the Probation Period" L99–100
+- F6. [optional] Ending probation early is an exception request escalated by the manager to a skip-level and the PBP/TMR specialist, with no expectation of approval. — people-group/contracts-probation-periods.md § "Probation Period" L85
 flag: none
-ref_source: llm-draft, unreviewed
-notes: Which locations have probation, and how long, is in "Current Locations With Probationary Periods" / "Locations without Probation Periods" (L102–108). Both are Hugo shortcodes (`{{< people-group/entities-with-probation >}}`) whose data isn't in content/handbook, or anywhere in the repo checkout. A per-country answer is therefore not supported by the pin. Distractor: India POSH scope "including during any probation period" (people-policies/india-ltd/india-sexual-harassment-policy.md L26).
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — required set tagged (F1); facts verified, no wording change; no sweep pages added
+notes: Which locations have probation, and how long, is in "Current Locations With Probationary Periods" / "Locations without Probation Periods" (L102–108). Both are Hugo shortcodes (`{{< people-group/entities-with-probation >}}`) whose data isn't in content/handbook, or anywhere in the repo checkout. A per-country answer is therefore not supported by the pin. people-group/relocation.md L183 restates F2 (an acceptable related retrieval). Distractor: India POSH scope "including during any probation period" (people-policies/india-ltd/india-sexual-harassment-policy.md L26).
 
 ### Row 96 — lookup · conditional · trap –
 Q: if i work on a public holiday do i get a day back later?
-expected_docs: people-group/time-off-and-absence/time-off-types.md
+expected_docs: people-group/time-off-and-absence/time-off-types.md, engineering/infrastructure-platforms/incident-management/on-call/tier-2.md, support/support-time-off.md
 citation: "Overview" under "Public Holiday" (people-group/time-off-and-absence/time-off-types.md); "Public holidays" (engineering/infrastructure-platforms/incident-management/on-call/tier-2.md)
 facts:
-- F1. Effectively yes. Public holidays aren't pre-loaded in Workday, so you choose which dates to take as public holidays against your balance. If you work on a public holiday, you can take that balance on another day. — people-group/time-off-and-absence/time-off-types.md § "Overview" L53
+- F1. [required] Effectively yes. Public holidays aren't pre-loaded in Workday; you choose which dates to take against a country-specific annual balance, so working a public holiday doesn't use up the balance. — people-group/time-off-and-absence/time-off-types.md § "Overview" L53
 - F2. The public holiday balance must be used within the calendar year and does not roll over. — people-group/time-off-and-absence/time-off-types.md § "Overview" L58
 - F3. Public holidays are logged as whole days; partial public holidays aren't allowed. — people-group/time-off-and-absence/time-off-types.md § "Frequently Asked Public Holiday Questions" L93
 - F4. [variant: on-call engineers] Team members who choose to work a public holiday may move it to a different day under the Public Holiday Policy; this is voluntary. — engineering/infrastructure-platforms/incident-management/on-call/tier-2.md § "Public holidays" L313
 - F5. [variant: Support Shift Engineers] Shift Engineers may work a holiday and float it to another day, ideally within one month before or after. — support/support-time-off.md § "Holidays as a Shift Engineer" L350
+- F6. [optional] [variant: New Zealand] NZ employment law requires work on a formal public holiday (including on-call) to be compensated with time-in-lieu. — total-rewards/benefits/general-and-entity-benefits/pty-benefits-new-zealand.md § "On-Call Support (Engineering Only)" L126
 flag: none
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — F1 reworded to what L53 states (was an inference) and is the only required fact; F2–F6 optional; added F6 (NZ time-in-lieu); added tier-2.md and support-time-off.md to expected docs (both state the swap literally).
 notes: The pin has no "day in lieu" policy for working a public holiday. It works through the flexible-balance model. Distractors: Australia "time in lieu" is for on-call shifts only (total-rewards/benefits/general-and-entity-benefits/pty-benefits-australia.md L208–254). Belgium substitutes holidays that fall on a Sunday (total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md L150). A Global Expansion country gives a substitute day only when a holiday falls on a scheduled day off (total-rewards/benefits/general-and-entity-benefits/global-expansion.md L534). Family & Friends Day overlap rule (company/family-and-friends-day.md L23).
 
 ## 4. Rest: out-of-corpus
@@ -612,7 +641,8 @@ searches:
 confirmed: nothing in pin answers the question as asked
 decision: owner 2026-10-15 — keep ooc-in-scope; nearby excerpts below are distractors.
 distractors: "Team Members can refer to their [entity-specific] medical plans to understand the fertility and family planning benefits available to them, as applicable." (total-rewards/benefits/general-and-entity-benefits/_index.md § "Fertility & Family Planning" L154); "Infertility Coverage: California plans cover diagnosis/treatment at 50% coinsurance; Hawaii includes IVF consultation and procedures" (total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md § "Kaiser Medical Plans" L224); "Fertility Coverage: Included Coverage, See SBC for details" (total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md § "Cigna PPO" L185); fertility treatment leave in Korea (total-rewards/benefits/general-and-entity-benefits/korea-ltd-benefits.md L190–197) and Israel (entity/israel-ltd.md L209–211). An answer giving 50% coinsurance as "the" coverage amount is wrong.
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 
 ### Row 16 — ooc-in-scope · process · trap –
 Q: One of my reports lost their office badge, who do we tell and what happens next?
@@ -625,7 +655,8 @@ searches:
 - `rg -i "lost or stolen"` → 9 files. Nearest: people-group/acceptable-use-policy.md § "Lost or Stolen Procedures" L165–167 (email panic@gitlab.com for a lost *device* such as a thumb drive, Yubikey, phone or laptop) and finance/accounts-payable/corp-credit-cards.md § "7.4 Card Lost or Stolen" (corporate credit card). Neither covers office badges.
 - `rg -i "physical security"` → 6 files. security/policies_and_standards/physical-security-standard-for-company-assets.md covers devices, vendor data-centre controls and Zero Trust; it has no badge process.
 confirmed: nothing in pin answers
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 notes: Strong distractor: the panic@gitlab.com lost-device procedure (people-group/acceptable-use-policy.md L167). A model may stretch it to badges; that should be graded as a wrong answer, not as "I don't know". GitLab is all-remote, so no office-badge process is documented.
 
 ### Row 17 — ooc-off-topic · single-fact · trap –
@@ -635,7 +666,8 @@ searches:
 - `rg -i "kilimanjaro"` → 0 files
 - `rg -i "tallest mountain|highest mountain"` → 0 files
 confirmed: nothing in pin answers
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 notes: none
 
 ### Row 47 — ooc-in-scope · conditional · trap –
@@ -649,8 +681,9 @@ searches:
 - total-rewards/benefits/general-and-entity-benefits/france-sas.md L84 and people-group/time-off-and-absence/time-off-types.md § "Global Statutory Requirements" L47 → link to each other; neither gives a number
 confirmed: nothing in pin answers
 decision: owner 2026-10-15 — D1 contradiction → ooc-in-scope, trap T8 → none (France's statutory minimum is not in the pin).
-ref_source: llm-draft, unreviewed
-notes: Distractors: France "Holiday Bonus" (total-rewards/benefits/general-and-entity-benefits/france-sas.md § "Holiday Bonus" L101–130, 1% of gross pay, which is not a time-off entitlement). Other entities' numbers: Germany ≥20 days, Belgium 20, Netherlands ≥20, Ireland 4 weeks, UK 28 incl. 8 public holidays. A model may wrongly carry one over to France. France sick-pay supplement "first 25 working days" (total-rewards/benefits/general-and-entity-benefits/france-sas.md L346) is a strong numeric distractor. Context a helpful refusal may add, not required: France gets statutory vacation plus RTT days and Flexible PTO (total-rewards/benefits/general-and-entity-benefits/france-sas.md § "Paid Time Off (Vacation)" L278, L292–294).
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — confirmed no vacation figure on france-sas.md (L274–295, L80–88, all day/week figures grepped); added two numeric distractors to notes; context note reworded (adding it to the refusal fails exact match).
+notes: Distractors: France "Holiday Bonus" (total-rewards/benefits/general-and-entity-benefits/france-sas.md § "Holiday Bonus" L101–130, 1% of gross pay, which is not a time-off entitlement). Other entities' numbers: Germany ≥20 days, Belgium 20, Netherlands ≥20, Ireland 4 weeks, UK 28 incl. 8 public holidays. A model may wrongly carry one over to France. France sick-pay supplement "first 25 working days" (total-rewards/benefits/general-and-entity-benefits/france-sas.md L346) is a strong numeric distractor. Context in the pin (information only; adding it to the refusal fails exact match, diagnostic label `abstain+extra`): France gets statutory vacation plus RTT days and Flexible PTO (total-rewards/benefits/general-and-entity-benefits/france-sas.md § "Paid Time Off (Vacation)" L278, L292–294). More numeric distractors: maternity leave "16 weeks" (total-rewards/benefits/general-and-entity-benefits/france-sas.md L154) and paternity "Total leave: 28 days" (L187).
 
 ### Row 60 — ooc-in-scope · single-fact · trap –
 Q: Are pet care expenses reimbursable for new team members?
@@ -663,35 +696,22 @@ searches:
 - `rg -i "pet insurance"` → 1 file: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md § "Pet Insurance" L583–591 (US voluntary MetLife pet insurance enrolment, not an expense reimbursement, and not new-hire specific)
 - `rg -n -i "\bpets?\b" finance/expenses.md people-group/relocation.md people-group/general-onboarding/` → 0 hits
 confirmed: nothing in pin answers
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 notes: Distractors: US Pet Insurance (benefit enrolment) and the new-hire $1,500 home-office stipend (finance/expenses.md L417), whose approved list doesn't include pet items. A model should not infer "no" from the non-reimbursable list (L423), which doesn't mention pets.
-
-### Row 62 — ooc-in-scope · process · trap –
-Q: how do i enroll my personal phone in device management as a contractor?
-expected: "I don't know based on the provided handbook excerpts."
-searches:
-- `rg -i "personal (phone|mobile|device)"` → 16 files. Nearest: finance/procurement/tips-for-submitting-a-zip-request.md L116 ("Access to GitLab resources via personal devices is not permitted. Is the contingent worker issued a vendor-managed laptop?") and people-group/acceptable-use-policy.md § "Personal Mobile Phone and Tablet Usage" L133 (personal mobiles accessing GitLab data must be passcode-enabled and patched; 2FA enforced for employee and contractor accounts)
-- `rg -i "BYOD|bring your own device"` → 5 files; people-group/acceptable-use-policy.md § "Bring-Your-Own-Device (BYOD)" L125–133 (no MDM enrolment step)
-- `rg -i "(mobile|phone).{0,40}(MDM|device management|enroll)"` → 4 files. eta/corporate-it/end-user-services/onboarding101/onboarding-mobile-devices.md L5 (to use Okta apps on a mobile device, enroll it in **Okta Verify** and save a passkey, which is not MDM); eta/corporate-it/end-user-services/laptop-management/laptop-security/management/_index.md § "Mobile Device Management (MDM)" L13–23 (MDM covers GitLab-purchased devices; "Your personal laptop should not be enrolled in MDM")
-- `rg -i "(MDM|enroll).{0,60}(mobile|phone|iOS|android)"` → 3 files (Jamf laptop enrolment, Okta Verify help). No phone MDM enrolment procedure.
-- `rg -i "contractor.{0,80}(device|phone|laptop|MDM|enroll)"` → 2 files (physical-security standard scope; hiring-contractors laptop requirement). No phone enrolment procedure.
-confirmed: nothing in pin answers the question as asked
-decision: owner 2026-10-15 — keep ooc-in-scope; nearby excerpts below are distractors.
-distractors: "Your personal laptop should not be enrolled in MDM, and cannot be used for accessing GitLab accounts or business data." (eta/corporate-it/end-user-services/laptop-management/laptop-security/management/_index.md § "Mobile Device Management (MDM)" L23); "the device needs to be enrolled in Okta Verify, and a passkey needs to be saved on the device" (eta/corporate-it/end-user-services/onboarding101/onboarding-mobile-devices.md L5; Okta Verify, not MDM); "Access to GitLab resources via personal devices is not permitted." (finance/procurement/tips-for-submitting-a-zip-request.md § "How to Submit a Zip Request for a Contractor" L116, contingent workers); personal mobile phones must be passcode-enabled and patched (people-group/acceptable-use-policy.md § "Personal Mobile Phone and Tablet Usage" L133).
-ref_source: llm-draft, unreviewed
-notes: D4 is ambiguous-scope ("contractor" could mean a GitLab contractor via PEO/iiPay or a contingent worker via a vendor). The Okta Verify page is the most likely retrieval and isn't "device management".
 
 ### Row 63 — ooc-in-scope · conditional · trap –
 Q: Is a company car allowance provided for team members employed in Germany?
 expected: "I don't know based on the provided handbook excerpts."
 searches:
-- `rg -n -i 'car allowance|company car|vehicle|dienstwagen|car lease|leasing'` → no "company car" or "car allowance" anywhere. Vehicle hits: Navan personal-vehicle mileage (navan-expense-guide L492), vehicle rental booking (accounts-payable L95), and the general benefits page § "Vehicle Salary Sacrifice & Novated Leasing Programs" L191–207.
+- `rg -n -i 'car allowance|company car|vehicle|dienstwagen|car lease|leasing'` → no "company car" anywhere; "Car Allowance" appears only for the UAE (total-rewards/benefits/general-and-entity-benefits/global-expansion.md L691–693, GX Global). Vehicle hits: Navan personal-vehicle mileage (navan-expense-guide L492), vehicle rental booking (accounts-payable L95), and the general benefits page § "Vehicle Salary Sacrifice & Novated Leasing Programs" L191–207.
 - `grep -n '^#' entity/gmbh-germany.md` + `rg -i 'auto|car|mobility|bike|jobrad|fahrrad|transport' entity/gmbh-germany.md` → Germany benefits page has no car or mobility benefit (only health, social insurance, pension, accident/life insurance, leave).
-- `rg -n -i 'mileage'` (finance/expenses.md L264) → mileage reimbursement rates only.
+- `rg -n -i 'mileage'` (finance/expenses.md § "Mileage" L253–256) → mileage reimbursement only.
 confirmed: nothing in pin answers the question as asked
 decision: owner 2026-10-15 — keep ooc-in-scope; nearby excerpts below are distractors.
-distractors: "GitLab has evaluated vehicle salary sacrifice and novated leasing programs across multiple regions (including Australia and the UK) and has decided not to offer these benefits at this time." … "This is a company-wide position and is not specific to any single region." (total-rewards/benefits/general-and-entity-benefits/_index.md § "Vehicle Salary Sacrifice & Novated Leasing Programs" L193, L205); mileage reimbursement (finance/expenses.md L264). The Germany page (entity/gmbh-germany.md) has no car or mobility benefit.
-ref_source: llm-draft, unreviewed
+distractors: "GitLab has evaluated vehicle salary sacrifice and novated leasing programs across multiple regions (including Australia and the UK) and has decided not to offer these benefits at this time." … "This is a company-wide position and is not specific to any single region." (total-rewards/benefits/general-and-entity-benefits/_index.md § "Vehicle Salary Sacrifice & Novated Leasing Programs" L193, L205); "Monthly Car Allowance, see the GX Global UAE Benefits Spreadsheet" (total-rewards/benefits/general-and-entity-benefits/global-expansion.md § "United Arab Emirates" L691–693; UAE only); mileage reimbursement (finance/expenses.md § "Mileage" L253–256). The Germany page (entity/gmbh-germany.md) has no car or mobility benefit.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — corrected "no car allowance anywhere" search claim (UAE has one); added UAE distractor; re-cited mileage to L253–256
 
 ### Row 68 — ooc-off-topic · list · trap –
 Q: Provide a recommended reading list of classic science fiction novels.
@@ -701,8 +721,9 @@ searches:
 - `rg -i "asimov|dune|foundation series"` → 1 file: engineering/readmes/ben-king.md § "Books" L32–38
 confirmed: nothing in pin answers
 decision: owner 2026-10-15 — keep ooc-off-topic.
-ref_source: llm-draft, unreviewed
-notes: Distractor: ben-king README ("Favourites include: ... Foundation Trilogy by Isaac Asimov ..." engineering/readmes/ben-king.md § "Books" L34–38) (and other personal READMEs with "Books" sections).
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — notes line range corrected to L32–38; no other change
+notes: Distractor: ben-king README ("Favourites include: ... Foundation Trilogy by Isaac Asimov ..." engineering/readmes/ben-king.md § "Books" L32–38) (and other personal READMEs with "Books" sections).
 
 ### Row 69 — ooc-off-topic · process · trap –
 Q: steps to upgrade the raspberry pi cluster in my garage to the latest OS
@@ -712,8 +733,9 @@ searches:
 - `rg -i "upgrade (the |your |our )?(kubernetes |k8s |gke )?cluster|cluster upgrade"` → 3 files: engineering/infrastructure-platforms/gitlab-delivery/build/k8s-release-support-policy.md and engineering/infrastructure-platforms/gitlab-delivery/distribution/k8s-release-support-policy.md § "GKE auto-upgrades" L139–141; engineering/architecture/design-documents/gitlab_messaging_layer/_index.md § "Cluster upgrades" L508
 - `rg -l -i "upgrade"` with upgrade in the file path → support/workflows/upgrade-assistance.md, support/support-pods/upgrade/_index.md, engineering/data-engineering/database-excellence/database-frameworks/postgresql-upgrade-cadence.md, customer-experience/csm/services/infrastructure-upgrade.md, engineering/workflow/unplanned-upgrade-stop.md
 confirmed: nothing in pin answers
-ref_source: llm-draft, unreviewed
-notes: Triage alternative wording ("steps to upgrade our cluster to the next version") would be a strong retrieval match for the k8s-release-support-policy pages, the gitlab_messaging_layer "Cluster upgrades" design doc, postgresql-upgrade-cadence, and customer-experience/csm/services/infrastructure-upgrade.md (customer GitLab upgrades). The verbatim question (garage Raspberry Pi) is clearly off-topic. The Raspberry Pi Omnibus/Runner pages are a minor lexical distractor.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — added arm.md Raspberry Pi packages distractor to notes
+notes: Triage alternative wording ("steps to upgrade our cluster to the next version") would be a strong retrieval match for the k8s-release-support-policy pages, the gitlab_messaging_layer "Cluster upgrades" design doc, postgresql-upgrade-cadence, and customer-experience/csm/services/infrastructure-upgrade.md (customer GitLab upgrades). The verbatim question (garage Raspberry Pi) is clearly off-topic. The Raspberry Pi Omnibus/Runner pages (incl. engineering/infrastructure-platforms/gitlab-delivery/build/maintenance/arm.md L30–32, GitLab packages for Raspberry Pi) are a minor lexical distractor.
 
 ### Row 70 — ooc-off-topic · conditional · trap –
 Q: gonna be in berlin this weekend, is it gonna rain?
@@ -722,8 +744,9 @@ searches:
 - `rg -i 'weather forecast|berlin'` → 5 hits: songbook (Irving Berlin), infra label `europe-berlin`, Slack `#loc_berlin` (communication/chat.md L172), fast-boot in Berlin, local-channels list. None is weather.
 - `rg -i '(weather|forecast).{0,40}(rain|berlin)'` → only revenue "forecast" hits in professional-services pages.
 confirmed: nothing in pin answers it
-ref_source: llm-draft, unreviewed
-notes: Distractor: `#loc_berlin` Slack channel. A model may suggest it, which is fine as long as it doesn't forecast weather.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — reworded notes (no "fine" for extra text); added in-person.md distractor
+notes: Distractors: `#loc_berlin` Slack channel (communication/chat.md L172); leadership/in-person.md L128 (weather contingencies for events). A reply that adds the Slack channel or anything else beyond the exact refusal fails exact match (`abstain+extra`).
 
 ### Row 71 — ooc-off-topic · single-fact · trap –
 Q: how much PTO does Atlassian give its employees? I'm a contractor comparing offers
@@ -732,7 +755,8 @@ searches:
 - `rg -l -i 'atlassian'` → 18 files, all Jira/Trello/Atlassian product links (e.g. support/workflows/jira-server.md L11–57, company/culture/all-remote/parenting.md L188).
 - `rg -i 'atlassian.{0,60}(pto|vacation|time off|leave)'` → 0 hits.
 confirmed: nothing in pin answers it
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 notes: Distractors: Atlassian product mentions (Jira/Trello). GitLab's own Flexible PTO and contractor rules (people-group/time-off-and-absence/time-off-types.md L17–18, L60). A model may answer about GitLab instead, which should be scored as off-target rather than correct.
 
 ### Row 72 — ooc-off-topic · list · trap –
@@ -743,8 +767,9 @@ searches:
 - `rg -l -i '\bscrum\b'` → ~10 files, mostly customer-experience/professional-services-engineering delivery methodology pages.
 - `rg -i 'sprint review|daily scrum|sprint retrospective'` → 3 files: PS methodology retrospectives/backlog-management pages and marketing marketing/product-and-technical-marketing/product-and-solution-marketing/usecase-gtm/agile/_index.md L177 (product capabilities list).
 confirmed: nothing in pin answers it
-ref_source: llm-draft, unreviewed
-notes: Strong distractor: customer-experience/professional-services-engineering/professional-services-delivery-methodology/_index.md L70–76 lists GitLab PS's "five key components" of an iteration (Iteration Planning, Daily Standup, Backlog Refinement, Iteration Review, Retrospective). That is GitLab's own PS process, not the Scrum Guide's events. A model may pass it off as the Scrum answer.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — added sm-project-management.md distractor
+notes: Strong distractor: customer-experience/professional-services-engineering/professional-services-delivery-methodology/_index.md L70–76 lists GitLab PS's "five key components" of an iteration (Iteration Planning, Daily Standup, Backlog Refinement, Iteration Review, Retrospective). That is GitLab's own PS process, not the Scrum Guide's events. A model may pass it off as the Scrum answer. Also: marketing/product-and-technical-marketing/product-and-solution-marketing/getting-started/sm-project-management.md § "Workflow - Refine, Sprint, Retrospective" L167–176 (PMM team's 2-week sprints; says they do not practice Scrum Events as separate ceremonies) and customer-experience/professional-services-engineering/professional-services-delivery-methodology/backlog-management/_index.md L78–83 (Sprint Planning/Daily Scrum mentions).
 
 ### Row 102 — ooc-in-scope · conditional · trap –
 Q: I'm in Japan and moving apartments soon. Do we get any extra leave for moving house?
@@ -755,7 +780,8 @@ searches:
 - `rg -i 'relocation'` → people-group/relocation.md covers changing country/location for comp/contract purposes, not leave.
 - people-group/time-off-and-absence/* types (PTO, Public Holiday, Sick, Caregiver, Bereavement, Volunteer, Civic; Parental, Emergency, Military) → no moving leave. Emergency Leave covers disasters/catastrophes only (people-group/time-off-and-absence/leave-types.md L95).
 confirmed: nothing in pin answers it
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 notes: A helpful answer may point to Flexible PTO (people-group/time-off-and-absence/time-off-types.md L17), but "extra leave for moving" isn't in the pin. Distractors: Japan "Other Protected Leave" (total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md L226–230) and Emergency Leave.
 
 ### Row 110 — ooc-in-scope · process · trap –
@@ -768,7 +794,8 @@ searches:
 - `rg -il retention total-rewards people-group` → 4 files: people analytics (retention rate metric, data retention), people-group/talent-assessment.md L900–901 ("retention issue / retention strategy needed", no process), people-group/engagement.md (Summit)
 - `rg -iln "off-cycle|out of cycle|off cycle" total-rewards people-group` → total-rewards/compensation/_index.md "Internal Moves" L104–106, people-group/promotions-transfers.md L316–318 (off-cycle promotions; not retention)
 confirmed: nothing in pin answers
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 notes: Distractors: discretionary bonuses (total-rewards/incentives.md § "Process for Recommending a Team Member for a Discretionary Bonus" L200 onward), interim bonuses (total-rewards/incentives.md L13–85), off-cycle promotion approvals (people-group/promotions-transfers.md L316–318). A system that answers with the discretionary-bonus process is wrong.
 
 ### Row 111 — ooc-in-scope · list · trap –
@@ -781,8 +808,9 @@ searches:
 - `rg -i "new_team_members|#new-team-members|team-member-updates"` → 18 files. communication/chat.md L31/L37 and people-group/general-onboarding/_index.md L62/L67 describe channels where new hires introduce themselves or arrivals are announced. They are channels, not a list of names.
 - people-group/general-onboarding/_index.md § "TaNewKi Welcome Call" L24 (a pre-onboarding call to meet other soon-to-onboard team members), which is a way to meet them, not a roster.
 confirmed: nothing in pin answers
-ref_source: llm-draft, unreviewed
-notes: The answer requires live personnel data, which can't be in the handbook. Acceptable helpful additions: suggest `#new_team_members` or the TaNewKi call. Distractor: Elevate "cohort" pages.
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — stays ooc-in-scope (asks for personal state the pin can't hold); notes reworded: helpful additions fail exact match.
+notes: The answer requires live personnel data, which can't be in the handbook. Adding a pointer (`#new_team_members`, TaNewKi call) to the refusal fails exact match; diagnostic label `abstain+extra`. Distractor: Elevate "cohort" pages.
 
 ### Row 112 — ooc-in-scope · single-fact · trap –
 Q: do i still have admin rights on the AWS sandbox acct
@@ -794,7 +822,8 @@ searches:
 confirmed: nothing in pin answers the question as asked
 decision: owner 2026-10-15 — keep ooc-in-scope; nearby excerpts below are distractors.
 distractors: "Your IAM user account has `AdministratorAccess` to be able to perform any action inside of your AWS account. We do not provide team members access to the `root` user account..." (company/infrastructure-standards/realms/sandbox/_index.md § "Accessing your AWS Account" L121); individual sandbox accounts are deprovisioned automatically via Okta on departure (§ "Individual accounts" L207) with a 90-day AWS grace period (L205). The pin can't say whether this user still has access.
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 notes: "acct" is an abbreviation (D4). Distractors: the Admin (Black) Accounts AWS Admin AR template (eta/corporate-it/end-user-services/access-requests/_index.md L88) for corporate AWS admin, and the GCP project "Owner" role (sandbox L128).
 
 ### Row 113 — ooc-in-scope · single-fact · trap –
@@ -807,19 +836,9 @@ searches:
 - `rg -il "next year.{0,40}(hiring|headcount)"` → 0
 - `rg -in "FY2[78].{0,60}(headcount|hiring|roles|hire)"` → 1 unrelated (marketing UserGems campaign)
 confirmed: nothing in pin answers (no role count for any year)
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, reviewed
+decision: owner 2026-10-16 — stays ooc-in-scope (no role count anywhere in the pin; only the process is documented).
 notes: Known distractors (owner decision 2026-10-15): support/managers/hiring.md § "Hiring Plan" L79–81 (VP of Customer Support is DRI; allocates headcount to regions and approximate hiring dates) and § "Vacancies" L83–85 (internal-only Support Hiring Report - Hiring Plan); support/readiness/_index.md § "Hiring Plan" L17–22 (Support Ops ratios 40 Support Engineers : 1 Support Ops Specialist; 10 Specialists : 1 Manager). Owner's note said "Hiring Plan" 79–85; L83–85 is actually under the "Vacancies" heading.
-
-### Row 114 — ooc-in-scope · single-fact · trap –
-Q: Can I see my last performance review score somewhere?
-expected: "I don't know based on the provided handbook excerpts."
-searches:
-- `rg -i '(view|see|find|access).{0,60}(rating|assessment|performance review|9-box|score)'` in people-group, leadership, total-rewards/compensation → people-group/talent-assessment.md L502 "managers can see final assessments for each of their team members in their respective Workday profiles" (manager view, not team member). people-group/promotions-transfers.md L861 suggests sharing "your most recent performance review with your new manager" (implies you have it, doesn't say where).
-- `rg -i 'my performance|workday.{0,40}(review|rating)'` → people-group/talent-assessment.md FAQ L653–669 ("Can my performance factor be changed?" etc.). No location for viewing.
-- people-group/talent-assessment.md § "Communication" L560–564 → managers communicate ratings in a Zoom review conversation and may share "the PDF of the review" 1–2 days before.
-confirmed: nothing in pin says where a team member can look up a past score. Borderline; see notes.
-ref_source: llm-draft, unreviewed
-notes: Borderline partial. The pin says ratings are communicated by your manager in the review conversation (optionally as a PDF), and assessments live in Workday (people-group/talent-assessment.md L116, L502). An answer of "ask your manager / it's in Workday" would be inference. Owner to decide whether that counts as answerable.
 
 ### Row 115 — ooc-off-topic · process · trap –
 Q: I'm a backend dev - my python script throws a KeyError when i read a dict from a JSON file, how do i fix it?
@@ -828,7 +847,9 @@ searches:
 - `rg -l 'KeyError'` → 2 files. enterprise-data/platform/ci-jobs/index.md L20 is about a CI/CD variable missing in the data team's pipeline settings. enterprise-data/platform/python-guide.md L861 is an `except KeyError` code sample in the data team's style guide. Neither is general Python debugging help.
 - `rg -l -i 'json\.load'` → 1 file (enterprise-data/platform/snowflake/snowpipe/index.md), unrelated.
 confirmed: nothing in pin answers. General programming help is off-topic; the KeyError hits are lexical distractors.
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — added distractor headings/lines in notes
+notes: Distractors: enterprise-data/platform/ci-jobs/index.md § "Variable Name not found in the CI Pipeline job" L18–22 (KeyError from an undefined CI/CD variable, not a JSON dict fix); enterprise-data/platform/python-guide.md L849–862 (`except KeyError` sample).
 
 ### Row 116 — ooc-off-topic · conditional · trap –
 Q: How does Google's 20% time work — do engineers there still get it?
@@ -836,8 +857,9 @@ expected: "Sorry, I don't know how to answer that."
 searches:
 - `rg -n -i '20% time|20 percent time|twenty percent'` → 4 hits: company/stewardship.md L160–162 (GitLab doesn't implement "20% time"; links a Business Insider article on Google's 20% policy, calling it "really 120% time"); company/structure.md L202 ("We don't have explicit 20% time at GitLab"); people-group/learning-and-development/internship-for-learning.md L16; customer-experience/csm/csm-internship.md L20 (intern time commitment).
 - `rg -n -i 'google.{0,40}20 ?%'` → no relevant hits (Google Cloud URLs only).
-confirmed: nothing in pin answers. The pin never describes how Google's 20% time works or whether Google engineers still get it. FLAG (distractor): company/stewardship.md § "How We Think About Contributing More To Open Source" L160–162 references Google's policy only through a link, and company/structure.md § "Management group" L202 covers GitLab's own stance. A model may wrongly answer about GitLab or paraphrase the link.
-ref_source: llm-draft, unreviewed
+confirmed: nothing in pin answers. The pin never describes how Google's 20% time works or whether Google engineers still get it. FLAG (distractor): company/stewardship.md § "How We Think About Contributing More To Open Source" L158–162 references Google's policy only through a link, and company/structure.md § "Management group" L202 covers GitLab's own stance. A model may wrongly answer about GitLab or paraphrase the link. people-group/learning-and-development/internship-for-learning.md L16 ("10% time and 20% time are reasonably common") is generic, not Google-specific.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — added internship-for-learning.md L16 distractor note; no other change
 
 ### Row 117 — ooc-off-topic · single-fact · trap –
 Q: Write a haiku about Monday mornings.
@@ -846,7 +868,8 @@ searches:
 - `rg -n -i 'haiku'` → 4 hits: Claude Haiku model references (support/ai/ai-tool-selection.md L99, support/ai/using-ai-in-support.md L125, L133) and a DNS-haiku link in engineering/readmes/ben-king.md L64. None relevant.
 - `rg -n -i 'monday morning'` → scheduled-job timing (e.g. business-technology/how-we-work/rolly/index.md L14). Irrelevant.
 confirmed: nothing in pin answers. This is a creative-writing request, off-topic.
-ref_source: llm-draft, unreviewed
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — no change
 
 ## 5. Cut (owner, 2026-10-15)
 
@@ -1040,6 +1063,22 @@ facts:
 ref_source: llm-draft, unreviewed
 notes: The UAE sabbatical fact (F1) was found during recoding; the earlier draft said the pin has no sabbatical at all. The leave-of-absence page's country-to-provider list (L28–29) is stale (see row 58). Graders may accept F3/F4 as one fact.
 
+### Row 62 — ooc-in-scope · process · trap –
+Q: how do i enroll my personal phone in device management as a contractor?
+cut: owner 2026-10-16 — the pin partly answers (phones are enrolled in Okta Verify and must pass Okta posture checks; MDM is for GitLab laptops), so a reasonable answer would fail the exact-string check; out-of-corpus rule: partial → cut. Found in the 8-row sample review.
+expected: "I don't know based on the provided handbook excerpts."
+searches:
+- `rg -i "personal (phone|mobile|device)"` → 16 files. Nearest: finance/procurement/tips-for-submitting-a-zip-request.md L116 ("Access to GitLab resources via personal devices is not permitted. Is the contingent worker issued a vendor-managed laptop?") and people-group/acceptable-use-policy.md § "Personal Mobile Phone and Tablet Usage" L133 (personal mobiles accessing GitLab data must be passcode-enabled and patched; 2FA enforced for employee and contractor accounts)
+- `rg -i "BYOD|bring your own device"` → 5 files; people-group/acceptable-use-policy.md § "Bring-Your-Own-Device (BYOD)" L125–133 (no MDM enrolment step)
+- `rg -i "(mobile|phone).{0,40}(MDM|device management|enroll)"` → 4 files. eta/corporate-it/end-user-services/onboarding101/onboarding-mobile-devices.md L5 (to use Okta apps on a mobile device, enroll it in **Okta Verify** and save a passkey, which is not MDM); eta/corporate-it/end-user-services/laptop-management/laptop-security/management/_index.md § "Mobile Device Management (MDM)" L13–23 (MDM covers GitLab-purchased devices; "Your personal laptop should not be enrolled in MDM")
+- `rg -i "(MDM|enroll).{0,60}(mobile|phone|iOS|android)"` → 3 files (Jamf laptop enrolment, Okta Verify help). No phone MDM enrolment procedure.
+- `rg -i "contractor.{0,80}(device|phone|laptop|MDM|enroll)"` → 2 files (physical-security standard scope; hiring-contractors laptop requirement). No phone enrolment procedure.
+confirmed: nothing in pin answers the question as asked
+decision: owner 2026-10-15 — keep ooc-in-scope; nearby excerpts below are distractors.
+distractors: "Your personal laptop should not be enrolled in MDM, and cannot be used for accessing GitLab accounts or business data." (eta/corporate-it/end-user-services/laptop-management/laptop-security/management/_index.md § "Mobile Device Management (MDM)" L23); "the device needs to be enrolled in Okta Verify, and a passkey needs to be saved on the device" (eta/corporate-it/end-user-services/onboarding101/onboarding-mobile-devices.md L5; Okta Verify, not MDM); "Access to GitLab resources via personal devices is not permitted." (finance/procurement/tips-for-submitting-a-zip-request.md § "How to Submit a Zip Request for a Contractor" L116, contingent workers); personal mobile phones must be passcode-enabled and patched (people-group/acceptable-use-policy.md § "Personal Mobile Phone and Tablet Usage" L133).
+ref_source: llm-draft, unreviewed
+notes: D4 is ambiguous-scope ("contractor" could mean a GitLab contractor via PEO/iiPay or a contingent worker via a vendor). The Okta Verify page is the most likely retrieval and isn't "device management".
+
 ### Row 64 — lookup · single-fact · trap –
 cut: owner 2026-10-15 — recoded row, no new failure mode
 Recoded from ooc-in-scope, 2026-10-15 (D1 lookup, D2 short-section).
@@ -1182,3 +1221,16 @@ facts:
 - F5. The handbook does not describe a discount on phone plans or on buying a laptop for personal use — (absence; searches below)
 ref_source: llm-draft, unreviewed
 notes: Searches for F5: `rg -il "phone plan|mobile plan|carrier discount|verizon|t-mobile"` → 7 files, none a discount (nearest: support/on-call.md L355, on-call staff may expense their mobile phone service in on-call months). `rg -in "personal (use|purchase).{0,60}(laptop|computer)|…"` → laptop personal-use policy only. Distractors, not discounts: laptop buyback at offboarding (eta/corporate-it/end-user-services/laptop-management/laptop-offboarding-returns/_index.md § "Laptop Buybacks" L36–42); keep laptop at no cost after 3 years (eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md L79); Apple Business Account "corporate discounts" for business purchases (marketing/growth-marketing/regional-marketing/_index.md L1038); SoFi 0.25% loan refinancing discount (inc-benefits-us "Student Loan Support", L601–604), which a reviewer may want to add as a US fact. Page last changed: inc-benefits-us 03d7be6367 2026-09-25; total-rewards/benefits/general-and-entity-benefits/_index.md f96a52e199 2026-09-28; total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md f36839dd2f 2026-09-29.
+
+### Row 114 — ooc-in-scope · single-fact · trap –
+Q: Can I see my last performance review score somewhere?
+cut: auto-review 2026-10-16 — partial answer in pin (ratings communicated by manager in review conversation, optional PDF, assessments in Workday; talent-assessment.md L116, L502, L562–564); grounded answers would fail exact-match abstention
+expected: "I don't know based on the provided handbook excerpts."
+searches:
+- `rg -i '(view|see|find|access).{0,60}(rating|assessment|performance review|9-box|score)'` in people-group, leadership, total-rewards/compensation → people-group/talent-assessment.md L502 "managers can see final assessments for each of their team members in their respective Workday profiles" (manager view, not team member). people-group/promotions-transfers.md L861 suggests sharing "your most recent performance review with your new manager" (implies you have it, doesn't say where).
+- `rg -i 'my performance|workday.{0,40}(review|rating)'` → people-group/talent-assessment.md FAQ L653–669 ("Can my performance factor be changed?" etc.). No location for viewing.
+- people-group/talent-assessment.md § "Communication" L560–564 → managers communicate ratings in a Zoom review conversation and may share "the PDF of the review" 1–2 days before.
+confirmed: nothing in pin says where a team member can look up a past score. Borderline; see notes.
+ref_source: llm-draft, auto-reviewed
+decision: auto-review 2026-10-16 — CUT (partial answer; exact-match abstention unfair)
+notes: Borderline partial. The pin says ratings are communicated by your manager in the review conversation (optionally as a PDF), and assessments live in Workday (people-group/talent-assessment.md L116, L502). An answer of "ask your manager / it's in Workday" would be inference. Owner to decide whether that counts as answerable.

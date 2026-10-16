@@ -1,7 +1,7 @@
 # Eval set: how the candidates were built (2026-10-14)
 
-Status: **eval set v1** ([eval-set-v1.md](eval-set-v1.md), [CHANGELOG](CHANGELOG.md)):
-54 rows, 33 answerable / 21 out-of-corpus. Built from the 76 candidates below
+Status: **eval set v1.1** ([eval-set-v1.md](eval-set-v1.md), [CHANGELOG](CHANGELOG.md)):
+52 rows, 33 answerable / 19 out-of-corpus. Built from the 76 candidates below
 (+20 parked permission cases).
 
 ## Inputs
@@ -57,6 +57,10 @@ Status: **eval set v1** ([eval-set-v1.md](eval-set-v1.md), [CHANGELOG](CHANGELOG
    reference answers for all 76 from the pinned corpus only (fact lists tied
    to excerpts). The owner decided the flagged rows, checked every trap
    verdict, and cut to 54. Details in the CHANGELOG.
+8. **Review (2026-10-16):** blind sweep of the 38 unreviewed rows
+   ([sweep-2026-10-16.md](sweep-2026-10-16.md)); owner hand-reviewed a seeded
+   8-row sample plus 3 more rows, then Claude auto-reviewed the remaining 26 on
+   the owner's standing approval. Cut to 52 (v1.1).
 
 ## Why no corpus access during generation
 Questions written from pages reuse the pages' wording, which inflates

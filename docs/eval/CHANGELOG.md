@@ -2,6 +2,18 @@
 
 Every run records the eval-set version it used. Scores from different versions are not compared directly.
 
+## v1.1 (2026-10-16)
+
+- **Counts:** 52 live rows, 33 answerable / 19 out-of-corpus (63 / 37). By type: lookup 9, synthesis 8, contradiction 8, recency 8, ooc-in-scope 10, ooc-off-topic 9.
+- **Sweep:** a fresh subagent searched the pin blind (questions and expected paths only, no facts) for other pages answering the 38 unreviewed rows: 33 flagged, 5 none. [sweep-2026-10-16.md](sweep-2026-10-16.md).
+- **Owner review:** seeded 8-row sample (`random.Random(20261016)`: 26, 44, 89, 96, 47, 62, 111, 113) plus 50, 58, 87. Sample result: 1 of 8 answer-level errors (62), 3 of 8 counting missing expected docs (44, 96). Under the decision rule any error meant reviewing all remaining rows before a baseline run.
+- **Auto-review:** the remaining 26 rows were reviewed by Claude subagents against the cited excerpts and the sweep, with fixes applied on the owner's standing approval. They carry `ref_source: llm-draft, auto-reviewed`.
+- **Cut (2):** 62 and 114. The pin partly answers both, so a grounded answer would fail the exact abstention string.
+- **Fact changes:** facts reworded to what the cited lines state in 96, 5, 9, 22, 23, 34, 35, 38, 92. `[required]` / `[optional]` markers added to every row reviewed on 2026-10-16. New optional variant facts in 5, 22, 34, 87, 89, 96.
+- **Expected docs added:** 44 (`customer-experience/csm/segment/_index.md`), 87 (`usecase-gtm/devops-platform/_index.md`), 96 (`on-call/tier-2.md`, `support/support-time-off.md`), 38 (`incident-management/roles/communications-lead.md`, `corporate-communications/incident-communications-plan.md`).
+- **New field:** `recency_basis` (`in-page` / `history-only`) on 44, 50, 58. The other contradiction and recency rows don't have it yet.
+- **Unchanged:** question text, row types (except the two cuts) and out-of-corpus expected strings, checked by diff against the pre-review file. Citations re-checked against the pin: 239 checked, 0 real problems.
+
 ## v1 (2026-10-15)
 
 - **File:** [eval-set-v1.md](eval-set-v1.md). Corpus pin `5273b21`.
