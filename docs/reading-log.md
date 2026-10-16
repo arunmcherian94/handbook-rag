@@ -5,6 +5,137 @@ and what it changes in this project. Newest first within each date.
 
 ---
 
+## Fri 16 Oct 2026
+
+### Research: versioning evals and keeping the baseline comparable
+
+Question: when the eval set changes, how do we tell a score change caused
+by the eval apart from one caused by the system?
+
+Read in full or in part:
+- Anthropic, A statistical approach to model evaluations: https://www.anthropic.com/research/statistical-approach-to-model-evals
+- LangSmith, evaluate on a specific dataset version: https://docs.smith.langchain.com/evaluation/how_to_guides/dataset_version
+- LangSmith, compare experiment results: https://docs.smith.langchain.com/evaluation/how_to_guides/compare_experiment_results
+- Langfuse, compare view with a baseline: https://langfuse.com/changelog/2025-11-06-compare-view-baseline-support
+- OneUptime, maintaining a stale golden dataset: https://oneuptime.com/blog/post/2026-08-31-maintain-stale-llm-golden-dataset
+
+Abstract, summary or search snippet only: Miller, Adding Error Bars to
+Evals (arXiv 2411.00640); WorkBench Revisited (arXiv 2606.13715);
+SWE-Bench Pro audit (Kili summary:
+https://kili-technology.com/blog/data-story-ai-benchmark-audit-swe-bench-pro-verified);
+pokedex-llm-benchmark releases (v1 and v2 declared not comparable).
+
+Summary:
+- Every change to an eval makes a new frozen version with a note of what
+  changed. Relabels, new rows and scorer changes are recorded separately,
+  because a relabel moves the score of an unchanged system.
+- Every run records the eval version, its hash, the scorer version and
+  the system config. Runs are compared only within one version. Langfuse
+  and LangSmith both compare a candidate against a baseline row by row
+  on the same dataset.
+- When the eval changes, run the old system once on both versions. The
+  difference is the eval's effect. Audits show it can be large: WorkBench
+  fixes lifted GPT-4 about 8 points; the SWE-Bench Pro audit dropped one
+  model from 78.8% to 59.5% on the same tasks.
+- A scorer or judge change also means re-running the baseline.
+- Keep a stable core of rows; the rows that didn't change give a
+  like-for-like comparison across versions.
+- Report a standard error with every score, and compare two systems on
+  the same questions with a paired test (Anthropic).
+- Mostly vendor docs and blogs; Anthropic is the only research source.
+  The advice is consistent, but there's no single standard.
+
+Takeaways for handbook-rag:
+- We already version per question (CHANGELOG, `decision:` lines,
+  `ref_source`, cut rows kept).
+- Re-running the baseline is cheap: pinned corpus, frozen model and
+  prompt, exact search. Answers from gpt-5.4-mini can still vary run to
+  run.
+- With 33 answerable rows, one row is about 3 points. Smaller answer
+  changes are noise unless a paired comparison says otherwise.
+
+Decisions informed: (b) eval versioning; spec 0004 run metadata (eval
+version, file sha256, harness SHA), per-row output, standard errors.
+
+### Hamel Husain and Shreya Shankar, AI Evals FAQ (four entries)
+
+- How should I approach evaluating my RAG system?
+  https://hamel.dev/blog/posts/evals-faq/how-should-i-approach-evaluating-my-rag-system.html
+- How do I know if I can trust my automated eval?
+  https://hamel.dev/blog/posts/evals-faq/how-do-i-know-if-i-can-trust-my-automated-eval.html
+- Why binary pass/fail instead of 1–5 ratings?
+  https://hamel.dev/blog/posts/evals-faq/why-do-you-recommend-binary-passfail-evaluations-instead-of-1-5-ratings-likert-scales.html
+- How do we evaluate a model's ability to know what it doesn't know?
+  https://hamel.dev/blog/posts/evals-faq/how-do-we-evaluate-a-models-ability-to-express-uncertainty-or-know-what-it-doesnt-know.html
+
+Summary:
+- RAG: score retrieval as a search problem (recall@k, precision@k, MRR)
+  and generation separately: is the context relevant to the question, is
+  the answer faithful to the context, does it address the question (from
+  Jason Liu's "6 RAG evals"). Suggests building retrieval sets by
+  generating questions from documents' key facts; gives no caveats.
+- Trusting a judge: check it against human labels of the specific
+  failure, with train/dev/test splits and an untouched test set. Report
+  TPR and TNR, not one score; with rare failures, small false-alarm rates
+  swamp reviewers. Code-checkable conditions need no labels. No label
+  count, correction method or bar for "validated".
+- Binary: pass/fail labels are more consistent than 1–5 scales. Partial
+  credit comes from several binary sub-checks, such as counting expected
+  facts. Silent on retrieval relevance and nDCG.
+- Uncertainty: test both failure modes, refusing answerable questions and
+  inventing answers to unanswerable ones (false premises, missing
+  information, topics outside knowledge). Rough balance; diversity
+  matters more than the ratio. Silent on exact strings and judges.
+
+Takeaways for handbook-rag:
+- Generating questions from pages wasn't used for v1: page wording
+  flatters dense retrieval, and it can't produce out-of-corpus,
+  contradiction or recency rows (35 of 52). A separate synthetic set,
+  for scoring retrieval only, is a week 2 follow-up.
+- Spec 0004 scores retrieval separately; faithfulness and
+  answer-relevance judges are follow-ups, built only for failures found
+  in coded traces.
+- Our fact lists are already binary sub-checks.
+- Spec 0004 reports false abstention (answerable rows) and invented
+  answers (out-of-corpus rows) separately.
+- v1.1 has no false-premise rows; follow-up for a later version.
+
+Decisions informed: (c) no "validated judge" claim; (d) code checks;
+Q1 binary; abstention reporting in spec 0004.
+
+### Pinecone, Evaluation Measures in Information Retrieval
+
+https://www.pinecone.io/learn/offline-evaluation/
+
+Summary: defines recall@K, MRR, MAP@K and nDCG@K with code. nDCG assumes
+graded relevance, which needs labels saying whether each item is more or
+less relevant than others. Names binary relevance as MAP@K's weakness.
+Warns that recall@K alone can mislead at large K. Silent on page vs
+chunk level and on how to choose K.
+
+Takeaways for handbook-rag:
+- Binary nDCG@5 for the baseline (v1.1 has no grades). Graded nDCG from
+  the required/alternate page tiers is a follow-up, after the tiers are
+  reviewed as relevance labels.
+- Report recall@1/3/5 together with MRR, not recall@5 alone.
+
+Decisions informed: Q1 binary, Q2 k = 1/3/5.
+
+### Weaviate, Evaluation Metrics for Search and Recommendation Systems
+
+https://weaviate.io/blog/retrieval-evaluation-metrics
+
+Summary: general definitions of rank-aware and non-rank-aware metrics
+(precision, recall, MAP, MRR, nDCG@K). Doesn't address binary vs graded
+relevance for our case or which K to report.
+
+Takeaways for handbook-rag: none beyond the definitions. Q1 and Q2 rest
+on our own reasons (no grades in v1.1; retrieval depth is 5).
+
+Decisions informed: none directly.
+
+---
+
 ## Thu 15 Oct 2026
 
 ### Research: access control in RAG evals (three research subagents)
