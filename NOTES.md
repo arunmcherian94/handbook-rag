@@ -185,7 +185,7 @@ Working notes on building this with a coding agent. One bullet per entry: what h
   - Week 1: controls are scored normally; denied runs are reported as a pre-ACL leak rate, never as failures. A leak is measured at retrieval level first: a restricted chunk in the top k.
   - Week 2: gates are leak 0, over-block 0, and conflicts leak 0.
   - Week 5: conflicts grow into injection cases.
-- **Deferred to Thu 16:00:** (b) criteria drift, (c) judge claims, (d) binary rubric.
+- **Deferred to Thu 16:00:** (b) criteria drift, (c) judge claims, (d) binary rubric. *(Decided 2026-10-16.)*
 
 ## 2026-10-15 (ACLs in evals)
 
@@ -211,7 +211,26 @@ Working notes on building this with a coding agent. One bullet per entry: what h
 - **Gate catch:** row 62 (personal phone device management) was labelled out-of-corpus, but the pin partly answers it (Okta Verify enrolment, posture checks). Cut, along with 114 (performance review score) for the same reason. Missing expected docs on 44 and 96 would have scored correct retrievals as misses.
 - **Abstention scoring:** exact match stays pass/fail, because the prompt says "reply exactly". "Starts with" was rejected: it would pass off-topic answers that add training-knowledge text. Failures that start with the right string get a diagnostic label, `abstain+extra`, which doesn't change any score.
 - **`recency_basis`:** a contradiction or recency fact settled only by git history can't be met by a model that never sees history. Those facts are kept, labelled `history-only` and reported separately, so a later recency fix can be measured against the same facts. All 16 contradiction and recency rows are labelled: 8 `history-only` (11, 44, 49, 50, 51, 52, 53, 55) and 8 `in-page`. Rows 50, 53 and 58 don't score their conflict at all; report that alongside the per-type results.
-- **Spec 0004 inputs from the review:** the pages behind `[required]` facts are the must-retrieve set (recall as a fraction); other expected docs are acceptable alternates (any hit).
+- *(Superseded 2026-10-16: recall counts required facts, any cited source satisfies; markers on every row in v1.2. See spec 0004.)* **Spec 0004 inputs from the review:** the pages behind `[required]` facts are the must-retrieve set (recall as a fraction); other expected docs are acceptable alternates (any hit).
+
+## 2026-10-16 (eval metric decisions, reading)
+
+Reading: [docs/reading-log.md](docs/reading-log.md), 16 Oct.
+
+- **(b) Eval versioning:** every change makes a new version with a changelog entry per question. Runs record the eval version, a sha256 of the eval file and the harness git SHA, and are compared only within one version. When the eval changes, the frozen baseline is re-run on the new version, so the eval's effect is measured apart from the system's. A scorer or judge change also means re-running the baseline. So in the eval set, I will bump the version on any row change and re-run the baseline before comparing.
+- **(c) No "validated judge" claim:** validating a judge needs human labels of the target failure, a train/dev/test split with an untouched test set, and reported TPR and TNR. With 52 rows we have none of that. So in the eval set, I will report a judge only as "checked against N labels, TPR x, TNR y", and hold out a test portion of the coded traces from the start.
+- **(d) Code checks, no labels needed:** citation present, cited heading exists at the pin, exact abstention strings, no URLs copied into the answer. Answers are scored by binary fact checks (`[required]`/`[optional]`), not a scale. So in the eval set, I will grade everything code can check with code.
+- **Q1 binary relevance:** v1.1 has no relevance grades. nDCG@5 uses binary gains, stated as such. Graded nDCG from the required/alternate page tiers is a follow-up.
+- **Q2 k = 1, 3, 5:** all 5 chunks go to the model, so @5 measures whether the answer could be reached and nothing above 5 means anything. @1 and @3 show ranking headroom for reranking (week 3) and for a smaller k. Reported with MRR, since recall@5 alone hides ranking (Pinecone).
+- **Q3 chunk level is the headline.** A chunk counts as relevant if it contains a cited evidence line, so labels survive chunking changes in week 2. The headline metric is **fact recall@k** (required facts covered ÷ required facts), plus all-required@k. hit, MRR and nDCG count only chunks relevant to a required fact. Page level is reported as a diagnostic: page hit with chunk miss = a chunking problem (6 of 10 seed traces). At page level a page counts once, at its best rank.
+- **Not reported:** precision@k (few expected pages: 26 of 33 rows have 1–2, and unlabelled relevant pages would count as misses) and MAP@k (identical to MRR for one page; nDCG covers several). Revisit precision if noisy context shows up as a failure mode.
+- **Abstention reported both ways:** false abstention on answerable rows and invented answers on out-of-corpus rows, never one combined rate. The wrong abstention string (NOT_FOUND on off-topic, or OUT_OF_SCOPE on in-scope) fails the exact check and gets a diagnostic label.
+- **Retrieval and generation scored separately:** spec 0004 covers retrieval metrics plus the abstention and code checks. Faithfulness and answer-relevance judges come later, only for failures found in coded traces, per (f).
+- **Questions generated from pages (Hamel's FAQ) not used for v1:** page wording flatters dense retrieval, and the method can't produce out-of-corpus, contradiction or recency rows (35 of 52).
+- **Noise:** 33 answerable rows means one row is about 3 points. Spec 0004 reports a standard error next to each rate.
+- **Custom vs textbook metrics:** a fresh research agent found no standard for retrieval evals when chunking changes. The closest common advice is span labels fixed across chunkings (Chroma) and recall over reference facts (RAGAS and DeepEval, via an LLM). That's what we do, from labels. Textbook chunk recall is rejected: overlap and alternative pages inflate the denominator, and it shifts with chunking. Retrieved tokens are reported, because bigger chunks raise recall by covering more text.
+- **Limitation:** a cited line longer than the 64-token overlap that straddles a chunk boundary is in no chunk in full, so it can't match. The AC-2 check fails the run if a fact is left unmatchable. If it fires, the decision then is to loosen the rule to span overlap.
+- **Follow-ups (week 2):** token precision/IoU when chunk size changes (Chroma); comparing chunkings at an equal retrieved-token budget.
 
 ## Corpus: git behaviors, limitations, assumptions
 
@@ -239,6 +258,10 @@ Assumptions (unverified):
 ## Follow-ups (not built)
 
 - **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts.
+- **Synthetic retrieval set (week 2):** questions generated from sections (not chunks), labelled synthetic, scored for retrieval only and always reported apart from v1. Gives chunking and embedding comparisons more statistical power than 33 rows.
+- **Graded nDCG:** gains 2/1/0 from required/alternate page tiers, after the tiers are reviewed as relevance labels.
+- **Answer judges:** faithfulness to context and answer relevance, built only for coded failures; validated per (c).
+- **False-premise rows:** add 2–3 out-of-corpus false-premise questions in a later eval version.
 - **Incremental sync:**
   1. `git fetch`.
   2. `git diff --name-status OLD..NEW -- content/handbook`.
