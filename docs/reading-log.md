@@ -134,6 +134,35 @@ on our own reasons (no grades in v1.1; retrieval depth is 5).
 
 Decisions informed: none directly.
 
+### Research: RAG retrieval metrics when chunking changes (fresh research agent)
+
+Question: are spec 0004's retrieval metrics too custom? What do people do when the chunking itself is the variable? The agent got only the setup and the scenarios, none of our proposals.
+
+Read (pages fetched, summarised second-hand):
+- Chroma, Evaluating chunking: https://www.trychroma.com/research/evaluating-chunking
+- RAGAS context recall: https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_recall/
+- DeepEval contextual recall: https://deepeval.com/docs/metrics-contextual-recall
+- LlamaIndex retrieval evaluation: https://developers.llamaindex.ai/python/framework/module_guides/evaluating/usage_pattern_retrieval/
+- arXiv 2505.21700 (string match, Recall@1–5): https://arxiv.org/html/2505.21700v2
+- TruLens RAG triad, Phoenix retrieval relevance, LangSmith RAG tutorial (all LLM judges)
+
+Snippet or abstract only: arXiv 2603.19251 (re-aligns gold spans after re-chunking); MultiHop-RAG (2401.15391); multi-hop survey (2204.09140); HiChunk (2509.11552); arXiv 2608.13867 (recall not comparable across chunk sizes); Aalto thesis (best-recall chunking gave the worst answer F1); dev.to "Your RAG eval is grading the chunker".
+
+Summary:
+- No single standard. BEIR, MTEB and LlamaIndex label fixed IDs, which break when chunks change. RAGAS, DeepEval, TruLens and Phoenix default to LLM judges.
+- When chunking is the variable, the common advice is gold labels as text spans that don't depend on the chunker, mapped onto each chunking by a rule fixed up front. The rules seen are overlap, containment, token IoU and LLM judgement, and they give different numbers.
+- Textbook recall over chunk IDs breaks with overlap and alternative evidence. Practice uses hit rate, recall over reference claims, or token recall.
+- "Got everything needed" is reported as per-item recall or all-or-nothing (acc@k), often side by side.
+- Scores are expected to change with chunking. Keep the labels fixed, and report retrieved tokens or precision, because bigger chunks inflate recall.
+- Small sets are noisy: Chroma reports ±20–35 pt standard deviations.
+
+Takeaways for handbook-rag:
+- Our design (fact labels tied to text, recall over facts, OR across alternative sources) matches the closest common advice, done from labels instead of an LLM.
+- Renamed to fact recall@k so it isn't read as textbook recall. Added all-required@k and retrieved tokens.
+- Our containment rule is one of several in use, and it's lenient for straddling facts. It's fixed up front and kept constant.
+
+Decisions informed: spec 0004 AC-2 reason, AC-3 metric set, Decisions table; NOTES "custom vs textbook metrics".
+
 ---
 
 ## Thu 15 Oct 2026

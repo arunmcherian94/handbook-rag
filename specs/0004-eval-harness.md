@@ -11,10 +11,17 @@ The frozen baseline (spec 0003) has never been measured. Week 1 ends when baseli
 ## Acceptance criteria
 
 - AC-1: **Eval set parsing.** The harness reads `docs/eval/eval-set-v1.md` into rows: id, type, question, expected docs, facts (with `[required]`/`[optional]`, cited paths and line ranges), expected abstention string for out-of-corpus rows, `recency_basis`. Cut rows are skipped. A malformed row (no question, an answerable row with no `[required]` fact, an unparseable citation) fails the run with the row id.
-- AC-2: **Evidence check before any spend.** For every fact, the cited lines are read from the pinned corpus in `data/handbook`. A chunk is *relevant* to a fact if it comes from a cited page and contains at least one cited non-blank line in full (whitespace-normalised). The run fails, naming the row and fact, if any fact's lines aren't found in any stored chunk of its page. This catches line drift and ingest changes before they distort scores.
+- AC-2: **Evidence check before any spend.** For every fact, the cited lines are read from the pinned corpus in `data/handbook`. A chunk is *relevant* to a fact if it comes from a cited page and contains at least one cited non-blank line in full (whitespace-normalised). The run fails, naming the row and fact, if any fact's lines aren't found in any stored chunk of its page. Relevance is string matching against chunk text, so a fact that can't match would be scored as a retrieval miss on every run without any error. Causes the pin doesn't prevent:
+  - chunks are token windows, so a long line straddling a boundary may be in no chunk in full
+  - a wrong line range, for example one pointing at front matter, which ingest strips
+  - week 2 changes to the stored text
 - AC-3: **Retrieval metrics, answerable rows only**, at k = 1, 3, 5:
-  - **Chunk level (headline):** recall@k = share of the row's required facts with at least one relevant chunk in the top k. hit@k, MRR and binary nDCG@5 over chunks relevant to any fact.
-  - **Page level (diagnostic):** recall@k = share of required facts with at least one cited page in the top k. hit@k, MRR and binary nDCG@5 over `expected_docs`. Each page counts once, at its best rank.
+  - **Chunk level (headline):**
+    - **fact recall@k** = required facts with at least one relevant chunk in the top k ÷ the row's required facts. A fact counts once however many of its chunks are retrieved, and any of its cited sources satisfies it.
+    - **all-required@k** = 1 if every required fact is covered, else 0.
+    - hit@k, MRR and binary nDCG@5 over chunks relevant to a required fact.
+  - **Page level (diagnostic):** fact recall@k = required facts with at least one cited page in the top k ÷ required facts. hit@k, MRR and binary nDCG@5 over `expected_docs`. Each page counts once, at its best rank.
+  - **Retrieved tokens:** the mean token count of the top k chunks, reported next to recall. It matters once chunk size changes, since bigger chunks can raise recall just by covering more text.
   - Rows with a page hit but no relevant chunk at k = 5 are listed (chunking problem).
   - Metrics are pure functions over ranked lists and relevance sets.
 - AC-4: **Abstention**, exact string match:
@@ -32,7 +39,7 @@ The frozen baseline (spec 0003) has never been measured. Week 1 ends when baseli
 ## Out of scope
 
 - LLM judges, fact scoring of answers, faithfulness and answer relevance (after coded traces, per NOTES (f))
-- precision@k, MAP@k, graded nDCG
+- precision@k, MAP@k, graded nDCG, token precision/IoU, equal-token-budget comparison
 - trace viewer, observability tooling, dashboards, UI
 - leak metric, permissions, ACL cases
 - any change to chunking, retrieval, the prompt or models
@@ -45,8 +52,10 @@ The frozen baseline (spec 0003) has never been measured. Week 1 ends when baseli
 | Relevance | Binary | **Graded:** v1.2 has no grades. Follow-up in NOTES. |
 | k | 1, 3, 5 | **Above 5:** nothing past rank 5 is retrieved. |
 | Headline level | Chunk; page as diagnostic | **Page only:** hides "right page, wrong chunk" (6 of 10 seed traces). |
-| Chunk relevance | Contains a cited evidence line | **Labelled chunk ids:** break on any chunking change in week 2. **Same heading:** long sections span many chunks. |
-| Recall unit | Required facts, any cited source satisfies | **Pages:** a fact can cite two alternative pages; 25 fact citations point outside `expected_docs`. |
+| Labels | Text spans (fact → page + lines), fixed across chunkings, mapped onto each chunking by a rule chosen up front (as in Chroma's chunking evaluation) | **Labelled chunk ids** (LlamaIndex, BEIR style): break on any chunking change in week 2. |
+| Chunk relevance | Contains a cited evidence line | **Same heading:** long sections span many chunks. **Span overlap:** revisit only if the AC-2 check flags straddled lines. Known lenient for facts spanning several chunks. Kept constant across experiments. |
+| Recall unit | Fact recall: required facts, any cited source satisfies (as in RAGAS and DeepEval context recall, computed from labels instead of an LLM) | **Textbook chunk recall:** overlap and alternative pages inflate the denominator, and that denominator shifts with the chunking. **Pages:** a fact can cite two alternative pages; 25 fact citations point outside `expected_docs`. |
+| Rank metrics | Over chunks relevant to a required fact | **Any fact:** a row could score hit = 1 with recall = 0. |
 | Abstention | Exact match | **Starts with:** passes off-topic answers that add training-knowledge text. |
 | Comparability | Compare runs only within one eval-set version and hash | **Compare across versions:** an eval change moves scores of an unchanged system (NOTES (b)). |
 | Dependencies | None new | Metrics are a few lines each; no IR library needed. |
