@@ -210,7 +210,7 @@ Working notes on building this with a coding agent. One bullet per entry: what h
 - **Sample 8/38 hand-reviewed, 1 answer-level error (3 counting missing expected docs); sweep flagged 33, all triaged.** The decision rule triggered a review of all remaining rows. The owner reviewed 3 more, and 26 were auto-reviewed by Claude subagents with fixes applied on the owner's standing approval (`ref_source: llm-draft, auto-reviewed`). Fact lists of auto-reviewed rows should be hand-checked before the first judge uses them.
 - **Gate catch:** row 62 (personal phone device management) was labelled out-of-corpus, but the pin partly answers it (Okta Verify enrolment, posture checks). Cut, along with 114 (performance review score) for the same reason. Missing expected docs on 44 and 96 would have scored correct retrievals as misses.
 - **Abstention scoring:** exact match stays pass/fail, because the prompt says "reply exactly". "Starts with" was rejected: it would pass off-topic answers that add training-knowledge text. Failures that start with the right string get a diagnostic label, `abstain+extra`, which doesn't change any score.
-- **`recency_basis`:** a contradiction or recency fact settled only by git history can't be met by a model that never sees history. Those facts are kept, labelled `history-only` and reported separately, so a later recency fix can be measured against the same facts. Rows 50 and 58 don't score their conflict at all; report that alongside the per-type results.
+- **`recency_basis`:** a contradiction or recency fact settled only by git history can't be met by a model that never sees history. Those facts are kept, labelled `history-only` and reported separately, so a later recency fix can be measured against the same facts. All 16 contradiction and recency rows are labelled: 8 `history-only` (11, 44, 49, 50, 51, 52, 53, 55) and 8 `in-page`. Rows 50, 53 and 58 don't score their conflict at all; report that alongside the per-type results.
 - **Spec 0004 inputs from the review:** the pages behind `[required]` facts are the must-retrieve set (recall as a fraction); other expected docs are acceptable alternates (any hit).
 
 ## Corpus: git behaviors, limitations, assumptions
@@ -238,7 +238,7 @@ Assumptions (unverified):
 
 ## Follow-ups (not built)
 
-- **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts. Also add `recency_basis` to the remaining contradiction and recency rows.
+- **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts.
 - **Incremental sync:**
   1. `git fetch`.
   2. `git diff --name-status OLD..NEW -- content/handbook`.

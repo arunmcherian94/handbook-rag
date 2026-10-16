@@ -11,7 +11,7 @@ Every run records the eval-set version it used. Scores from different versions a
 - **Cut (2):** 62 and 114. The pin partly answers both, so a grounded answer would fail the exact abstention string.
 - **Fact changes:** facts reworded to what the cited lines state in 96, 5, 9, 22, 23, 34, 35, 38, 92. `[required]` / `[optional]` markers added to every row reviewed on 2026-10-16. New optional variant facts in 5, 22, 34, 87, 89, 96.
 - **Expected docs added:** 44 (`customer-experience/csm/segment/_index.md`), 87 (`usecase-gtm/devops-platform/_index.md`), 96 (`on-call/tier-2.md`, `support/support-time-off.md`), 38 (`incident-management/roles/communications-lead.md`, `corporate-communications/incident-communications-plan.md`).
-- **New field:** `recency_basis` (`in-page` / `history-only`) on 44, 50, 58. The other contradiction and recency rows don't have it yet.
+- **New field:** `recency_basis` on all 16 contradiction and recency rows, each with what scores the conflict. `history-only` (8): 11, 44, 49, 50, 51, 52, 53, 55. `in-page` (8): 8, 10, 13, 46, 48, 58, 59, 100. The conflict isn't scored at all on 50, 53 and 58.
 - **Unchanged:** question text, row types (except the two cuts) and out-of-corpus expected strings, checked by diff against the pre-review file. Citations re-checked against the pin: 239 checked, 0 real problems.
 
 ## v1 (2026-10-15)
