@@ -1,6 +1,6 @@
 # 0004: Eval harness (retrieval metrics and code checks)
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-16
 - Depends on: 0003, eval set v1.2
 
@@ -74,7 +74,7 @@ None.
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] NOTES.md updated
+- [x] `make test` and `make lint` pass
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human (listed in the PR)
+- [x] Clean-room verified
+- [x] NOTES.md updated
