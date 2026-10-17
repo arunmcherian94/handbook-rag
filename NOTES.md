@@ -291,10 +291,8 @@ Reading: [docs/reading-log.md](docs/reading-log.md), 16 Oct.
 
 ## 2026-10-17 (baseline eval numbers)
 - **Week 1 closed:** run `2026-10-17-3748df5b` on clean main at 76b3fce, eval set v1.2, $0.21. The summary is in `docs/eval/results/2026-10-17-3748df5b/`. `rows.jsonl` stays local, in `runs/`, which is gitignored.
-- **Headline:**
-  - chunk_hit@5 0.59 and chunk_fact_recall@5 0.50 (n=32).
-  - page_hit@5 0.81 and chunk_mrr 0.38.
-  - ooc_pass 0.89 (n=19), false_abstention 0.39 (n=33), code_checks_passed 0.95 (n=20).
+- **Numbers and takeaways:** see the `summary.md` Takeaways section. It is LLM-drafted and human-reviewed, and lists what to improve next and how to check that a fix worked.
+- **Shared definitions:** metric definitions live in `docs/eval/results/metrics.md`, linked from each summary instead of copied into it.
 - **Follow-ups:**
   - **False abstention:** 39% of answerable rows abstain. Code these rows against what was retrieved: did retrieval miss, or did the model refuse with the evidence in context? That decides the answer-model check below, which has to happen before the week 3 freeze.
   - **Synthesis:** chunk_all_required@5 is 0.00 (n=8). No single top-5 set covers all the facts a synthesis row needs. Candidates: larger k, parent-child chunks, hybrid search.

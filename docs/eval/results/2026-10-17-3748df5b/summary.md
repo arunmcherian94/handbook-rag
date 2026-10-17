@@ -1,5 +1,23 @@
 # Eval summary
 
+## Takeaways
+
+Baseline (week 1). LLM-drafted, human-reviewed in PR #17.
+
+**Previous fixes:** none (first run).
+
+**Improve next:**
+- **Chunk retrieval.** The right page is in the top 5 for 81% of rows but the right chunk only for 59%; half the required facts are reachable at k=5 (chunk_fact_recall@5 0.50). Seven rows hit the page and miss every relevant chunk (page_hit_no_chunk), which points at chunk boundaries and ranking rather than missing pages. Check: chunk_fact_recall@5 and the page_hit_no_chunk list shrink.
+- **Synthesis.** No synthesis row gets all its required facts into the top 5 (0/8). The facts span sections and k=5 doesn't reach them. Check: synthesis chunk_all_required@5 rises above 0.
+- **Recency.** Fact recall@5 is 0.35, because chunks carry no dates, so old and new sources rank alike. Check: recency chunk_fact_recall@5, in both history-only and in-page rows.
+- **False abstention.** The model refuses 39% of answerable rows, which is more than retrieval misses alone explain. Code each one first (evidence in context or not); the answer-model check depends on that and must happen before the week 3 freeze. Check: false_abstention falls without ooc_pass dropping.
+
+**Holding:** 17/19 out-of-corpus rows pass, and both misses still declined, just with the other fixed string. 19/20 answers pass every code check; the one failure is a missing citation.
+
+**Caveat:** n = 8 per type (SE about ±0.15), so treat differences between types as directional only.
+
+## Run
+
 - eval_version: v1.2
 - eval_sha256: 995acb3b974d2c6aa7427fb089d9a9e133ab0aaf7879dff184c83071d6f8e725
 - harness_sha: 76b3fceea4946b5096cdcb145cc487c8fcb4ddcb
@@ -15,31 +33,7 @@
 - mode: full
 - limit: None
 
-## Metrics
-
-- chunk_fact_recall@k: share of the row's required facts with a relevant chunk in the top k (headline)
-- chunk_all_required@k: 1 if every required fact has a relevant chunk in the top k, else 0
-- chunk_hit@k: 1 if any chunk relevant to a required fact is in the top k
-- chunk_mrr: 1 / rank of the first relevant chunk (0 if none retrieved)
-- chunk_ndcg@k: ranking quality of relevant chunks in the top 5, binary relevance
-- page_fact_recall@k: share of required facts with a cited page in the top k (diagnostic)
-- page_hit@k: 1 if any expected page is in the top k (diagnostic)
-- page_mrr: 1 / rank of the first expected page (diagnostic)
-- page_ndcg@k: ranking quality of expected pages in the top 5, each page at its best rank
-- retrieved_tokens@k: total tokens in the top k chunks: the context cost of the recall
-- ooc_pass: out-of-corpus rows answered with exactly the expected abstention string
-- false_abstention: answerable rows where the model abstained anyway
-- code_checks_passed: answers (answerable, not abstained) passing all four checks below
-- has_citation: the answer cites at least one chunk
-- citations_in_range: every cited number refers to a retrieved chunk
-- headings_exist: every cited chunk's heading exists in its page at the corpus pin
-- no_url: the answer contains no URL
-- truncated: the answer hit the output token limit
-- A chunk is relevant to a fact if it comes from a cited page and contains a cited line.
-- ± SE is the standard error of the mean; n is the rows the metric applies to.
-- Abstention labels (no score impact): abstain+extra = fixed string plus more text; wrong-string = the other fixed string.
-- page_hit_no_chunk: page found but no relevant chunk at k=5 (a chunking problem). conflict_unscored: contradiction rows whose conflict isn't scored.
-- answer_only_facts: required facts with no citation, left out of retrieval scores. no_retrieval_facts: rows with no cited required fact, so no retrieval score. evidence_warnings: optional facts whose cited lines match no stored chunk.
+Metric definitions: [../metrics.md](../metrics.md)
 
 ## overall
 

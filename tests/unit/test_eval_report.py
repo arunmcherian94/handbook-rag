@@ -1,9 +1,11 @@
 import math
+import re
+from pathlib import Path
 
 import pytest
 
 from handbook_rag.evaluation.metrics import row_metrics
-from handbook_rag.evaluation.report import GLOSSARY, glossary_key, is_binary, render_md, summarize
+from handbook_rag.evaluation.report import is_binary, render_md, summarize
 
 META = {"eval_set": "v1.2", "k": 5, "mode": "full"}
 NOTES = {"answer_only_facts": ["row 5 F2"], "evidence_warnings": ["row 23 F3 (optional): x"]}
@@ -181,8 +183,8 @@ def test_render_md():
     assert "- row 23 F3 (optional): x" in md
 
 
-def test_every_metric_in_summary_md_has_a_glossary_entry():
-    """AC-7: summary.md defines every metric it reports, and no entry is stale."""
+def test_every_metric_is_defined_in_metrics_md():
+    """AC-7: docs/eval/results/metrics.md defines every reported metric, and no entry is stale."""
     summary = summarize(records(), META, NOTES)
     keys = row_metrics(
         chunk_facts=[{"f1"}, set()],
@@ -193,7 +195,13 @@ def test_every_metric_in_summary_md_has_a_glossary_entry():
         token_counts=[10, 20],
     )
     names = set(keys) | set(summary["groups"]["overall"]) - {"labels"}
-    assert {glossary_key(n) for n in names} == set(GLOSSARY)
-    md = render_md(summary)
-    assert md.index("## Metrics") < md.index("## overall")
-    assert "- chunk_fact_recall@k: share of the row's required facts" in md
+    text = (Path(__file__).parents[2] / "docs/eval/results/metrics.md").read_text()
+    defined = set(re.findall(r"^- `([a-z_]+(?:@k)?)`:", text, re.M))
+    assert {re.sub(r"@\d+$", "@k", n) for n in names} == defined
+
+
+def test_render_md_links_metrics_and_leaves_takeaways_to_fill():
+    """AC-7: takeaways placeholder first, then metadata and a link to the shared definitions."""
+    md = render_md(summarize(records(), META, NOTES))
+    assert md.index("## Takeaways") < md.index("## Run") < md.index("## overall")
+    assert "Metric definitions: [../metrics.md](../metrics.md)" in md
