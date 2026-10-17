@@ -1,4 +1,4 @@
-# Reading log
+# Reading log: week 1
 
 Notes from reading done for handbook-rag. Each entry: link, summary,
 and what it changes in this project. Newest first within each date.

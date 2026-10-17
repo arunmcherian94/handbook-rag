@@ -13,19 +13,19 @@ Python 3.12, uv, Postgres + pgvector via docker compose.
 - Run `make test` before saying any task is done. Show the actual output.
 - When something fails, show the raw error and your diagnosis before fixing it.
 - Push only when asked, and always to a new branch with a PR. Never push to main.
-- NOTES.md holds decisions, gate catches, limitations, assumptions, and follow-ups only.
+- Project notes live in `docs/` and NOTES.md is their index: decisions in `docs/decisions/` (one ADR each), the dated log (gate catches, limitations, assumptions) in `docs/journal/`, follow-ups in `docs/follow-ups.md`, readings in `docs/reading/week-NN.md` (takeaways in Arun's words; Arun reviews), and a summary in `docs/weekly/` at the end of each week.
 - Be terse. No summaries of what you're about to do after the plan is approved.
 - Use subagents whenever the work splits cleanly: read-only research while planning, and the build and review fixes after approval. Follow the `orchestrate` skill (`.claude/skills/orchestrate/SKILL.md`).
 
 ## Workflow (spec-driven)
 
 1. Write `specs/NNNN-<name>.md` from `specs/0000-template.md`, with numbered AC-n criteria. Open it as its own PR. The human reviews and merges it before any build starts.
-2. Build from the merged spec in plan mode. Each plan step cites the AC IDs it covers. Anything not traceable to an AC is scope creep: list it in NOTES.md as a follow-up, and don't build it.
+2. Build from the merged spec in plan mode. Each plan step cites the AC IDs it covers. Anything not traceable to an AC is scope creep: list it in `docs/follow-ups.md`, and don't build it.
 3. Tests reference the AC IDs they cover.
 4. Before opening a PR, run `make test`, `make lint`, and `/code-review`. Rank the findings by severity.
    - **Fix by default:** correctness bugs, data integrity or provenance problems, security issues, and anything that breaks an AC.
    - **Lower priority** (simplification, style, minor efficiency, speculative hardening): list them with the reason and wait for the human to confirm before fixing.
-   - Record what the review caught in NOTES.md.
+   - Record what the review caught in the day's `docs/journal/` entry.
 5. Clean-room verify from a fresh clone under `$HOME`. Colima only mounts `$HOME`.
 6. Set the spec's status to implemented, then push and open the PR.
 

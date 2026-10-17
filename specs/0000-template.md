@@ -34,4 +34,4 @@ Before the implementation PR:
 - [ ] `make test` and `make lint` pass
 - [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
 - [ ] Clean-room verified
-- [ ] NOTES.md updated
+- [ ] docs updated: journal entry, an ADR for any decision, follow-ups

@@ -68,7 +68,7 @@ Set the Agent `model` param and record it in the table.
 ## Integrate
 1. Read every diff.
 2. Run the full `make test` and `make lint` on the combined tree. A slice passing its own tests doesn't mean the combined tree does.
-3. Resolve conflicting decisions yourself, and record any real decision in NOTES.md.
+3. Resolve conflicting decisions yourself, and record any real decision as an ADR in `docs/decisions/`.
 
 ## Review-fix phase
 - Group the `/code-review` findings by the file they touch. Each file group is one slice, so two fixes to the same file always go in the same slice.
