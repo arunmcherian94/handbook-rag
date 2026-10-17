@@ -189,21 +189,29 @@ def test_row_metrics_nothing_relevant():
 
 
 def test_mean_se_binary():
-    """AC-7: 0/1 values use sqrt(p(1-p)/n)."""
-    s = mean_se([1, 0, 1, 1])
+    """AC-7: a binary metric uses sqrt(p(1-p)/n)."""
+    s = mean_se([1, 0, 1, 1], binary=True)
     assert s == Stat(mean=0.75, se=pytest.approx(math.sqrt(0.75 * 0.25 / 4)), n=4)
-    assert mean_se([1.0, 1.0]).se == 0.0
+    assert mean_se([1.0, 1.0], binary=True).se == 0.0
 
 
 def test_mean_se_continuous():
-    """AC-7: other values use sample sd (ddof=1) / sqrt(n)."""
-    s = mean_se([1.0, 2.0, 4.0])
+    """AC-7: a continuous metric uses sample sd (ddof=1) / sqrt(n)."""
+    s = mean_se([1.0, 2.0, 4.0], binary=False)
     assert s.mean == pytest.approx(7 / 3)
     assert s.se == pytest.approx(0.881917, abs=1e-6)
     assert s.n == 3
 
 
-def test_mean_se_empty_and_single():
+def test_mean_se_continuous_with_only_0_1_values():
+    """AC-7: the kind is explicit, not inferred; all-0/1 continuous values still use the sd."""
+    s = mean_se([1, 0, 1, 1], binary=False)
+    assert s.se == pytest.approx(0.5 / math.sqrt(4))  # sd(ddof=1) = 0.5
+    assert s.se != pytest.approx(math.sqrt(0.75 * 0.25 / 4))
+
+
+@pytest.mark.parametrize("binary", [True, False])
+def test_mean_se_empty_and_single(binary):
     """AC-7: None for no values; se 0.0 for one value."""
-    assert mean_se([]) is None
-    assert mean_se([0.4]) == Stat(mean=0.4, se=0.0, n=1)
+    assert mean_se([], binary=binary) is None
+    assert mean_se([0.4], binary=binary) == Stat(mean=0.4, se=0.0, n=1)

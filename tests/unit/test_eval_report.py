@@ -2,7 +2,8 @@ import math
 
 import pytest
 
-from handbook_rag.evaluation.report import render_md, summarize
+from handbook_rag.evaluation.metrics import row_metrics
+from handbook_rag.evaluation.report import is_binary, render_md, summarize
 
 META = {"eval_set": "v1.2", "k": 5, "mode": "full"}
 NOTES = {"answer_only_facts": ["row 5 F2"], "evidence_warnings": ["row 23 F3 (optional): x"]}
@@ -48,6 +49,81 @@ def test_overall_metric_exact():
     assert hit["se"] == pytest.approx(math.sqrt((2 / 3) * (1 / 3) / 3))
     assert g["retrieved_tokens@5"]["mean"] == pytest.approx(2000.0)
     assert g["retrieved_tokens@5"]["se"] == pytest.approx(500 / math.sqrt(3))
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["chunk_hit@1", "page_hit@5", "chunk_all_required@3", "ooc_pass", "false_abstention",
+     "code_checks_passed", "has_citation", "citations_in_range", "headings_exist", "no_url",
+     "truncated"],
+)  # fmt: skip
+def test_binary_metrics(name):
+    """AC-7: 0/1 metrics are classified binary by name."""
+    assert is_binary(name) is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["chunk_fact_recall@5", "page_fact_recall@1", "chunk_mrr", "page_mrr", "chunk_ndcg@5",
+     "page_ndcg@5", "retrieved_tokens@3"],
+)  # fmt: skip
+def test_continuous_metrics(name):
+    """AC-7: continuous metrics are classified by name."""
+    assert is_binary(name) is False
+
+
+def test_unclassified_metric_fails_loudly():
+    """AC-7: a new metric must be classified before it can be summarised."""
+    with pytest.raises(KeyError, match="chunk_precision@5"):
+        is_binary("chunk_precision@5")
+    recs = [{**records()[0], "metrics": {"chunk_precision@5": 1.0}}]
+    with pytest.raises(KeyError):
+        summarize(recs, META, NOTES)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["chunk_page_mrr", "page_chunk_hit@5", "page_all_required@5", "chunk_hit", "chunk_hit@",
+     "chunk_mrr@5", "chunk_hit@5x", "xchunk_hit@5", "retrieved_tokens", "page_ooc_pass",
+     "ooc_pass@5"],
+)  # fmt: skip
+def test_misnamed_metric_is_not_classified(name):
+    """AC-7: classification is by exact name; near-misses raise instead of being guessed."""
+    with pytest.raises(KeyError, match=name):
+        is_binary(name)
+
+
+def test_every_emitted_metric_is_classified():
+    """AC-3, AC-7: every row_metrics key and every answer rate summarize emits is classified.
+
+    Guards the paid run: a new metric that isn't classified fails here, not in summarize().
+    """
+    keys = row_metrics(
+        chunk_facts=[{"f1"}, set()],
+        pages=["a", "b"],
+        required={"f1": {"a"}},
+        expected_docs={"a"},
+        n_relevant_chunks=1,
+        token_counts=[10, 20],
+    )
+    for name in keys:
+        is_binary(name)
+    rates = set(summarize(records(), META, NOTES)["groups"]["overall"]) - {"labels"} - set(keys)
+    assert rates == {"ooc_pass", "false_abstention", "code_checks_passed", "has_citation",
+                     "citations_in_range", "headings_exist", "no_url", "truncated"}  # fmt: skip
+    for name in rates:
+        assert is_binary(name) is True
+
+
+def test_continuous_metric_with_0_1_values_uses_sample_sd():
+    """AC-7: fact recall that happens to be all 0/1 still gets sample sd / sqrt(n)."""
+    recs = [
+        {**r, "metrics": {"chunk_fact_recall@5": v}}
+        for r, v in zip(records()[:3], (1.0, 0.0, 1.0), strict=True)
+    ]
+    s = summarize(recs, META, NOTES)["groups"]["overall"]["chunk_fact_recall@5"]
+    sd = math.sqrt(((1 / 3) ** 2 * 2 + (2 / 3) ** 2) / 2)
+    assert s["se"] == pytest.approx(sd / math.sqrt(3))
 
 
 def test_answer_rates_and_labels():

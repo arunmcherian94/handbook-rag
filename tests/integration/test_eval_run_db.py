@@ -11,7 +11,7 @@ import psycopg
 import pytest
 from fakes import FakeAnswerer, FakeEmbedder, bow_vector
 
-from handbook_rag.constants import CORPUS_PREFIX, EVAL_RUNS
+from handbook_rag.constants import CHECKOUT, CORPUS_PREFIX, EVAL_RUNS
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.evaluation import evidence
 from handbook_rag.evaluation import run as run_mod
@@ -146,6 +146,15 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
     assert r["retrieved"][0]["facts"] == ["F1"]  # chunk A ranks first; optional F2 not scored
     assert r["retrieved"][0]["path"] == path_a and r["retrieved"][0]["page_relevant"]
     assert r["page_hit_no_chunk"] is False
+    # AC-3: retrieved tokens are the stored chunks.token_count, not a re-encoding.
+    ids = [x["chunk_id"] for x in r["retrieved"]]
+    stored = dict(
+        conn.execute(
+            "SELECT chunk_id::text, token_count FROM chunks WHERE chunk_id::text = ANY(%s)", (ids,)
+        ).fetchall()
+    )
+    assert [x["tokens"] for x in r["retrieved"]] == [stored[i] for i in ids]
+    assert r["metrics"]["retrieved_tokens@5"] == sum(stored[i] for i in ids[:5])
     assert r["answer"] is None and r["abstention"] is None and r["checks"] is None
     # Row 2: its only required fact is answer-only, so retrieval is recorded but not scored.
     assert records[2]["metrics"] == {} and records[2]["page_hit_no_chunk"] is False
@@ -245,6 +254,8 @@ def test_dry_run_spends_nothing(monkeypatch, capsys):
     def boom(*_, **__):
         raise AssertionError("dry run must not build a model or run")
 
+    if not (CHECKOUT / ".git").exists():
+        pytest.fail("Corpus checkout missing. Run `make corpus` first.")
     monkeypatch.setattr(run_mod, "make_embedder", boom)
     monkeypatch.setattr(run_mod, "make_answerer", boom)
     monkeypatch.setattr(run_mod, "run", boom)

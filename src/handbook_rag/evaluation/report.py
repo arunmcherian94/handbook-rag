@@ -14,15 +14,34 @@ A record is the dict written as one line of rows.jsonl (built by run.py):
     checks: asdict(checks.CodeChecks) | None  (answerable, non-abstaining rows only)
 """
 
+import re
 from collections import Counter
 
 from handbook_rag.evaluation.metrics import mean_se
 
 CHECK_FIELDS = ("has_citation", "citations_in_range", "headings_exist", "no_url")
+# The SE formula follows the metric's kind, never its values (a continuous metric can be all
+# 0/1 in a small slice). Every summarised name must match exactly one entry here: the answer
+# rates _group emits, or a metrics.row_metrics key pattern.
+BINARY_RATES = frozenset({"ooc_pass", "false_abstention", "code_checks_passed", "truncated"})
+BINARY_RATES |= frozenset(CHECK_FIELDS)
+BINARY_METRIC = re.compile(r"chunk_(hit|all_required)@\d+|page_hit@\d+")
+CONTINUOUS_METRIC = re.compile(
+    r"(chunk|page)_fact_recall@\d+|(chunk|page)_mrr|(chunk|page)_ndcg@\d+|retrieved_tokens@\d+"
+)
 
 
-def _stat(values: list) -> dict | None:
-    stat = mean_se([float(v) for v in values])
+def is_binary(name: str) -> bool:
+    """True for 0/1 metrics, False for continuous ones; KeyError for an unclassified name."""
+    if name in BINARY_RATES or BINARY_METRIC.fullmatch(name):
+        return True
+    if CONTINUOUS_METRIC.fullmatch(name):
+        return False
+    raise KeyError(f"metric {name!r} is not classified as binary or continuous (report.py)")
+
+
+def _stat(name: str, values: list) -> dict | None:
+    stat = mean_se([float(v) for v in values], binary=is_binary(name))
     return None if stat is None else {"mean": stat.mean, "se": stat.se, "n": stat.n}
 
 
@@ -44,7 +63,7 @@ def _group(records: list[dict]) -> dict:
             rates[f] = [c[f] for c in checks]
         rates["truncated"] = [r["truncated"] for r in answered if r.get("truncated") is not None]
     for name, values in rates.items():
-        if (stat := _stat(values)) is not None:
+        if (stat := _stat(name, values)) is not None:
             out[name] = stat
     if answered:
         labels = Counter(a["label"] for _, a in abst if a.get("label"))

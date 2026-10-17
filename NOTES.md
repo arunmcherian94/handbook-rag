@@ -254,6 +254,21 @@ Reading: [docs/reading-log.md](docs/reading-log.md), 16 Oct.
   - Run metadata took chunk parameters and the corpus SHA from constants and the manifest. They're now read from the stored chunks, and a run fails if the chunks don't match the pin.
   - The headings check compared the DB with itself, so it couldn't fail. It now reads the pinned file, keyed by the cited chunk's document; `url_path` isn't unique.
   - A required fact with a malformed citation (a path with no `L<n>`) silently became answer-only. It now fails parsing. Duplicate row or fact ids also fail.
+- **Follow-up fixes (owner-approved lower-priority review items, 17 Oct):**
+  - **Short cited lines:** a line under 40 characters, such as `{.h2}` or `good intent.`, now matches only as a whole chunk line, not inside a longer line. At the pin this removes no chunk credit: all 55 short cited lines already matched only as whole lines. It's a guard for the week 2 chunkings.
+  - **Standard-error formula:** it's set by metric kind, not inferred from the values. Rates use √(p(1−p)/n). Averages (fact recall, MRR, nDCG, tokens) use the sample sd ÷ √n. An unclassified metric name fails the summary.
+  - **Retrieved tokens:** these now use the stored `chunks.token_count` instead of re-encoding the chunk text.
+  - **Smaller fixes:** an out-of-range citation now produces one message instead of two, and a file's trailing newline no longer counts as an extra line.
+  - **Test fix:** the dry-run test fails with "Run `make corpus` first" when the corpus is missing.
+- **Code-review catches on the follow-ups (fixed):**
+  - **Edge fragments:** the whole-line rule still accepted a chunk's first or last piece, which is usually a fragment the window cut. Those two pieces are now excluded.
+    - **Limitation:** a short cited line at the very start of a page body, or at its end when there is no trailing newline, has no overlapping neighbour chunk, so it can't match. The evidence check fails loudly if a required fact hits this. None does at the pin, and the rule removes no credit there.
+  - **Metric names:** an unclassified metric crashed only after the paid loop, and names were matched loosely. Classification now uses exact patterns, and a unit test classifies every `row_metrics` key, so `make test` catches a new metric before any spend.
+- **Follow-ups (not built, lower priority):**
+  - a clear error if a retrieved chunk disappears during a run
+  - the "no stored chunk" message per page instead of per fact
+  - normalise each chunk once per page instead of once per fact
+  - token counts come from a second query per row, because `ask.py` is frozen through week 3; select `token_count` in `ask.SEARCH` when it unfreezes
 
 ## Corpus: git behaviors, limitations, assumptions
 
