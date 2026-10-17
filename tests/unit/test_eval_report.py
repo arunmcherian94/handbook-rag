@@ -2,6 +2,7 @@ import math
 
 import pytest
 
+from handbook_rag.evaluation.metrics import row_metrics
 from handbook_rag.evaluation.report import is_binary, render_md, summarize
 
 META = {"eval_set": "v1.2", "k": 5, "mode": "full"}
@@ -78,6 +79,40 @@ def test_unclassified_metric_fails_loudly():
     recs = [{**records()[0], "metrics": {"chunk_precision@5": 1.0}}]
     with pytest.raises(KeyError):
         summarize(recs, META, NOTES)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["chunk_page_mrr", "page_chunk_hit@5", "page_all_required@5", "chunk_hit", "chunk_hit@",
+     "chunk_mrr@5", "chunk_hit@5x", "xchunk_hit@5", "retrieved_tokens", "page_ooc_pass",
+     "ooc_pass@5"],
+)  # fmt: skip
+def test_misnamed_metric_is_not_classified(name):
+    """AC-7: classification is by exact name; near-misses raise instead of being guessed."""
+    with pytest.raises(KeyError, match=name):
+        is_binary(name)
+
+
+def test_every_emitted_metric_is_classified():
+    """AC-3, AC-7: every row_metrics key and every answer rate summarize emits is classified.
+
+    Guards the paid run: a new metric that isn't classified fails here, not in summarize().
+    """
+    keys = row_metrics(
+        chunk_facts=[{"f1"}, set()],
+        pages=["a", "b"],
+        required={"f1": {"a"}},
+        expected_docs={"a"},
+        n_relevant_chunks=1,
+        token_counts=[10, 20],
+    )
+    for name in keys:
+        is_binary(name)
+    rates = set(summarize(records(), META, NOTES)["groups"]["overall"]) - {"labels"} - set(keys)
+    assert rates == {"ooc_pass", "false_abstention", "code_checks_passed", "has_citation",
+                     "citations_in_range", "headings_exist", "no_url", "truncated"}  # fmt: skip
+    for name in rates:
+        assert is_binary(name) is True
 
 
 def test_continuous_metric_with_0_1_values_uses_sample_sd():

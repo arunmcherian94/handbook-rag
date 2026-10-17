@@ -260,6 +260,15 @@ Reading: [docs/reading-log.md](docs/reading-log.md), 16 Oct.
   - **Retrieved tokens:** these now use the stored `chunks.token_count` instead of re-encoding the chunk text.
   - **Smaller fixes:** an out-of-range citation now produces one message instead of two, and a file's trailing newline no longer counts as an extra line.
   - **Test fix:** the dry-run test fails with "Run `make corpus` first" when the corpus is missing.
+- **Code-review catches on the follow-ups (fixed):**
+  - **Edge fragments:** the whole-line rule still accepted a chunk's first or last piece, which is usually a fragment the window cut. Those two pieces are now excluded.
+    - **Limitation:** a short cited line at the very start of a page body, or at its end when there is no trailing newline, has no overlapping neighbour chunk, so it can't match. The evidence check fails loudly if a required fact hits this. None does at the pin, and the rule removes no credit there.
+  - **Metric names:** an unclassified metric crashed only after the paid loop, and names were matched loosely. Classification now uses exact patterns, and a unit test classifies every `row_metrics` key, so `make test` catches a new metric before any spend.
+- **Follow-ups (not built, lower priority):**
+  - a clear error if a retrieved chunk disappears during a run
+  - the "no stored chunk" message per page instead of per fact
+  - normalise each chunk once per page instead of once per fact
+  - token counts come from a second query per row, because `ask.py` is frozen through week 3; select `token_count` in `ask.SEARCH` when it unfreezes
 
 ## Corpus: git behaviors, limitations, assumptions
 

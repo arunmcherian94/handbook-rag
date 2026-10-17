@@ -20,7 +20,7 @@ PAGES = {
 }
 CHUNKS = {
     "a.md": [(A, "# Title\n\nLaptops are refreshed every\nthree years.\n"), (B, "Tail")],
-    "b.md": [(C, "Stipend is 1,500 USD.\nOnly in b.")],
+    "b.md": [(C, "\nStipend is 1,500 USD.\nOnly in b.\n")],
 }
 
 
@@ -53,7 +53,7 @@ def test_normalise():
 
 def test_matches_full_line():
     """AC-2: a cited line contained in full matches."""
-    assert matches(["Only in b."], "Stipend.\nOnly in b.")
+    assert matches(["Only in b."], "Stipend.\nOnly in b.\n")
 
 
 LONG = "Purchase the items you need using your own funds and submit a claim in Navan."
@@ -95,6 +95,28 @@ def test_matches_short_line_not_inside_longer_line():
     assert not matches(["{.h2}"], "## Heading {.h2}\nBody.")
 
 
+def test_matches_short_line_fragment_at_chunk_start_does_not():
+    """AC-2: the chunk's first line may be a fragment the window cut, so a short line equal to
+    it doesn't match ("Assume good intent." cut to "good intent.")."""
+    assert not matches(["good intent."], "good intent.\nNext line.\n")
+
+
+def test_matches_short_line_fragment_at_chunk_end_does_not():
+    """AC-2: the chunk's last line, with no newline after it, may be a fragment the window cut,
+    so a short line equal to it doesn't match."""
+    assert not matches(["Assume good"], "Earlier line.\nAssume good")
+
+
+def test_matches_short_line_in_middle_of_chunk():
+    """AC-2: a short line strictly inside the chunk is whole and matches."""
+    assert matches(["good intent."], "Earlier line.\ngood intent.\nNext line.")
+
+
+def test_matches_short_last_line_followed_by_newline():
+    """AC-2: a short last line followed by a newline is complete and matches."""
+    assert matches(["good intent."], "Earlier line.\ngood intent.\n")
+
+
 def test_matches_short_line_odd_whitespace():
     """AC-2: a short line still matches a whole chunk line after whitespace normalising."""
     assert matches(["  #####\tFrance "], "Intro.\n#####   France  \nDetails.")
@@ -103,7 +125,7 @@ def test_matches_short_line_odd_whitespace():
 def test_matches_ignores_blank_lines():
     """AC-2: blank cited lines match nothing (otherwise every chunk would match)."""
     assert not matches(["", "   \t"], "anything")
-    assert matches(["", "anything"], "anything")
+    assert matches(["", "anything"], "x\nanything\n")
 
 
 def test_relevant_chunks_full_line():
@@ -179,8 +201,8 @@ def test_check_trailing_newline_is_not_a_line(tmp_path):
     """AC-2: a file ending in a newline has no phantom empty last line in the range check."""
     page = tmp_path / CORPUS_PREFIX / "p.md"
     page.parent.mkdir(parents=True)
-    page.write_text("Only line.\n", encoding="utf-8")
-    conn = FakeConn([(A, "Only line.")])
+    page.write_text(f"{LONG}\n", encoding="utf-8")
+    conn = FakeConn([(A, LONG)])
     assert check([row(fact(p_md=(1,)))], conn, tmp_path).relevant[(7, "F1")] == frozenset({A})
     with pytest.raises(EvidenceError, match=r"L2 out of range for p.md \(1 lines\)"):
         check([row(fact(p_md=(2,)))], conn, tmp_path)

@@ -14,27 +14,28 @@ A record is the dict written as one line of rows.jsonl (built by run.py):
     checks: asdict(checks.CodeChecks) | None  (answerable, non-abstaining rows only)
 """
 
+import re
 from collections import Counter
 
 from handbook_rag.evaluation.metrics import mean_se
 
 CHECK_FIELDS = ("has_citation", "citations_in_range", "headings_exist", "no_url")
 # The SE formula follows the metric's kind, never its values (a continuous metric can be all
-# 0/1 in a small slice). Every summarised name must be classified here.
+# 0/1 in a small slice). Every summarised name must match exactly one entry here: the answer
+# rates _group emits, or a metrics.row_metrics key pattern.
 BINARY_RATES = frozenset({"ooc_pass", "false_abstention", "code_checks_passed", "truncated"})
 BINARY_RATES |= frozenset(CHECK_FIELDS)
-BINARY_BASES = frozenset({"hit", "all_required"})  # row_metrics names, minus level and @k
-CONTINUOUS_BASES = frozenset({"fact_recall", "mrr", "ndcg", "retrieved_tokens"})
+BINARY_METRIC = re.compile(r"chunk_(hit|all_required)@\d+|page_hit@\d+")
+CONTINUOUS_METRIC = re.compile(
+    r"(chunk|page)_fact_recall@\d+|(chunk|page)_mrr|(chunk|page)_ndcg@\d+|retrieved_tokens@\d+"
+)
 
 
 def is_binary(name: str) -> bool:
     """True for 0/1 metrics, False for continuous ones; KeyError for an unclassified name."""
-    if name in BINARY_RATES:
+    if name in BINARY_RATES or BINARY_METRIC.fullmatch(name):
         return True
-    base = name.split("@", 1)[0].removeprefix("chunk_").removeprefix("page_")
-    if base in BINARY_BASES:
-        return True
-    if base in CONTINUOUS_BASES:
+    if CONTINUOUS_METRIC.fullmatch(name):
         return False
     raise KeyError(f"metric {name!r} is not classified as binary or continuous (report.py)")
 

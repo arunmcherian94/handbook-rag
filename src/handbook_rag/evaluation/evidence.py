@@ -5,8 +5,10 @@ page and contains at least one cited non-blank line, whitespace-normalised. A li
 MIN_PIECE characters matches in full as a substring of the chunk, or (for a line the chunk window
 cut) as a piece of at least MIN_PIECE characters at the chunk's start or end. A shorter line
 (e.g. "{.h2}", "##### France") matches only if it equals some whole line of the chunk, so it
-can't match text inside a longer line. Everything downstream sees only the resulting chunk-id
-sets.
+can't match text inside a longer line. Chunk windows are cut at token offsets, not line breaks,
+so the chunk's first line and (unless the chunk ends with a newline) its last line may be
+fragments and don't count as whole; a short line there is found whole in the neighbouring chunk,
+which overlaps this one. Everything downstream sees only the resulting chunk-id sets.
 """
 
 import uuid
@@ -48,9 +50,11 @@ def straddles(line: str, haystack: str, min_piece: int = MIN_PIECE) -> bool:
 def matches(lines: Iterable[str], content: str) -> bool:
     """True if any non-blank line, normalised, matches the content: a line under MIN_PIECE
     characters equals a whole normalised line of the content; a longer one is in the normalised
-    content in full or straddles its boundary."""
+    content in full or straddles its boundary. The content's first line, and its last unless
+    the content ends with a newline, may be cut by the window, so they aren't whole lines."""
     haystack = normalise(content)
-    whole_lines = {normalise(line) for line in content.split("\n")}
+    # [1:-1] drops the first piece and the last: a fragment, or "" after a trailing newline.
+    whole_lines = {normalise(line) for line in content.split("\n")[1:-1]}
     return any(
         n in whole_lines if len(n) < MIN_PIECE else n in haystack or straddles(n, haystack)
         for n in map(normalise, lines)
