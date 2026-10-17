@@ -1,0 +1,33 @@
+# Follow-ups (not built)
+
+- **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts.
+- **Synthetic retrieval set (week 2):** questions generated from sections (not chunks), labelled synthetic, scored for retrieval only and always reported apart from v1. Gives chunking and embedding comparisons more statistical power than 33 rows.
+- **Graded nDCG:** gains 2/1/0 from required/alternate page tiers, after the tiers are reviewed as relevance labels.
+- **Answer judges:** faithfulness to context and answer relevance, built only for coded failures; validated per (c).
+- **False-premise rows:** add 2–3 out-of-corpus false-premise questions in a later eval version.
+- **Incremental sync:**
+  1. `git fetch`.
+  2. `git diff --name-status OLD..NEW -- content/handbook`.
+  3. Apply the changes: upsert A/M, delete D, delete and insert R. Deletes matter for permissions, because a page pulled from public must leave retrieval.
+  4. Record a sync-run log (old SHA → new SHA, counts).
+- **Chunk-level hashes** plus pipeline version columns for incremental re-embedding.
+- **Review agents** for spec conformance and architecture.
+- **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the week 3 freeze.
+- **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer.
+- **Production observability** (PR #7 review):
+  - Replace or augment the JSONL traces (spec 0003, AC-8) with a tracing tool that has nested spans (retrieve → prompt → LLM), cost and latency dashboards, and a link from traces to eval runs.
+  - Candidates to brainstorm:
+    - [LangSmith](https://docs.smith.langchain.com/)
+    - [Langfuse](https://langfuse.com/docs) (open source, self-hostable)
+    - [Arize Phoenix](https://docs.arize.com/phoenix) (open source)
+    - [Braintrust](https://www.braintrust.dev/docs)
+    - plain OpenTelemetry with the [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+  - Criteria: self-hosting vs SaaS, vendor neutrality (OTel), eval integration, and cost.
+  - Best decided alongside the eval harness.
+
+## From the baseline run (2026-10-17)
+
+- **False abstention:** 39% of answerable rows abstain. Code these rows against what was retrieved: did retrieval miss, or did the model refuse with the evidence in context? That decides the answer-model check above, which has to happen before the week 3 freeze.
+- **Synthesis:** chunk_all_required@5 is 0.00 (n=8). No single top-5 set covers all the facts a synthesis row needs. Candidates: larger k, parent-child chunks, hybrid search.
+- **Recency:** chunk_fact_recall@5 is 0.35. This is the target for the chunk-dates follow-up.
+- **Page hit, chunk miss:** rows 52, 53, 8, 10, 99, 38, 89 found the right page but not the right chunk. These are a chunking signal for week 2.

@@ -10,7 +10,7 @@ Status: **eval set v1.2** ([eval-set-v1.md](eval-set-v1.md), [CHANGELOG](CHANGEL
   retrieved but not used (7/10), answer in a section that starts mid-chunk
   (6/10), right page wrong chunk (6/10), plausible distractors (5/10), stale
   corpus statements (5/10).
-- Method from Husain & Shankar (see [../reading-log.md](../reading-log.md),
+- Method from Husain & Shankar (see [../reading/week-01.md](../reading/week-01.md),
   14 Oct): dimensions first, seed tuples, more tuples from an LLM, then
   questions from tuples in a separate prompt.
 
