@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus ingest chunk embed ask test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest chunk embed ask eval test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -25,6 +25,10 @@ embed: ## Embed chunks that have no embedding for EMBED_MODEL (LIMIT=n for a tes
 ask: ## Answer a question from the handbook: make ask Q="..."
 	@test -n "$$Q" || { echo 'usage: make ask Q="your question"'; exit 2; }
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask "$$Q"
+
+eval: ## Run the eval set (spec 0004): CONFIRM=1 to spend, LIMIT=n, RETRIEVAL_ONLY=1
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.run \
+		$(if $(CONFIRM),--confirm) $(if $(LIMIT),--limit $(LIMIT)) $(if $(RETRIEVAL_ONLY),--retrieval-only)
 
 test: test-unit test-integration ## Run unit + integration tests
 
