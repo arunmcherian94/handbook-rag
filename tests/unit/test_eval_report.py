@@ -3,7 +3,7 @@ import math
 import pytest
 
 from handbook_rag.evaluation.metrics import row_metrics
-from handbook_rag.evaluation.report import is_binary, render_md, summarize
+from handbook_rag.evaluation.report import GLOSSARY, glossary_key, is_binary, render_md, summarize
 
 META = {"eval_set": "v1.2", "k": 5, "mode": "full"}
 NOTES = {"answer_only_facts": ["row 5 F2"], "evidence_warnings": ["row 23 F3 (optional): x"]}
@@ -179,3 +179,21 @@ def test_render_md():
     assert "- page_hit_no_chunk: 2" in md
     assert "- conflict_unscored: 2" in md
     assert "- row 23 F3 (optional): x" in md
+
+
+def test_every_metric_in_summary_md_has_a_glossary_entry():
+    """AC-7: summary.md defines every metric it reports, and no entry is stale."""
+    summary = summarize(records(), META, NOTES)
+    keys = row_metrics(
+        chunk_facts=[{"f1"}, set()],
+        pages=["a", "b"],
+        required={"f1": {"a"}},
+        expected_docs={"a"},
+        n_relevant_chunks=1,
+        token_counts=[10, 20],
+    )
+    names = set(keys) | set(summary["groups"]["overall"]) - {"labels"}
+    assert {glossary_key(n) for n in names} == set(GLOSSARY)
+    md = render_md(summary)
+    assert md.index("## Metrics") < md.index("## overall")
+    assert "- chunk_fact_recall@k: share of the row's required facts" in md
