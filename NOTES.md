@@ -229,8 +229,31 @@ Reading: [docs/reading-log.md](docs/reading-log.md), 16 Oct.
 - **Questions generated from pages (Hamel's FAQ) not used for v1:** page wording flatters dense retrieval, and the method can't produce out-of-corpus, contradiction or recency rows (35 of 52).
 - **Noise:** 33 answerable rows means one row is about 3 points. Spec 0004 reports a standard error next to each rate.
 - **Custom vs textbook metrics:** a fresh research agent found no standard for retrieval evals when chunking changes. The closest common advice is span labels fixed across chunkings (Chroma) and recall over reference facts (RAGAS and DeepEval, via an LLM). That's what we do, from labels. Textbook chunk recall is rejected: overlap and alternative pages inflate the denominator, and it shifts with chunking. Retrieved tokens are reported, because bigger chunks raise recall by covering more text.
-- **Limitation:** a cited line longer than the 64-token overlap that straddles a chunk boundary is in no chunk in full, so it can't match. The AC-2 check fails the run if a fact is left unmatchable. If it fires, the decision then is to loosen the rule to span overlap.
+- **Limitation:** a cited line longer than the 64-token overlap that straddles a chunk boundary is in no chunk in full, so it can't match. The AC-2 check fails the run if a fact is left unmatchable. If it fires, the decision then is to loosen the rule to span overlap. (Resolved on 17 Oct: span overlap adopted; see below.)
 - **Follow-ups (week 2):** token precision/IoU when chunk size changes (Chroma); comparing chunkings at an equal retrieved-token budget.
+
+## 2026-10-17 (eval harness build, spec 0004)
+
+- **Layout:** `src/handbook_rag/evaluation/`, split like `ask.py` into a pure core and an I/O shell.
+  - **Pure:** `evalset` (parser), `metrics`, `checks`, `report`.
+  - **I/O:** `evidence` (reads the pin and the chunks table, and is the only owner of the relevance rule) and `run` (the CLI).
+  - The model ports are reused from `models/`; nothing new was added.
+- **Evidence check fails only on required facts** (owner, 16 Oct). The probe found one unmatchable fact, 23 F3, which is optional. Retrieval metrics count only required facts, so an unmatchable optional fact changes no score. It's listed as a warning.
+- **Answer-only facts** (owner, 16 Oct). A fact with no citation tests how the answer behaves, so no chunk can satisfy it. There are two: 22 F1 and 58 F1. They're left out of the retrieval denominators and listed in the summary. Row 22 has no cited required fact left, so it has no retrieval score. It's listed under `no_retrieval_facts` and still counts for abstention and the code checks.
+- **Span overlap adopted** (owner, 17 Oct). The first smoke run gave row 51 no credit for F2: its rank-1 chunk held 262 of the 345 characters of L417 (the Navan-claim half), but not the whole line. Across the set, 20 of 129 cited lines for required facts (16%) straddle a chunk boundary, affecting 18 required facts.
+  - **Rule:** a chunk is relevant if it holds a cited line in full, or a piece of at least 40 normalised characters (`MIN_PIECE`) of that line at the chunk's start or end.
+  - **Effect:** 19 chunks gain credit, and 23 F3 now matches, so there are no warnings. Rows 49 and 51 move from 0.50 to 1.00 fact recall@5 in the 3-row smoke run.
+  - **Fixed** for every later experiment.
+- **Limitation (lenient matching):**
+  - A piece can be a small share of a long line: 34 F3 matches on 56 of 1,214 characters.
+  - Short cited lines match any chunk of the page that contains them, for example 88 F6 `{.h2}` (optional) and 89 F3 `##### France`.
+  - Both raise recall slightly. Token IoU (week 2 follow-up) would replace this.
+- **`retrieved_tokens@k`:** the total tokens in the top k chunks, averaged over rows. This is the quantity an equal-token-budget comparison needs. Per-chunk mean tokens would just be the chunk size.
+- **Code-review catches (fixed):**
+  - `make eval CONFIRM=0` (any non-empty value) passed `--confirm` and spent money. Only `1` counts now.
+  - Run metadata took chunk parameters and the corpus SHA from constants and the manifest. They're now read from the stored chunks, and a run fails if the chunks don't match the pin.
+  - The headings check compared the DB with itself, so it couldn't fail. It now reads the pinned file, keyed by the cited chunk's document; `url_path` isn't unique.
+  - A required fact with a malformed citation (a path with no `L<n>`) silently became answer-only. It now fails parsing. Duplicate row or fact ids also fail.
 
 ## Corpus: git behaviors, limitations, assumptions
 
