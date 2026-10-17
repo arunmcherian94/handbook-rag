@@ -289,6 +289,16 @@ Reading: [docs/reading-log.md](docs/reading-log.md), 16 Oct.
 - **Limitation:** Explore and Plan agents can't be continued after an interruption, so they're relaunched.
 - **Not doing:** custom agent definitions, worktrees, a status file in the repo, scripts.
 
+## 2026-10-17 (baseline eval numbers)
+- **Week 1 closed:** run `2026-10-17-3748df5b` on clean main at 76b3fce, eval set v1.2, $0.21. The summary is in `docs/eval/results/2026-10-17-3748df5b/`. `rows.jsonl` stays local, in `runs/`, which is gitignored.
+- **Numbers and takeaways:** see the `summary.md` Takeaways section. It is LLM-drafted and human-reviewed, and lists what to improve next and how to check that a fix worked.
+- **Shared definitions:** metric definitions live in `docs/eval/results/metrics.md`, linked from each summary instead of copied into it.
+- **Follow-ups:**
+  - **False abstention:** 39% of answerable rows abstain. Code these rows against what was retrieved: did retrieval miss, or did the model refuse with the evidence in context? That decides the answer-model check below, which has to happen before the week 3 freeze.
+  - **Synthesis:** chunk_all_required@5 is 0.00 (n=8). No single top-5 set covers all the facts a synthesis row needs. Candidates: larger k, parent-child chunks, hybrid search.
+  - **Recency:** chunk_fact_recall@5 is 0.35. This is the target for the chunk-dates follow-up.
+  - **Page hit, chunk miss:** rows 52, 53, 8, 10, 99, 38, 89 found the right page but not the right chunk. These are a chunking signal for week 2.
+
 ## Corpus: git behaviors, limitations, assumptions
 
 Git behaviors:

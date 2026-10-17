@@ -30,6 +30,12 @@ CONTINUOUS_METRIC = re.compile(
     r"(chunk|page)_fact_recall@\d+|(chunk|page)_mrr|(chunk|page)_ndcg@\d+|retrieved_tokens@\d+"
 )
 
+METRICS_LINK = "Metric definitions: [../metrics.md](../metrics.md)"
+TAKEAWAYS_TODO = (
+    "_To fill before committing the run (LLM-drafted, human-approved): what to improve in the "
+    "next iteration, and whether the previous run's fixes worked._"
+)
+
 
 def is_binary(name: str) -> bool:
     """True for 0/1 metrics, False for continuous ones; KeyError for an unclassified name."""
@@ -125,9 +131,10 @@ def _items(values: list) -> str:
 
 
 def render_md(summary: dict) -> str:
-    """summary.md: metadata block, one table per group (metric, mean, ± SE, n), the lists."""
-    out = ["# Eval summary", ""]
+    """summary.md: takeaways placeholder, metadata, metrics link, a table per group, the lists."""
+    out = ["# Eval summary", "", "## Takeaways", "", TAKEAWAYS_TODO, "", "## Run", ""]
     out += [f"- {k}: {v}" for k, v in summary["meta"].items()]
+    out += ["", METRICS_LINK]
     groups = summary["groups"]
     out += ["", "## overall", "", *_table(groups["overall"])]
     for by in ("by_type", "by_recency_basis"):

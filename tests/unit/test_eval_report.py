@@ -1,4 +1,6 @@
 import math
+import re
+from pathlib import Path
 
 import pytest
 
@@ -179,3 +181,27 @@ def test_render_md():
     assert "- page_hit_no_chunk: 2" in md
     assert "- conflict_unscored: 2" in md
     assert "- row 23 F3 (optional): x" in md
+
+
+def test_every_metric_is_defined_in_metrics_md():
+    """AC-7: docs/eval/results/metrics.md defines every reported metric, and no entry is stale."""
+    summary = summarize(records(), META, NOTES)
+    keys = row_metrics(
+        chunk_facts=[{"f1"}, set()],
+        pages=["a", "b"],
+        required={"f1": {"a"}},
+        expected_docs={"a"},
+        n_relevant_chunks=1,
+        token_counts=[10, 20],
+    )
+    names = set(keys) | set(summary["groups"]["overall"]) - {"labels"}
+    text = (Path(__file__).parents[2] / "docs/eval/results/metrics.md").read_text()
+    defined = set(re.findall(r"^- `([a-z_]+(?:@k)?)`:", text, re.M))
+    assert {re.sub(r"@\d+$", "@k", n) for n in names} == defined
+
+
+def test_render_md_links_metrics_and_leaves_takeaways_to_fill():
+    """AC-7: takeaways placeholder first, then metadata and a link to the shared definitions."""
+    md = render_md(summarize(records(), META, NOTES))
+    assert md.index("## Takeaways") < md.index("## Run") < md.index("## overall")
+    assert "Metric definitions: [../metrics.md](../metrics.md)" in md
