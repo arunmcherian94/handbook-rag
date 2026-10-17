@@ -15,6 +15,7 @@ Python 3.12, uv, Postgres + pgvector via docker compose.
 - Push only when asked, and always to a new branch with a PR. Never push to main.
 - NOTES.md holds decisions, gate catches, limitations, assumptions, and follow-ups only.
 - Be terse. No summaries of what you're about to do after the plan is approved.
+- Use subagents whenever the work splits cleanly: read-only research while planning, and the build and review fixes after approval. Follow the `orchestrate` skill (`.claude/skills/orchestrate/SKILL.md`).
 
 ## Workflow (spec-driven)
 
