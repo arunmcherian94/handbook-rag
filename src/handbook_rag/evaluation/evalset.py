@@ -67,8 +67,9 @@ def parse(text: str) -> EvalSet:
     """Rows from every section before "## 5. Cut", in file order.
 
     Raises EvalSetError naming the row on: no Q: line, an answerable row with no [required]
-    fact, a fact with neither [required] nor [optional], a line ref before any path, an ooc row
-    with no expected: line, or an unknown row type.
+    fact, a fact with neither [required] nor [optional], a line ref before any path, a path
+    with no L<n> line ref, a duplicate row or fact id, an ooc row with no expected: line, or an
+    unknown row type.
     """
     version = VERSION.search(text)
     if not version:
@@ -81,6 +82,11 @@ def parse(text: str) -> EvalSet:
             blocks.append((int(m[1]), m[2], []))
         elif blocks:
             blocks[-1][2].append(line)
+    seen: set[int] = set()
+    for row_id, _, _ in blocks:
+        if row_id in seen:
+            raise EvalSetError(f"row {row_id}: duplicate row id")
+        seen.add(row_id)
     return EvalSet(version[1], tuple(_row(*b) for b in blocks))
 
 
@@ -109,6 +115,8 @@ def _row(row_id: int, header: str, lines: list[str]) -> Row:
             basis = m[1]
             unscored = "not scored" in line.lower()
         elif m := FACT.match(line):
+            if any(f.id == m[1] for f in facts):
+                raise fail(f"duplicate fact id {m[1]}")
             facts.append(_fact(m[1], line, fail))
     if not question:
         raise fail("no Q: line")
@@ -127,16 +135,22 @@ def _fact(fact_id: str, line: str, fail) -> Fact:
         raise fail(f"{fact_id} has neither [required] nor [optional]")
     cites: dict[str, list[int]] = {}
     path = None
+    path_has_ref = True  # whether the latest path has been followed by a line ref yet
     for m in CITE.finditer(line, marker.end()):
         if m["path"]:
-            path = m["path"]
+            if not path_has_ref:
+                raise fail(f"{fact_id} cites {path} with no L<n> line ref")
+            path, path_has_ref = m["path"], False
             continue
         if path is None:
             raise fail(f"{fact_id} has a line ref before any path: L{m['a']}")
+        path_has_ref = True
         a = int(m["a"])
         lines = cites.setdefault(path, [])
         for n in range(a, int(m["b"] or a) + 1):
             if n not in lines:
                 lines.append(n)
-    # A path with no line refs is a bare mention, not a citation.
+    if not path_has_ref:
+        raise fail(f"{fact_id} cites {path} with no L<n> line ref")
+    # Empty cites only when the fact line names no .md path: an answer-only fact.
     return Fact(fact_id, marker[1] == "required", {p: tuple(ns) for p, ns in cites.items()})

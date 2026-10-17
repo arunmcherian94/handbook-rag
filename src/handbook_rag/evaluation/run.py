@@ -1,6 +1,7 @@
 """Run the eval set against the frozen baseline (spec 0004, AC-6, AC-7, AC-8). Imperative shell.
 
-Order: verify the corpus pin, parse the eval set, run the evidence check, print the row count,
+Order: verify the corpus pin, check the stored chunks match it, parse the eval set, run the
+evidence check, print the row count,
 mode and estimated cost; spend (embed, answer) only with --confirm; write the run folder.
 run() takes the connection, embedder and answerer as ports, so tests drive it with fakes.
 """
@@ -19,8 +20,7 @@ import tiktoken
 
 from handbook_rag import ask
 from handbook_rag.constants import (
-    CHUNK_OVERLAP,
-    CHUNK_SIZE,
+    CHECKOUT,
     CORPUS_PREFIX,
     EST_ANSWER_USD_PER_ROW,
     EST_EMBED_USD_PER_1M,
@@ -37,6 +37,7 @@ from handbook_rag.evaluation.evalset import Row, parse
 from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import row_metrics
 from handbook_rag.evaluation.report import render_md, summarize
+from handbook_rag.ingest import derive_title, split_front_matter
 from handbook_rag.models import Answerer, Embedder, make_answerer, make_embedder
 from handbook_rag.prompts import SYSTEM_PROMPT
 
@@ -67,27 +68,44 @@ def _git(*args: str) -> str:
     return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
 
 
+def stored_chunk_params(conn, pinned_sha: str) -> tuple[dict, str]:
+    """AC-6: (chunk_params, corpus_sha) as stored in chunks, which holds exactly one parameter
+    set (chunk.py). Fails on zero or several sets, or chunks built from another commit."""
+    sets = conn.execute(
+        "SELECT DISTINCT chunk_size, chunk_overlap, tokenizer, commit_sha FROM chunks"
+    ).fetchall()
+    if len(sets) != 1:
+        raise SystemExit(
+            f"chunks table holds {len(sets)} parameter sets, expected exactly 1; run `make chunk`"
+        )
+    size, overlap, tokenizer, sha = sets[0]
+    if sha != pinned_sha:
+        raise SystemExit(
+            f"chunks are stale vs CORPUS.md (chunks {sha}, pin {pinned_sha}); "
+            "run `make ingest` and `make chunk`"
+        )
+    return {"chunk_size": size, "chunk_overlap": overlap, "tokenizer": tokenizer}, sha
+
+
 def metadata(
     version: str,
     eval_bytes: bytes,
     corpus_sha: str,
+    chunk_params: dict,
     embed_model: str,
     answer_model: str | None,
     rows: int,
     limit: int | None,
 ) -> dict:
-    """AC-6 run metadata. answer_model None means retrieval-only."""
+    """AC-6 run metadata. corpus_sha and chunk_params come from stored_chunk_params (the DB).
+    answer_model None means retrieval-only."""
     return {
         "eval_version": version,
         "eval_sha256": hashlib.sha256(eval_bytes).hexdigest(),
         "harness_sha": _git("rev-parse", "HEAD").strip(),
         "harness_dirty": bool(_git("status", "--porcelain").strip()),
         "corpus_sha": corpus_sha,
-        "chunk_params": {
-            "chunk_size": CHUNK_SIZE,
-            "chunk_overlap": CHUNK_OVERLAP,
-            "tokenizer": TOKENIZER,
-        },
+        "chunk_params": chunk_params,
         "embed_model": embed_model,
         "answer_model": answer_model,
         "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
@@ -100,25 +118,43 @@ def metadata(
 
 
 def _paths(conn, chunks: list[ask.Retrieved]) -> dict[uuid.UUID, str]:
-    """doc_id -> eval-set path (documents.path without CORPUS_PREFIX)."""
+    """doc_id -> documents.path (repo-relative, with CORPUS_PREFIX)."""
     ids = list({c.doc_id for c in chunks})
     rows = conn.execute("SELECT doc_id, path FROM documents WHERE doc_id = ANY(%s)", (ids,))
-    return {doc_id: path.removeprefix(CORPUS_PREFIX) for doc_id, path in rows.fetchall()}
+    return dict(rows.fetchall())
 
 
-def _headings(conn, url_paths: set[str]) -> dict[str, set[str]]:
-    rows = conn.execute(
-        "SELECT url_path, body, title FROM documents WHERE url_path = ANY(%s)", (list(url_paths),)
-    ).fetchall()
-    return {url: page_headings(body, title) for url, body, title in rows}
+def _headings_by_n(
+    citations: list[ask.Citation],
+    chunks: list[ask.Retrieved],
+    paths: dict[uuid.UUID, str],
+    checkout: Path,
+) -> dict[int, set[str]]:
+    """AC-5: citation number -> page_headings of the cited chunk's page, read from the pinned
+    file (checkout / documents.path). Citations are all in range (ask.parse_citations)."""
+    by_path: dict[str, set[str]] = {}
+    out: dict[int, set[str]] = {}
+    for c in citations:
+        path = paths[chunks[c.n - 1].doc_id]
+        if path not in by_path:
+            front_matter, body = split_front_matter((checkout / path).read_text(encoding="utf-8"))
+            by_path[path] = page_headings(body, derive_title(front_matter, body, path))
+        out[c.n] = by_path[path]
+    return out
 
 
 def record(
-    conn, row: Row, ev: Evidence, chunks: list[ask.Retrieved], result: ask.AskResult | None, enc
+    conn,
+    row: Row,
+    ev: Evidence,
+    chunks: list[ask.Retrieved],
+    result: ask.AskResult | None,
+    enc,
+    checkout: Path = CHECKOUT,
 ) -> dict:
     """One rows.jsonl line (schema in report.py). result is None in retrieval-only mode."""
     paths = _paths(conn, chunks)
-    pages = [paths[c.doc_id] for c in chunks]
+    pages = [paths[c.doc_id].removeprefix(CORPUS_PREFIX) for c in chunks]
     relevant = {f.id: ev.relevant[(row.id, f.id)] for f in row.required}
     # Only required cited facts: the rank metrics are defined over them (AC-3).
     chunk_facts = [{fid for fid, ids in relevant.items() if c.chunk_id in ids} for c in chunks]
@@ -182,7 +218,7 @@ def record(
             result.citations,
             result.invalid_citations,
             result.truncated,
-            _headings(conn, {c.url_path for c in result.citations}),
+            _headings_by_n(result.citations, chunks, paths, checkout),
         )
         rec["checks"] = asdict(checks) | {"passed": checks.passed}
     return rec
@@ -197,11 +233,12 @@ def run(
     *,
     meta: dict,
     out_root: Path = EVAL_RUNS,
+    checkout: Path = CHECKOUT,
 ) -> Path:
     """Retrieve (and answer, unless answerer is None) every row; write the run folder (AC-7).
 
     answerer None is retrieval-only mode: ooc rows are skipped and the answer model is never
-    called. Returns the folder.
+    called. checkout is the pinned corpus the AC-5 heading check reads. Returns the folder.
     """
     enc = tiktoken.get_encoding(TOKENIZER)
     out = out_root / f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
@@ -218,7 +255,7 @@ def run(
             else:
                 result = ask.ask(conn, embedder, answerer, row.question, TOP_K)
                 chunks = result.chunks
-            rec = record(conn, row, ev, chunks, result, enc)
+            rec = record(conn, row, ev, chunks, result, enc, checkout)
             records.append(rec)
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             recall = rec["metrics"].get(f"chunk_fact_recall@{TOP_K}")
@@ -254,6 +291,7 @@ def main(argv=None) -> int:
     rows = list(eval_set.rows[: args.limit] if args.limit is not None else eval_set.rows)
 
     with connect() as conn:
+        chunk_params, corpus_sha = stored_chunk_params(conn, m.sha)
         try:
             ev = evidence_mod.check(rows, conn)
         except EvidenceError as e:
@@ -283,7 +321,8 @@ def main(argv=None) -> int:
         meta = metadata(
             eval_set.version,
             eval_bytes,
-            m.sha,
+            corpus_sha,
+            chunk_params,
             embedder.name,
             answerer.name if answerer else None,
             len(todo),

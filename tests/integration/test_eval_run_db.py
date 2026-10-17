@@ -1,7 +1,8 @@
 """Eval runner against the real DB with fake models (spec 0004, AC-2, AC-4..AC-8).
 
 Real chunks, fake embeddings under a test-only model name (cleaned up), and a tmp checkout whose
-page files are built from those chunks' text, so the evidence lines match by construction.
+page files are built from those chunks' text, so the evidence lines match by construction. Each
+page ends with its chunk's stored heading, so the AC-5 heading check passes by construction.
 """
 
 import json
@@ -40,7 +41,8 @@ def _longest_line(content: str) -> str:
 
 @pytest.fixture
 def setup(tmp_path):
-    """Seeds 30 chunks; writes pages A and B (L1 from chunk A / B, L2 matches nothing).
+    """Seeds 30 chunks; writes pages A and B (L1 from chunk A / B, L2 matches nothing, L3 the
+    chunk's stored heading).
 
     Yields (conn, checkout, path_a, path_b, question)."""
     try:
@@ -50,7 +52,8 @@ def setup(tmp_path):
     with conn:
         _clean(conn)
         rows = conn.execute(
-            "SELECT c.chunk_id, c.content, d.path FROM chunks c JOIN documents d USING (doc_id) "
+            "SELECT c.chunk_id, c.content, d.path, COALESCE(c.heading, d.title) "
+            "FROM chunks c JOIN documents d USING (doc_id) "
             "WHERE d.path LIKE %s ORDER BY c.chunk_id LIMIT 30",
             (CORPUS_PREFIX + "%",),
         ).fetchall()
@@ -59,13 +62,14 @@ def setup(tmp_path):
         a = max(rows, key=lambda r: len(r[1].split()))
         b = next(r for r in rows if r[2] != a[2])
         checkout = tmp_path / "checkout"
-        for (_, content, path), extra in ((a, [MISSING]), (b, [MISSING])):
+        for _, content, path, heading in (a, b):
             page = checkout / path
             page.parent.mkdir(parents=True, exist_ok=True)
-            page.write_text("\n".join([_longest_line(content), *extra]) + "\n", encoding="utf-8")
+            lines = [_longest_line(content), MISSING, f"# {heading}"]
+            page.write_text("\n".join(lines) + "\n", encoding="utf-8")
         with conn.cursor() as cur:
             cur.executemany(
-                INSERT, [(cid, MODEL, vector_literal(bow_vector(c))) for cid, c, _ in rows]
+                INSERT, [(cid, MODEL, vector_literal(bow_vector(c))) for cid, c, *_ in rows]
             )
         conn.commit()
         try:
@@ -94,7 +98,8 @@ def _rows(path_a, path_b, question, optional_line=1):
 
 
 def _meta(answer_model, rows):
-    return run_mod.metadata("v0.0", b"eval", "sha", MODEL, answer_model, rows, None)
+    params = {"chunk_size": 1, "chunk_overlap": 0, "tokenizer": "t"}
+    return run_mod.metadata("v0.0", b"eval", "sha", params, MODEL, answer_model, rows, None)
 
 
 def _read(out):
@@ -127,7 +132,9 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
     ev = evidence.check(rows, conn, checkout)
     answerer = FakeAnswerer("never [1]")
     embedder = FakeEmbedder(name=MODEL)
-    out = run_mod.run(conn, rows, ev, embedder, None, meta=_meta(None, 2), out_root=tmp_path)
+    out = run_mod.run(
+        conn, rows, ev, embedder, None, meta=_meta(None, 2), out_root=tmp_path, checkout=checkout
+    )
     assert answerer.calls == []
     assert len(embedder.calls) == 2
     assert out.parent == tmp_path
@@ -159,7 +166,14 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
     embedder = FakeEmbedder(name=MODEL)
     answerer = FakeAnswerer("The handbook says so [1].")
     out = run_mod.run(
-        conn, [lookup], ev, embedder, answerer, meta=_meta("fake:answer", 1), out_root=tmp_path
+        conn,
+        [lookup],
+        ev,
+        embedder,
+        answerer,
+        meta=_meta("fake:answer", 1),
+        out_root=tmp_path,
+        checkout=checkout,
     )
     r = _read(out)[0][1]
     assert len(answerer.calls) == 1
@@ -177,6 +191,7 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
         FakeAnswerer(NOT_FOUND),
         meta=_meta("fake:answer", 1),
         out_root=tmp_path,
+        checkout=checkout,
     )
     records, summary = _read(out)
     r = records[3]
@@ -186,6 +201,42 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
     }  # fmt: skip
     assert summary["meta"]["mode"] == "full"
     assert summary["groups"]["overall"]["ooc_pass"]["mean"] == 1.0
+
+
+def test_heading_checked_against_pinned_file(setup, tmp_path):
+    """AC-5: a stored heading absent from the pinned file fails headings_exist (not DB vs DB)."""
+    conn, checkout, path_a, path_b, question = setup
+    lookup = _rows(path_a, path_b, question)[0]
+    ev = evidence.check([lookup], conn, checkout)
+    page = checkout / CORPUS_PREFIX / path_a
+    page.write_text("\n".join(page.read_text().split("\n")[:2]) + "\n", encoding="utf-8")
+    out = run_mod.run(
+        conn,
+        [lookup],
+        ev,
+        FakeEmbedder(name=MODEL),
+        FakeAnswerer("The handbook says so [1]."),
+        meta=_meta("fake:answer", 1),
+        out_root=tmp_path,
+        checkout=checkout,
+    )
+    r = _read(out)[0][1]
+    heading = r["retrieved"][0]["heading"]
+    assert r["retrieved"][0]["path"] == path_a
+    assert r["checks"]["headings_exist"] is False and r["checks"]["passed"] is False
+    assert r["checks"]["missing_headings"] == [[r["citations"][0]["url_path"], heading]]
+
+
+def test_stored_chunk_params_match_db():
+    """AC-6: provenance read from the stored chunks; a wrong pin is reported as stale."""
+    with connect() as conn:
+        (want,) = conn.execute(
+            "SELECT DISTINCT chunk_size, chunk_overlap, tokenizer, commit_sha FROM chunks"
+        ).fetchall()
+        params, sha = run_mod.stored_chunk_params(conn, want[3])
+        assert (params["chunk_size"], params["chunk_overlap"], params["tokenizer"], sha) == want
+        with pytest.raises(SystemExit, match="chunks are stale vs CORPUS.md"):
+            run_mod.stored_chunk_params(conn, "0" * 40)
 
 
 def test_dry_run_spends_nothing(monkeypatch, capsys):

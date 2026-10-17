@@ -26,9 +26,9 @@ ask: ## Answer a question from the handbook: make ask Q="..."
 	@test -n "$$Q" || { echo 'usage: make ask Q="your question"'; exit 2; }
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask "$$Q"
 
-eval: ## Run the eval set (spec 0004): CONFIRM=1 to spend, LIMIT=n, RETRIEVAL_ONLY=1
+eval: ## Run the eval set (spec 0004): CONFIRM=1 to spend (only 1 counts), LIMIT=n, RETRIEVAL_ONLY=1
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.run \
-		$(if $(CONFIRM),--confirm) $(if $(LIMIT),--limit $(LIMIT)) $(if $(RETRIEVAL_ONLY),--retrieval-only)
+		$(if $(filter 1,$(CONFIRM)),--confirm) $(if $(LIMIT),--limit $(LIMIT)) $(if $(filter 1,$(RETRIEVAL_ONLY)),--retrieval-only)
 
 test: test-unit test-integration ## Run unit + integration tests
 

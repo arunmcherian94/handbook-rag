@@ -112,9 +112,8 @@ def test_no_recency_basis():
             ' (t/ireland.md § "Time Off" L402). India: (entity/india.md § "Leave" L268–269).',
             {"t/bv-belgium.md": (217,), "t/ireland.md": (402,), "entity/india.md": (268, 269)},
         ),
-        ("Bare _index.md. — _index.md L4", {"_index.md": (4,)}),
+        ("Root page. — _index.md L4", {"_index.md": (4,)}),
         ('Dupes. — a/p.md L5–6; § "h" L6–7; a/p.md L5', {"a/p.md": (5, 6, 7)}),
-        ("Bare mention of a/p.md. — b/q.md L9", {"b/q.md": (9,)}),
     ],
 )
 def test_citation_variants(fact, expected):
@@ -142,6 +141,11 @@ def test_answer_only_fact():
         ("### Row 7 — lookup · list\nQ: q?\nfacts:\n- F1. [optional] x — a/p.md L1\n", "required"),
         ("### Row 7 — lookup · list\nQ: q?\nfacts:\n- F1. x — a/p.md L1\n", "F1 has neither"),
         ("### Row 7 — lookup · list\nQ: q?\nfacts:\n- F1. [required] L3 of a/p.md\n", "before"),
+        (
+            "### Row 7 — lookup · list\nQ: q?\nfacts:\n"
+            "- F1. [required] Mention of a/p.md. — b/q.md L9\n",
+            "F1 cites a/p.md with no L<n> line ref",
+        ),
         ("### Row 7 — ooc-off-topic · list\nQ: q?\n", "no expected:"),
         ("### Row 7 — recency · list\nQ: q?\nrecency_basis: maybe\n", "recency_basis"),
     ],
@@ -149,6 +153,37 @@ def test_answer_only_fact():
 def test_malformed_row(body, match):
     """AC-1: a malformed row fails the run, naming the row."""
     with pytest.raises(EvalSetError, match=f"^row 7: .*{match}"):
+        parse(HEADER + body)
+
+
+def test_path_without_line_ref():
+    """AC-1: a fact citing a .md path with no L<n> ref fails; it is not silently answer-only."""
+    with pytest.raises(EvalSetError, match=r"^row 1: F1 cites a/p\.md with no L<n> line ref$"):
+        cites("Bare path. — a/p.md")
+
+
+def test_lines_prose_ref():
+    """AC-1: "lines 40-42" is not an L<n> ref, so the cited path has no line ref and fails."""
+    with pytest.raises(
+        EvalSetError, match=r"^row 1: F1 cites finance/expenses\.md with no L<n> line ref$"
+    ):
+        cites("Prose ref. — finance/expenses.md lines 40-42")
+
+
+def test_duplicate_row_id():
+    """AC-1: two rows with the same id fail the run, naming the row."""
+    body = '### Row 3 — ooc-off-topic · x\nQ: q?\nexpected: "no"\n'
+    with pytest.raises(EvalSetError, match=r"^row 3: duplicate row id$"):
+        parse(HEADER + body + body)
+
+
+def test_duplicate_fact_id():
+    """AC-1: two facts with the same id in one row fail the run, naming the row and fact."""
+    body = (
+        "### Row 4 — lookup · list\nQ: q?\nfacts:\n"
+        "- F1. [required] x — a/p.md L1\n- F1. [optional] y — a/p.md L2\n"
+    )
+    with pytest.raises(EvalSetError, match=r"^row 4: duplicate fact id F1$"):
         parse(HEADER + body)
 
 

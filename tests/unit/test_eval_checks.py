@@ -79,7 +79,8 @@ def test_page_headings_include_title():
     assert page_headings("no headings", "Title") == {"Title"}
 
 
-HEADINGS = {"/handbook/a/": {"A title", "Section 1"}, "/handbook/b/": {"B title"}}
+A = {"A title", "Section 1"}
+HEADINGS = {1: A, 2: {"B title"}}
 
 
 def checks(answer="Yes [1].", citations=None, invalid=None, truncated=False):
@@ -115,16 +116,29 @@ def test_code_checks_out_of_range():
 
 
 def test_code_checks_missing_heading():
-    """AC-5: a heading not on its page, or a page with no headings known, is listed."""
+    """AC-5: a heading not on its chunk's page, or a citation with no headings known, is listed."""
     c = checks(
         citations=[
             Citation(1, "/handbook/a/", "Section 1"),
-            Citation(2, "/handbook/a/", "Gone"),
+            Citation(2, "/handbook/b/", "Gone"),
             Citation(3, "/handbook/z/", "Section 1"),
         ]
     )
     assert c.headings_exist is False
-    assert c.missing_headings == [("/handbook/a/", "Gone"), ("/handbook/z/", "Section 1")]
+    assert c.missing_headings == [("/handbook/b/", "Gone"), ("/handbook/z/", "Section 1")]
+    assert c.passed is False
+
+
+def test_code_checks_keyed_by_citation_not_url():
+    """AC-5: two pages share a url_path; each citation is checked against its own chunk's page."""
+    c = code_checks(
+        "Yes [1] [2].",
+        [Citation(1, "/handbook/same/", "Section 1"), Citation(2, "/handbook/same/", "Section 1")],
+        [],
+        False,
+        {1: A, 2: {"Other page"}},
+    )
+    assert c.missing_headings == [("/handbook/same/", "Section 1")]
     assert c.passed is False
 
 

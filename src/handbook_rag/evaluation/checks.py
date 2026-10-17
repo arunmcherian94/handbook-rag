@@ -56,7 +56,8 @@ def abstention(answer: str, expected: str | None) -> Abstention:
 
 def page_headings(body: str, title: str) -> set[str]:
     """Headings a citation may name for this page: chunk.find_headings texts plus the title
-    (ask.SEARCH falls back to the title when a chunk has no heading)."""
+    (ask.SEARCH falls back to the title when a chunk has no heading). body and title come from
+    the pinned file (ingest.split_front_matter, ingest.derive_title)."""
     return set(find_headings(body)[1]) | {title}
 
 
@@ -65,15 +66,15 @@ def code_checks(
     citations: Iterable[Citation],
     invalid_citations: list[int],
     truncated: bool,
-    headings_by_url: Mapping[str, set[str]],
+    headings_by_n: Mapping[int, set[str]],
 ) -> CodeChecks:
-    """AC-5 for one answerable, non-abstaining answer. headings_by_url maps url_path to
-    page_headings of that page. A URL is http://, https:// or www."""
+    """AC-5 for one answerable, non-abstaining answer. headings_by_n maps a citation number to
+    page_headings of the cited chunk's own page, read from the pinned file (not the DB, and not
+    keyed by url_path, which is not unique). A number missing from it has no known headings.
+    A URL is http://, https:// or www."""
     cited = list(citations)
     missing = [
-        (c.url_path, c.heading)
-        for c in cited
-        if c.heading not in headings_by_url.get(c.url_path, set())
+        (c.url_path, c.heading) for c in cited if c.heading not in headings_by_n.get(c.n, set())
     ]
     return CodeChecks(
         has_citation=bool(cited),
