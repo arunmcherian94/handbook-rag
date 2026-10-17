@@ -14,7 +14,7 @@ from handbook_rag.constants import EVAL_KS, NDCG_K
 @dataclass(frozen=True)
 class Stat:
     mean: float
-    se: float  # standard error: sqrt(p(1-p)/n) for 0/1 values, else sample sd / sqrt(n)
+    se: float  # standard error: sqrt(p(1-p)/n) if the metric is binary, else sample sd / sqrt(n)
     n: int
 
 
@@ -114,15 +114,19 @@ def row_metrics(
     return out
 
 
-def mean_se(values: Sequence[float]) -> Stat | None:
-    """Mean, standard error and n; None for no values; se 0.0 for one value."""
+def mean_se(values: Sequence[float], binary: bool) -> Stat | None:
+    """Mean, standard error and n; None for no values; se 0.0 for one value.
+
+    binary is the metric's kind, set by the caller (never inferred from the values): True
+    uses sqrt(p(1-p)/n), False the sample sd (ddof=1) / sqrt(n).
+    """
     n = len(values)
     if n == 0:
         return None
     mean = statistics.fmean(values)
     if n == 1:
         return Stat(mean, 0.0, 1)
-    if all(v in (0, 1) for v in values):
+    if binary:
         se = math.sqrt(mean * (1 - mean) / n)
     else:
         se = statistics.stdev(values) / math.sqrt(n)

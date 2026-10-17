@@ -2,9 +2,11 @@ import uuid
 
 import pytest
 
+from handbook_rag.constants import CORPUS_PREFIX
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evidence import (
     EvidenceError,
+    check,
     matches,
     normalise,
     relevant_chunks,
@@ -82,6 +84,22 @@ def test_matches_whitespace_normalised():
     )
 
 
+def test_matches_short_line_as_whole_line():
+    """AC-2: a cited line under MIN_PIECE characters matches a whole line of the chunk."""
+    assert matches(["##### France"], "Intro.\n##### France\nDetails.")
+
+
+def test_matches_short_line_not_inside_longer_line():
+    """AC-2: a cited line under MIN_PIECE characters doesn't match inside a longer line."""
+    assert not matches(["good intent."], "Assume good intent. Always.")
+    assert not matches(["{.h2}"], "## Heading {.h2}\nBody.")
+
+
+def test_matches_short_line_odd_whitespace():
+    """AC-2: a short line still matches a whole chunk line after whitespace normalising."""
+    assert matches(["  #####\tFrance "], "Intro.\n#####   France  \nDetails.")
+
+
 def test_matches_ignores_blank_lines():
     """AC-2: blank cited lines match nothing (otherwise every chunk would match)."""
     assert not matches(["", "   \t"], "anything")
@@ -135,6 +153,37 @@ def test_out_of_range_line_and_missing_file():
     ev = run(row(fact("F1", a_md=(3,)), fact("F2", required=False, a_md=(3, 99))))
     assert ev.warnings == ["row 7 F2 (optional): line(s) L99 out of range for a.md (5 lines)"]
     assert ev.relevant[(7, "F2")] == frozenset({A})
+
+
+def test_out_of_range_line_reports_only_that_problem():
+    """AC-2: an out-of-range or missing-file fact with no chunks gets only that message, not
+    also "no stored chunk contains a cited line"."""
+    with pytest.raises(EvidenceError) as e:
+        run(row(fact(a_md=(99,))))
+    assert "no stored chunk" not in str(e.value)
+    with pytest.raises(EvidenceError) as e:
+        run(row(fact(x_md=(1,))))
+    assert "no stored chunk" not in str(e.value)
+
+
+class FakeConn:
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    def execute(self, sql, params):
+        rows = self.chunks
+        return type("Cursor", (), {"fetchall": lambda _: rows})()
+
+
+def test_check_trailing_newline_is_not_a_line(tmp_path):
+    """AC-2: a file ending in a newline has no phantom empty last line in the range check."""
+    page = tmp_path / CORPUS_PREFIX / "p.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("Only line.\n", encoding="utf-8")
+    conn = FakeConn([(A, "Only line.")])
+    assert check([row(fact(p_md=(1,)))], conn, tmp_path).relevant[(7, "F1")] == frozenset({A})
+    with pytest.raises(EvidenceError, match=r"L2 out of range for p.md \(1 lines\)"):
+        check([row(fact(p_md=(2,)))], conn, tmp_path)
 
 
 def test_answer_only_facts_and_ooc_rows_skipped():

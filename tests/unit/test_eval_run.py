@@ -1,10 +1,15 @@
-"""Cost estimate (AC-8) and stored chunk provenance (AC-6) for the eval runner (spec 0004)."""
+"""Cost estimate (AC-8), stored chunk provenance (AC-6) and retrieved tokens (AC-3) for the
+eval runner (spec 0004)."""
+
+import uuid
 
 import pytest
 
+from handbook_rag import ask
 from handbook_rag.constants import EST_ANSWER_USD_PER_ROW
 from handbook_rag.evaluation.evalset import Fact, Row
-from handbook_rag.evaluation.run import estimate, stored_chunk_params, to_run
+from handbook_rag.evaluation.evidence import Evidence
+from handbook_rag.evaluation.run import estimate, record, stored_chunk_params, to_run
 
 ROWS = [
     Row(1, "lookup", "hello world", ("a.md",), (Fact("F1", True, {"a.md": (1,)}),)),
@@ -56,3 +61,23 @@ def test_stored_chunk_params_stale():
     """AC-6: chunks from another commit than the pin fail."""
     with pytest.raises(SystemExit, match="chunks are stale vs CORPUS.md"):
         stored_chunk_params(FakeConn([(512, 64, "tok", "old")]), "abc")
+
+
+def test_record_uses_stored_token_counts():
+    """AC-3: retrieved tokens are the stored chunks.token_count, in rank order, not a
+    re-encoding of the content."""
+    doc = uuid.uuid4()
+    ids = [uuid.uuid4(), uuid.uuid4()]
+    chunks = [
+        ask.Retrieved(n, cid, doc, "a", "H", "one two three", 0.1, 512, 64, "t", "sha")
+        for n, cid in enumerate(ids, start=1)
+    ]
+    # DB rows in a different order from the ranks.
+    conn = FakeConn(
+        [(ids[1], 400, doc, "content/handbook/a.md"), (ids[0], 7, doc, "content/handbook/a.md")]
+    )
+    ev = Evidence(relevant={(1, "F1"): frozenset({ids[1]})}, warnings=[])
+    rec = record(conn, ROWS[0], ev, chunks, None)
+    assert [c["tokens"] for c in rec["retrieved"]] == [7, 400]
+    assert rec["metrics"]["retrieved_tokens@1"] == 7
+    assert rec["metrics"]["retrieved_tokens@5"] == 407

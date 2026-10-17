@@ -117,11 +117,19 @@ def metadata(
     }
 
 
-def _paths(conn, chunks: list[ask.Retrieved]) -> dict[uuid.UUID, str]:
-    """doc_id -> documents.path (repo-relative, with CORPUS_PREFIX)."""
-    ids = list({c.doc_id for c in chunks})
-    rows = conn.execute("SELECT doc_id, path FROM documents WHERE doc_id = ANY(%s)", (ids,))
-    return dict(rows.fetchall())
+def _lookup(conn, chunks: list[ask.Retrieved]) -> tuple[dict[uuid.UUID, str], list[int]]:
+    """(doc_id -> documents.path with CORPUS_PREFIX, per rank the stored chunks.token_count).
+
+    The stored count is authoritative: re-encoding chunk text can differ at window edges.
+    """
+    rows = conn.execute(
+        "SELECT c.chunk_id, c.token_count, d.doc_id, d.path "
+        "FROM chunks c JOIN documents d USING (doc_id) WHERE c.chunk_id = ANY(%s)",
+        ([c.chunk_id for c in chunks],),
+    ).fetchall()
+    paths = {doc_id: path for _, _, doc_id, path in rows}
+    counts = {chunk_id: n for chunk_id, n, _, _ in rows}
+    return paths, [counts[c.chunk_id] for c in chunks]
 
 
 def _headings_by_n(
@@ -149,16 +157,14 @@ def record(
     ev: Evidence,
     chunks: list[ask.Retrieved],
     result: ask.AskResult | None,
-    enc,
     checkout: Path = CHECKOUT,
 ) -> dict:
     """One rows.jsonl line (schema in report.py). result is None in retrieval-only mode."""
-    paths = _paths(conn, chunks)
+    paths, tokens = _lookup(conn, chunks)
     pages = [paths[c.doc_id].removeprefix(CORPUS_PREFIX) for c in chunks]
     relevant = {f.id: ev.relevant[(row.id, f.id)] for f in row.required}
     # Only required cited facts: the rank metrics are defined over them (AC-3).
     chunk_facts = [{fid for fid, ids in relevant.items() if c.chunk_id in ids} for c in chunks]
-    tokens = [len(enc.encode(c.content, disallowed_special=())) for c in chunks]
     metrics: dict[str, float] = {}
     if relevant:  # an answerable row whose required facts are all answer-only scores nothing
         metrics = row_metrics(
@@ -240,7 +246,6 @@ def run(
     answerer None is retrieval-only mode: ooc rows are skipped and the answer model is never
     called. checkout is the pinned corpus the AC-5 heading check reads. Returns the folder.
     """
-    enc = tiktoken.get_encoding(TOKENIZER)
     out = out_root / f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
     out.mkdir(parents=True)
     records: list[dict] = []
@@ -255,7 +260,7 @@ def run(
             else:
                 result = ask.ask(conn, embedder, answerer, row.question, TOP_K)
                 chunks = result.chunks
-            rec = record(conn, row, ev, chunks, result, enc, checkout)
+            rec = record(conn, row, ev, chunks, result, checkout)
             records.append(rec)
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             recall = rec["metrics"].get(f"chunk_fact_recall@{TOP_K}")

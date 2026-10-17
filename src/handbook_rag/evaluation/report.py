@@ -19,10 +19,28 @@ from collections import Counter
 from handbook_rag.evaluation.metrics import mean_se
 
 CHECK_FIELDS = ("has_citation", "citations_in_range", "headings_exist", "no_url")
+# The SE formula follows the metric's kind, never its values (a continuous metric can be all
+# 0/1 in a small slice). Every summarised name must be classified here.
+BINARY_RATES = frozenset({"ooc_pass", "false_abstention", "code_checks_passed", "truncated"})
+BINARY_RATES |= frozenset(CHECK_FIELDS)
+BINARY_BASES = frozenset({"hit", "all_required"})  # row_metrics names, minus level and @k
+CONTINUOUS_BASES = frozenset({"fact_recall", "mrr", "ndcg", "retrieved_tokens"})
 
 
-def _stat(values: list) -> dict | None:
-    stat = mean_se([float(v) for v in values])
+def is_binary(name: str) -> bool:
+    """True for 0/1 metrics, False for continuous ones; KeyError for an unclassified name."""
+    if name in BINARY_RATES:
+        return True
+    base = name.split("@", 1)[0].removeprefix("chunk_").removeprefix("page_")
+    if base in BINARY_BASES:
+        return True
+    if base in CONTINUOUS_BASES:
+        return False
+    raise KeyError(f"metric {name!r} is not classified as binary or continuous (report.py)")
+
+
+def _stat(name: str, values: list) -> dict | None:
+    stat = mean_se([float(v) for v in values], binary=is_binary(name))
     return None if stat is None else {"mean": stat.mean, "se": stat.se, "n": stat.n}
 
 
@@ -44,7 +62,7 @@ def _group(records: list[dict]) -> dict:
             rates[f] = [c[f] for c in checks]
         rates["truncated"] = [r["truncated"] for r in answered if r.get("truncated") is not None]
     for name, values in rates.items():
-        if (stat := _stat(values)) is not None:
+        if (stat := _stat(name, values)) is not None:
             out[name] = stat
     if answered:
         labels = Counter(a["label"] for _, a in abst if a.get("label"))

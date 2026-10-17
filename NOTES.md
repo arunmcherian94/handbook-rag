@@ -254,6 +254,12 @@ Reading: [docs/reading-log.md](docs/reading-log.md), 16 Oct.
   - Run metadata took chunk parameters and the corpus SHA from constants and the manifest. They're now read from the stored chunks, and a run fails if the chunks don't match the pin.
   - The headings check compared the DB with itself, so it couldn't fail. It now reads the pinned file, keyed by the cited chunk's document; `url_path` isn't unique.
   - A required fact with a malformed citation (a path with no `L<n>`) silently became answer-only. It now fails parsing. Duplicate row or fact ids also fail.
+- **Follow-up fixes (owner-approved lower-priority review items, 17 Oct):**
+  - **Short cited lines:** a line under 40 characters, such as `{.h2}` or `good intent.`, now matches only as a whole chunk line, not inside a longer line. At the pin this removes no chunk credit: all 55 short cited lines already matched only as whole lines. It's a guard for the week 2 chunkings.
+  - **Standard-error formula:** it's set by metric kind, not inferred from the values. Rates use √(p(1−p)/n). Averages (fact recall, MRR, nDCG, tokens) use the sample sd ÷ √n. An unclassified metric name fails the summary.
+  - **Retrieved tokens:** these now use the stored `chunks.token_count` instead of re-encoding the chunk text.
+  - **Smaller fixes:** an out-of-range citation now produces one message instead of two, and a file's trailing newline no longer counts as an extra line.
+  - **Test fix:** the dry-run test fails with "Run `make corpus` first" when the corpus is missing.
 
 ## Corpus: git behaviors, limitations, assumptions
 

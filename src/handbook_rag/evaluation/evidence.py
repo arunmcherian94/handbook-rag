@@ -1,9 +1,12 @@
 """Evidence check and relevance rule (spec 0004, AC-2).
 
 The single owner of the relevance rule: a chunk is relevant to a fact if it comes from a cited
-page and contains at least one cited non-blank line, whitespace-normalised: in full, or (for a
-line the chunk window cut) a piece of at least MIN_PIECE characters at the chunk's start or end.
-Everything downstream sees only the resulting chunk-id sets.
+page and contains at least one cited non-blank line, whitespace-normalised. A line of at least
+MIN_PIECE characters matches in full as a substring of the chunk, or (for a line the chunk window
+cut) as a piece of at least MIN_PIECE characters at the chunk's start or end. A shorter line
+(e.g. "{.h2}", "##### France") matches only if it equals some whole line of the chunk, so it
+can't match text inside a longer line. Everything downstream sees only the resulting chunk-id
+sets.
 """
 
 import uuid
@@ -43,10 +46,16 @@ def straddles(line: str, haystack: str, min_piece: int = MIN_PIECE) -> bool:
 
 
 def matches(lines: Iterable[str], content: str) -> bool:
-    """True if any non-blank line, normalised, is in the normalised content in full or
-    straddles its boundary."""
+    """True if any non-blank line, normalised, matches the content: a line under MIN_PIECE
+    characters equals a whole normalised line of the content; a longer one is in the normalised
+    content in full or straddles its boundary."""
     haystack = normalise(content)
-    return any(n in haystack or straddles(n, haystack) for n in map(normalise, lines) if n)
+    whole_lines = {normalise(line) for line in content.split("\n")}
+    return any(
+        n in whole_lines if len(n) < MIN_PIECE else n in haystack or straddles(n, haystack)
+        for n in map(normalise, lines)
+        if n
+    )
 
 
 def _fact_chunks(
@@ -73,7 +82,7 @@ def _fact_chunks(
         if not any(normalise(line) for line in lines):
             continue  # every cited line blank: the page contributes nothing
         ids.update(cid for cid, content in page_chunks(path) if matches(lines, content))
-    if not ids:
+    if not ids and not problems:
         problems.append(f"no stored chunk contains a cited line of {', '.join(cites)}")
     return ids, problems
 
@@ -114,7 +123,8 @@ def check(rows: Iterable[Row], conn, checkout: Path = CHECKOUT) -> Evidence:
     cache: dict[str, list[tuple[uuid.UUID, str]]] = {}
 
     def read_page(path: str) -> list[str]:
-        return (checkout / CORPUS_PREFIX / path).read_text(encoding="utf-8").split("\n")
+        text = (checkout / CORPUS_PREFIX / path).read_text(encoding="utf-8")
+        return text.removesuffix("\n").split("\n")
 
     def page_chunks(path: str) -> list[tuple[uuid.UUID, str]]:
         if path not in cache:
