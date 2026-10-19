@@ -10,8 +10,10 @@
   - The build review noted this as a follow-up. The run shows it's the first thing to fix.
 - **Where it helped:** row 8 now finds its fact at rank 2. The other target rows from the baseline (52, 53, 10, 99, 38, 89) still get 0, and 99 and 89 also lose the page.
 - **Answers:** ooc_pass fell from 0.89 to 0.74. On 5 of the 6 OOC rows that changed, the model still abstained in both runs; the only change is whether the check accepted the wording, and it went both ways. Row 112 answered instead of abstaining. With n=19–20, the answer metrics move by about one SE.
+  - **Correction, 19 Oct:** heading-only chunks are not the main cause. Excluding them at query time moved recall@5 only from 0.358 to 0.374 and left page_hit@5 and row 58 unchanged. Most of the gap is the token budget: at a matched 2,335 tokens, recall is 0.442 against the baseline's 0.479. The rest is short sections (a heading plus a line or two, median chunk 154 tokens) whose heading matches the question while the fact sits in the adjacent section: rows 11, 49, 88 and 100. Detail in the [journal](../../../journal/2026-10-19-chunker-build.md).
 - **Previous fix:** the AC-10 relevance fix left the baseline unchanged. The re-run 2026-10-19-287181bb has the same top-5 ids and metrics on all 33 answerable rows.
 - **Next iteration:** keep a heading with no body out of the chunks. Carry it into its first child's heading path instead of making it a chunk (this needs an AC-8 amendment in a spec). Then re-run against the same baseline. The min-size sweep waits until after that.
+  - **Superseded, 19 Oct:** the next iteration is spec 0006: pack short sections up to a target size, add a heading-path prefix to the embedded text, and score fact recall at a matched token budget.
 
 ## Run
 
