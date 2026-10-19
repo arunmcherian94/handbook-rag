@@ -8,6 +8,7 @@
   - 6,223 chunks are under 64 tokens: a section with no sibling to merge with stays alone (AC-8)
   - 2,053 are preambles (text before the first heading, empty heading path)
   - embedding all of them is estimated at $0.19
+  - **Why fewer tokens than the baseline with 2.2× the chunks:** the corpus is 9.29M tokens with each doc encoded once. The baseline repeats 64 overlap tokens at every window boundary: (22,378 − 4,088 docs) × 64 = 1.17M extra, giving 10.46M. Structural overlap exists only inside split sections: 4,753 continuation sub-chunks × 64 ≈ 0.30M, giving 9.59M. More chunks, but each is smaller, and nearly all boundaries fall on headings, which carry no overlap.
 - **Judgment calls in the build** (within the ACs):
   - Structural chunk_ids are `uuid5(doc_id:config_id:i)`. After review, the same applies to any fixed config other than the baseline (see below).
   - Structural rows fill `chunk_size`/`chunk_overlap` with max_tokens and overlap, since both columns are NOT NULL.
@@ -23,7 +24,7 @@
   - Run metadata had dropped the tokenizer and strategy. `chunk_params` now records strategy, params and tokenizer (AC-12).
   - `--baseline` accepted any run folder. The run now fails before spending if the baseline differs in eval-set hash, corpus, embed model, k or limit, or, when both runs answered, in answer model or prompt (AC-11).
   - The evidence check recomputed `line_end` instead of reading the stored value (AC-10).
-- **Code-review items not fixed, pending Arun:**
+- **Code-review items not fixed:** noted as [follow-ups](../follow-ups.md#from-the-spec-0005-build-review-2026-10-19) (Arun, 19 Oct).
   - Heading-only parent chunks: a heading followed directly by a child heading becomes a chunk of a few tokens. AC-8 forbids merging with a child; the min-size sweep measures it.
   - The merged heading path reads like nesting. Spec AC-9 defines it as the first path plus each merged sibling's heading.
   - The packer can emit a mostly-overlap window when the only cut sits just past the previous end. It's rare, and costs a near-duplicate chunk, not correctness.

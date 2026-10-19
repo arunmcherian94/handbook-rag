@@ -33,3 +33,13 @@
 - **Synthesis:** chunk_all_required@5 is 0.00 (n=8). No single top-5 set covers all the facts a synthesis row needs. Candidates: larger k, parent-child chunks, hybrid search.
 - **Recency:** chunk_fact_recall@5 is 0.35. This is the target for the chunk-dates follow-up.
 - **Page hit, chunk miss:** rows 52, 53, 8, 10, 99, 38, 89 found the right page but not the right chunk. These are a chunking signal for week 2.
+
+## From the spec 0005 build review (2026-10-19)
+
+Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in [the build journal](journal/2026-10-19-chunker-build.md).
+
+- **Heading-only parent chunks:** a heading followed directly by a child heading becomes a chunk of a few tokens, since AC-8 forbids merging with a child. Measure in the min-size sweep; options are to drop them or to prefix them to the first child.
+- **Merged heading paths read like nesting:** a merged chunk stores the first path plus each sibling's heading (AC-9), so `Per diem > France > Germany` looks nested. Store or render merged siblings distinctly.
+- **Mostly-overlap windows:** `pack` can emit a window that is nearly all overlap when the only cut sits just past the previous end. Rare; costs a near-duplicate chunk.
+- **Front-matter line count:** `chunk.run` re-reads each source file to count front-matter lines. Ingest could store the count instead.
+- **Embed cost query:** the cost SQL repeats the pending-chunks predicate; derive it from `PENDING`.

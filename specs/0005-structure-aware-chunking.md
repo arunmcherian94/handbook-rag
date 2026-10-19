@@ -108,6 +108,6 @@ Each is one change against the `structural-v1` run:
 Before the implementation PR:
 
 - [x] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
 - [x] Clean-room verified
 - [x] docs updated: journal entry, an ADR for any decision, follow-ups
