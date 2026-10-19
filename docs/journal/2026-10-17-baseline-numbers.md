@@ -7,4 +7,4 @@
 
 ---
 
-Prev: [2026-10-17: subagent orchestration](2026-10-17-subagent-orchestration.md)
+Prev: [2026-10-17: subagent orchestration](2026-10-17-subagent-orchestration.md) · Next: [2026-10-19: chunking spec, spec 0005](2026-10-19-chunking-spec.md)

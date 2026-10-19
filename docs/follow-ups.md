@@ -10,7 +10,9 @@
   2. `git diff --name-status OLD..NEW -- content/handbook`.
   3. Apply the changes: upsert A/M, delete D, delete and insert R. Deletes matter for permissions, because a page pulled from public must leave retrieval.
   4. Record a sync-run log (old SHA → new SHA, counts).
-- **Chunk-level hashes** plus pipeline version columns for incremental re-embedding.
+- **Chunk-level hashes** plus pipeline version columns for incremental re-embedding. A content-hash embedding cache, keyed by (model, input text), would also stop identical text in two chunk configs from being embedded twice ([ADR-0020](decisions/0020-chunk-configs-coexist.md)).
+- **Semantic chunking:** revisit only if structure-aware chunking leaves the right-page-wrong-chunk rows (52, 53, 8, 10, 99, 38, 89) unfixed. The corpus has heading structure, so boundaries come free ([ADR-0019](decisions/0019-structural-first-recursive-inside-chunking.md)).
+- **Partition chunks and embeddings when an ANN index arrives:** LIST-partition by `config_id` and model, with a typed HNSW index per partition, to avoid filtered-HNSW recall loss ([ADR-0020](decisions/0020-chunk-configs-coexist.md)).
 - **Review agents** for spec conformance and architecture.
 - **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the week 3 freeze.
 - **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer.
