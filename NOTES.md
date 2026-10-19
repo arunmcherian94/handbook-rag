@@ -52,3 +52,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-17: eval harness build, spec 0004](docs/journal/2026-10-17-eval-harness.md)
 - [2026-10-17: subagent orchestration](docs/journal/2026-10-17-subagent-orchestration.md)
 - [2026-10-19: chunking spec, spec 0005](docs/journal/2026-10-19-chunking-spec.md)
+- [2026-10-19: structure-aware chunker build, spec 0005](docs/journal/2026-10-19-chunker-build.md)

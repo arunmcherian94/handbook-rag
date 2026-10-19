@@ -4,8 +4,8 @@ A record is the dict written as one line of rows.jsonl (built by run.py):
 
     row: int, type: str, recency_basis: str | None, answerable: bool,
     conflict_unscored: bool,
-    retrieved: [{rank, chunk_id, doc_id, path, heading, distance, tokens,
-                 facts: [required fact ids it is relevant to], page_relevant: bool}],
+    retrieved: [{rank, chunk_id, doc_id, path, heading, heading_path: [str] | None, distance,
+                 tokens, facts: [required fact ids it is relevant to], page_relevant: bool}],
     metrics: dict from metrics.row_metrics (answerable rows; {} for ooc rows),
     page_hit_no_chunk: bool  (page hit at k=5 but no relevant chunk: a chunking problem),
     answer: str | None, citations: [{n, url_path, heading}], invalid_citations: [int],
@@ -145,4 +145,72 @@ def render_md(summary: dict) -> str:
     for k, v in summary["notes"].items():
         out += ["", f"## {k}", ""]
         out += [f"- {x}" for x in v] if v else ["none"]
+    return "\n".join(out) + "\n"
+
+
+def _fmt(name: str, s: dict | None) -> str:
+    if s is None:
+        return "—"
+    if name.startswith("retrieved_tokens"):
+        return f"{s['mean']:.0f} ± {s['se']:.0f} ({s['n']})"
+    return f"{s['mean']:.3f} ± {s['se']:.3f} ({s['n']})"
+
+
+def _delta(name: str, base: dict | None, new: dict | None) -> str:
+    if base is None or new is None:
+        return "—"
+    d = new["mean"] - base["mean"]
+    return f"{d:+.0f}" if name.startswith("retrieved_tokens") else f"{d:+.3f}"
+
+
+def _best_chunk(record: dict | None) -> str:
+    """The lowest-ranked retrieved chunk relevant to a fact, as 'rank · heading path'."""
+    for hit in (record or {}).get("retrieved") or []:
+        if hit.get("facts"):
+            path = hit.get("heading_path")
+            return f"{hit['rank']} · {' > '.join(path) if path else hit.get('heading')}"
+    return "—"
+
+
+def _cell(record: dict | None, name: str) -> str:
+    value = ((record or {}).get("metrics") or {}).get(name)
+    return "—" if value is None else f"{value:.3f}"
+
+
+def render_compare(
+    summary: dict,
+    records: list[dict],
+    base_summary: dict,
+    base_records: list[dict],
+    base_id: str,
+    row_ids: tuple[int, ...] | list[int],
+) -> str:
+    """Markdown section comparing this run with a baseline run (spec 0005, AC-14): the overall
+    metrics side by side, then per-row recall, hits and best relevant chunk for row_ids and
+    every synthesis row of either run."""
+    base_all = base_summary["groups"]["overall"]
+    new_all = summary["groups"]["overall"]
+    names = {n for n in (*base_all, *new_all) if n != "labels"}
+    head = [n for n in ("chunk_fact_recall@5", "retrieved_tokens@5") if n in names]
+    ordered = head + sorted(names - set(head))
+    out = [f"## Comparison with baseline {base_id}", ""]
+    out += [
+        "| metric | baseline mean ± SE (n) | this run mean ± SE (n) | delta |",
+        "|---|---|---|---|",
+    ]
+    for n in ordered:
+        b, t = base_all.get(n), new_all.get(n)
+        out.append(f"| {n} | {_fmt(n, b)} | {_fmt(n, t)} | {_delta(n, b, t)} |")
+    base_by = {r["row"]: r for r in base_records}
+    new_by = {r["row"]: r for r in records}
+    synthesis = sorted(
+        {r["row"] for r in (*base_records, *records) if r.get("type") == "synthesis"}
+    )
+    ids = list(dict.fromkeys([*row_ids, *synthesis]))
+    out += ["", "| row | metric | baseline | this run |", "|---|---|---|---|"]
+    for i in ids:
+        b, t = base_by.get(i), new_by.get(i)
+        for name in ("chunk_fact_recall@5", "chunk_hit@5", "page_hit@5"):
+            out.append(f"| {i} | {name} | {_cell(b, name)} | {_cell(t, name)} |")
+        out.append(f"| {i} | best relevant chunk | {_best_chunk(b)} | {_best_chunk(t)} |")
     return "\n".join(out) + "\n"

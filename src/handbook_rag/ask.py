@@ -18,7 +18,7 @@ from pathlib import Path
 
 import tiktoken
 
-from handbook_rag.constants import MAX_CITATION, TOKENIZER, TOP_K, TRACE_PATH
+from handbook_rag.constants import BASELINE_CONFIG, MAX_CITATION, TOKENIZER, TOP_K, TRACE_PATH
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.embed import embed_with_retry
 from handbook_rag.models import Answerer, Embedder, make_answerer, make_embedder
@@ -32,7 +32,7 @@ SELECT c.chunk_id, c.doc_id, d.url_path, COALESCE(c.heading, d.title) AS heading
 FROM chunk_embeddings e
 JOIN chunks c USING (chunk_id)
 JOIN documents d USING (doc_id)
-WHERE e.model = %(model)s
+WHERE e.model = %(model)s AND c.config_id = %(config_id)s
 -- OpenAI embeddings are unit-normalised, so <=> (cosine) and <#> (neg. inner product) rank alike.
 -- Choose between them on cost and index support. <-> is L2 distance, <+> is L1.
 ORDER BY e.embedding <=> %(q)s::vector
@@ -83,14 +83,22 @@ class AskResult:
 
 
 def retrieve(
-    conn, embedder: Embedder, question: str, k: int = TOP_K, sleep=time.sleep, rand=random.random
+    conn,
+    embedder: Embedder,
+    question: str,
+    k: int = TOP_K,
+    sleep=time.sleep,
+    rand=random.random,
+    config_id: str = BASELINE_CONFIG,
 ) -> list[Retrieved]:
     """Exact cosine top-k for the embedder's model; no index (AC-5).
 
     The embedder's SDK retries are off, so the query goes through the same capped retry policy.
     """
     q = vector_literal(embed_with_retry(embedder, [question], sleep, rand)[0])
-    rows = conn.execute(SEARCH, {"q": q, "model": embedder.name, "k": k}).fetchall()
+    rows = conn.execute(
+        SEARCH, {"q": q, "model": embedder.name, "k": k, "config_id": config_id}
+    ).fetchall()
     return [Retrieved(n, *row) for n, row in enumerate(rows, 1)]
 
 
@@ -132,9 +140,10 @@ def ask(
     question: str,
     k: int = TOP_K,
     clock=time.perf_counter,
+    config_id: str = BASELINE_CONFIG,
 ) -> AskResult:
     t0 = clock()
-    chunks = retrieve(conn, embedder, question, k)
+    chunks = retrieve(conn, embedder, question, k, config_id=config_id)
     t1 = clock()
     if not chunks:
         raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")

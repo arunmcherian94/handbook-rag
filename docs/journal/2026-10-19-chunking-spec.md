@@ -17,4 +17,4 @@
 
 ---
 
-Prev: [2026-10-17: baseline eval numbers](2026-10-17-baseline-numbers.md)
+Prev: [2026-10-17: baseline eval numbers](2026-10-17-baseline-numbers.md) · Next: [2026-10-19: structure-aware chunker build](2026-10-19-chunker-build.md)

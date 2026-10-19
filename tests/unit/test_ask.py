@@ -36,13 +36,32 @@ def chunks(k=5):
 
 
 def canned(monkeypatch, cs):
-    monkeypatch.setattr(ask_mod, "retrieve", lambda conn, embedder, q, k=5: cs)
+    monkeypatch.setattr(ask_mod, "retrieve", lambda conn, embedder, q, k=5, config_id=None: cs)
 
 
 def run_ask(monkeypatch, text="Yes [2] and [9].", cs=None, **kw):
     canned(monkeypatch, chunks() if cs is None else cs)
     answerer = FakeAnswerer(text=text, **kw)
     return ask(None, FakeEmbedder(), answerer, "Q?"), answerer
+
+
+def test_search_scopes_to_config():
+    """AC-4: the query filters on config_id, and ask passes its config through to retrieve."""
+    assert "c.config_id = %(config_id)s" in ask_mod.SEARCH
+
+
+def test_ask_passes_config_id(monkeypatch):
+    """AC-4: ask forwards config_id to retrieve; the default is the baseline."""
+    seen = []
+
+    def fake(conn, embedder, q, k=5, config_id=None):
+        seen.append(config_id)
+        return chunks()
+
+    monkeypatch.setattr(ask_mod, "retrieve", fake)
+    ask(None, FakeEmbedder(), FakeAnswerer(text="Yes [1]."), "Q?")
+    ask(None, FakeEmbedder(), FakeAnswerer(text="Yes [1]."), "Q?", config_id="structural-v1")
+    assert seen == ["fixed-512-64", "structural-v1"]
 
 
 def test_build_prompt():

@@ -13,6 +13,16 @@ CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64
 TOKENIZER = "cl100k_base"
 CHUNK_BATCH = 500  # rows per upsert
+# Chunk configs coexist in one table, keyed by config_id (spec 0005, AC-1; ADR-0020). Defined
+# here; the first chunk run of a config records it in chunk_configs, later runs fail on drift.
+BASELINE_CONFIG = "fixed-512-64"
+CHUNK_CONFIGS = {
+    "fixed-512-64": {"strategy": "fixed", "params": {"size": CHUNK_SIZE, "overlap": CHUNK_OVERLAP}},
+    "structural-v1": {
+        "strategy": "structural",
+        "params": {"max_tokens": 512, "overlap": 64, "min_tokens": 64},
+    },
+}
 
 # Embedding (spec 0003, AC-3)
 DEFAULT_EMBED_MODEL = "openai:text-embedding-3-small"
@@ -46,3 +56,6 @@ CORPUS_PREFIX = "content/handbook/"  # eval-set paths are relative to this; docu
 # Estimates for the cost guard (AC-8): ~3.1k in + 250 out per answer (NOTES answer-cost table).
 EST_ANSWER_USD_PER_ROW = 0.004
 EST_EMBED_USD_PER_1M = 0.02  # text-embedding-3-small
+# Baseline comparison (spec 0005, AC-14): the right-page-wrong-chunk rows of run 3748df5b,
+# shown per row next to every synthesis row.
+COMPARE_ROWS = (52, 53, 8, 10, 99, 38, 89)

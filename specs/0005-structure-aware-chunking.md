@@ -1,6 +1,6 @@
 # 0005: Structure-aware chunking (week 2, first chunking run)
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-19
 - Depends on: 0003, 0004, eval set v1.2, baseline run `2026-10-17-3748df5b`
 
@@ -107,7 +107,7 @@ Each is one change against the `structural-v1` run:
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
+- [x] Clean-room verified
+- [x] docs updated: journal entry, an ADR for any decision, follow-ups

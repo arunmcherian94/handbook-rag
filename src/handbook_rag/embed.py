@@ -1,9 +1,10 @@
-"""Embed chunks into chunk_embeddings (spec 0003, AC-3, AC-4).
+"""Embed chunks into chunk_embeddings (spec 0003, AC-3, AC-4; spec 0005 AC-4, AC-13).
 
 Functional core, imperative shell: retry and bad-input isolation (embed_with_retry, embed_batch)
 are pure, so they are unit-tested without a DB; run() is the shell that owns SQL and commits
 once per successful (sub-)batch. `sleep` and `rand` are injected so tests check backoff timing
-without waiting or randomness.
+without waiting or randomness. Everything is scoped to one chunk config (spec 0005 AC-4), and
+main() prints a cost estimate and spends only with --confirm (spec 0005 AC-13).
 """
 
 import argparse
@@ -20,7 +21,10 @@ import openai
 from handbook_rag.constants import (
     BACKOFF_BASE,
     BACKOFF_CAP,
+    BASELINE_CONFIG,
+    CHUNK_CONFIGS,
     EMBED_BATCH,
+    EST_EMBED_USD_PER_1M,
     MAX_ATTEMPTS,
     MAX_INPUT_TOKENS,
     MAX_REQUEST_TOKENS,
@@ -154,11 +158,23 @@ def _md5(text: str) -> str:
 PENDING = """
 SELECT c.chunk_id, c.doc_id, c.content, c.token_count FROM chunks c
 WHERE NOT EXISTS (SELECT 1 FROM chunk_embeddings e WHERE e.chunk_id = c.chunk_id AND e.model = %s)
+  AND c.config_id = %s
 ORDER BY c.chunk_id
 """
 SKIPPED = """
 SELECT count(*) FROM chunks c JOIN chunk_embeddings e ON e.chunk_id = c.chunk_id
-WHERE e.model = %s
+WHERE e.model = %s AND c.config_id = %s
+"""
+# The estimate must match what run() would embed, so it takes the same first `limit` rows.
+COST = """
+SELECT count(*), coalesce(sum(token_count), 0) FROM (
+    SELECT c.token_count FROM chunks c
+    WHERE NOT EXISTS (
+        SELECT 1 FROM chunk_embeddings e WHERE e.chunk_id = c.chunk_id AND e.model = %s
+    )
+      AND c.config_id = %s
+    ORDER BY c.chunk_id LIMIT %s
+) t
 """
 # Insert only if the chunk still holds the text that was embedded: a concurrent `make chunk`
 # may have changed or deleted it, and a stale vector must never sit beside new text (AC-2).
@@ -169,14 +185,25 @@ ON CONFLICT DO NOTHING
 """
 
 
+def pending_cost(conn, model, config_id, limit=None) -> tuple[int, int]:
+    """(count, summed token_count) of the chunks run() would embed for this config and model."""
+    return tuple(conn.execute(COST, (model, config_id, limit)).fetchone())
+
+
 def run(
-    conn, embedder, batch=EMBED_BATCH, limit=None, sleep=time.sleep, rand=random.random
+    conn,
+    embedder,
+    batch=EMBED_BATCH,
+    limit=None,
+    sleep=time.sleep,
+    rand=random.random,
+    config_id=BASELINE_CONFIG,
 ) -> Summary:
     summary = Summary()
-    summary.skipped = conn.execute(SKIPPED, (embedder.name,)).fetchone()[0]
-    sql, params = PENDING, [embedder.name]
+    summary.skipped = conn.execute(SKIPPED, (embedder.name, config_id)).fetchone()[0]
+    sql, params = PENDING, [embedder.name, config_id]
     if limit is not None:
-        sql, params = sql + " LIMIT %s", [embedder.name, limit]
+        sql, params = sql + " LIMIT %s", [embedder.name, config_id, limit]
     rows = [Pending(*r) for r in conn.execute(sql, params).fetchall()]
     conn.commit()
 
@@ -217,12 +244,26 @@ def run(
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     ap = argparse.ArgumentParser(description="Embed chunks that have no embedding for the model.")
+    ap.add_argument("--config", default=BASELINE_CONFIG, help="chunk config_id to embed")
+    ap.add_argument("--confirm", action="store_true", help="spend; without it, a dry run")
     ap.add_argument("--limit", type=int, default=None, help="embed at most N pending chunks")
     args = ap.parse_args(argv)
+    if args.config not in CHUNK_CONFIGS:
+        raise SystemExit(f"unknown config {args.config!r}; known: {', '.join(CHUNK_CONFIGS)}")
     embedder = make_embedder()
     try:
         with connect() as conn:
-            s = run(conn, embedder, limit=args.limit)
+            n, tokens = pending_cost(conn, embedder.name, args.config, args.limit)
+            conn.commit()
+            usd = tokens / 1e6 * EST_EMBED_USD_PER_1M
+            print(
+                f"embed {args.config}: {n} pending chunks for {embedder.name}, "
+                f"~{tokens} tokens, estimated ${usd:.4f}"
+            )
+            if not args.confirm:
+                print("Dry run: add CONFIRM=1 to spend.")
+                return 0
+            s = run(conn, embedder, limit=args.limit, config_id=args.config)
     except (RetriesExhausted, FatalEmbedError) as e:
         log.error("embedding stopped: %s", e)
         return 2

@@ -1,3 +1,5 @@
+import uuid
+
 import psycopg
 import pytest
 from fakes import FakeEmbedder, bow_vector
@@ -11,10 +13,13 @@ INSERT = "INSERT INTO chunk_embeddings (chunk_id, model, embedding) VALUES (%s, 
 MODEL = "fake:retrieve-test"
 OTHER = "fake:retrieve-other"
 TITLE = "fake:retrieve-title"
+DECOY = "test-decoy"
 
 
 def _clean(conn):
     conn.execute("DELETE FROM chunk_embeddings WHERE model = ANY(%s)", ([MODEL, OTHER, TITLE],))
+    conn.execute("DELETE FROM chunks WHERE config_id = %s", (DECOY,))
+    conn.execute("DELETE FROM chunk_configs WHERE config_id = %s", (DECOY,))
     conn.commit()
 
 
@@ -28,7 +33,8 @@ def seeded():
     with conn:
         _clean(conn)
         rows = conn.execute(
-            "SELECT chunk_id, content, doc_id FROM chunks ORDER BY chunk_id LIMIT 50"
+            "SELECT chunk_id, content, doc_id FROM chunks WHERE config_id = 'fixed-512-64' "
+            "ORDER BY chunk_id LIMIT 50"
         ).fetchall()
         if len(rows) < 50:
             pytest.fail("chunks table is empty or too small. Run `make chunk` first.")
@@ -87,10 +93,34 @@ def test_missing_heading_falls_back_to_doc_title(seeded):
     conn, _, _, _ = seeded
     chunk_id, content, title = conn.execute(
         """SELECT c.chunk_id, c.content, d.title FROM chunks c JOIN documents d USING (doc_id)
-           WHERE c.heading IS NULL ORDER BY c.chunk_id LIMIT 1"""
+           WHERE c.heading IS NULL AND c.config_id = 'fixed-512-64' ORDER BY c.chunk_id LIMIT 1"""
     ).fetchone()
     conn.execute(INSERT, (chunk_id, TITLE, vector_literal(bow_vector(content))))
     got = retrieve(conn, FakeEmbedder(name=TITLE), content, k=1)
     (hit,) = got
     assert hit.chunk_id == chunk_id
     assert hit.heading == title
+
+
+def test_other_config_chunks_never_returned(seeded):
+    """AC-4: a chunk of another config, embedded exactly on the query, is not returned for the
+    baseline config; retrieving with its own config returns it."""
+    conn, rows, target, query = seeded
+    decoy_id = uuid.uuid4()
+    conn.execute(
+        "INSERT INTO chunk_configs (config_id, strategy, params, tokenizer) "
+        "VALUES (%s, 'fixed', '{}', 'cl100k_base')",
+        (DECOY,),
+    )
+    conn.execute(
+        "INSERT INTO chunks (chunk_id, doc_id, chunk_index, content, token_count, chunk_size, "
+        "chunk_overlap, tokenizer, commit_sha, config_id) "
+        "VALUES (%s, %s, 0, 'decoy', 1, 1, 0, 'cl100k_base', 'x', %s)",
+        (decoy_id, target[2], DECOY),
+    )
+    conn.execute(INSERT, (decoy_id, MODEL, vector_literal(bow_vector(query))))
+    embedder = FakeEmbedder(name=MODEL)
+    assert decoy_id not in {g.chunk_id for g in retrieve(conn, embedder, query, k=10)}
+    assert [g.chunk_id for g in retrieve(conn, embedder, query, k=10, config_id=DECOY)] == [
+        decoy_id
+    ]

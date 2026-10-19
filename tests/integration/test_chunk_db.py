@@ -3,8 +3,16 @@ from pathlib import Path
 import psycopg
 import pytest
 
-from handbook_rag.chunk import run
-from handbook_rag.constants import CHECKOUT, CHUNK_OVERLAP, CHUNK_SIZE, TOKENIZER
+from handbook_rag import chunk
+from handbook_rag.chunk import register_config, run
+from handbook_rag.constants import (
+    BASELINE_CONFIG,
+    CHECKOUT,
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+    CHUNKS_SCHEMA,
+    TOKENIZER,
+)
 from handbook_rag.corpus import read_manifest
 from handbook_rag.db import connect
 
@@ -12,7 +20,13 @@ pytestmark = pytest.mark.integration
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = "fake:chunk-test"
-FINGERPRINT = "SELECT md5(string_agg(chunk_id::text || content, '|' ORDER BY chunk_id)) FROM chunks"
+STRUCTURAL = "structural-v1"
+FINGERPRINT = """SELECT count(*), md5(string_agg(chunk_id::text || content, '|' ORDER BY chunk_id))
+                 FROM chunks WHERE config_id = %s"""
+# The baseline as embedded for run 2026-10-17-3748df5b (spec 0005, AC-3).
+BASELINE_FINGERPRINT = (22378, "a74cd0329fbcd326128f12b6fb46d6de")
+BASELINE_EMBEDDINGS = """SELECT count(*) FROM chunk_embeddings e JOIN chunks c USING (chunk_id)
+                         WHERE c.config_id = %s"""
 
 
 @pytest.fixture(scope="module")
@@ -33,8 +47,14 @@ def conn():
     mp.undo()
 
 
-def count(conn) -> int:
-    return conn.execute("SELECT count(*) FROM chunks").fetchone()[0]
+def count(conn, config_id: str = BASELINE_CONFIG) -> int:
+    return conn.execute(
+        "SELECT count(*) FROM chunks WHERE config_id = %s", (config_id,)
+    ).fetchone()[0]
+
+
+def fingerprint(conn, config_id: str = BASELINE_CONFIG) -> tuple[int, str]:
+    return conn.execute(FINGERPRINT, (config_id,)).fetchone()
 
 
 def embed(conn, chunk_id) -> None:
@@ -56,27 +76,31 @@ def test_early_exit_then_force_is_identical(conn):
     first = count(conn)
     print(f"chunks: {first}")
     assert 22_000 <= first <= 22_800
-    before = conn.execute(FINGERPRINT).fetchone()[0]
+    before = fingerprint(conn)
+    assert before == BASELINE_FINGERPRINT  # spec 0005, AC-3: the rewrite left the baseline as is
     skipped = run(conn)
     assert skipped.skipped and skipped.chunks == first and count(conn) == first
     forced = run(conn, force=True)
     assert not forced.skipped and forced.chunks == first
     assert forced.changed == 0 and forced.deleted == 0
-    assert conn.execute(FINGERPRINT).fetchone()[0] == before
+    assert fingerprint(conn) == before
 
 
 def test_every_document_chunked_with_parameters(conn):
     """AC-1: non-empty docs have chunks; rows carry the parameters and the manifest SHA."""
     (uncovered,) = conn.execute(
-        """SELECT count(*) FROM documents d WHERE d.body ~ '\\S'
-           AND NOT EXISTS (SELECT 1 FROM chunks c WHERE c.doc_id = d.doc_id)"""
+        """SELECT count(*) FROM documents d WHERE d.body ~ '\\S' AND NOT EXISTS
+           (SELECT 1 FROM chunks c WHERE c.doc_id = d.doc_id AND c.config_id = %s)""",
+        (BASELINE_CONFIG,),
     ).fetchone()
     assert uncovered == 0
     bad = conn.execute(
-        """SELECT count(*) FROM chunks WHERE token_count > %s OR token_count < 1
-           OR chunk_size <> %s OR chunk_overlap <> %s OR tokenizer <> %s OR commit_sha <> %s""",
-        (CHUNK_SIZE, CHUNK_SIZE, CHUNK_OVERLAP, TOKENIZER, read_manifest(ROOT / "CORPUS.md").sha),
-    ).fetchone()[0]
+        """SELECT count(*) FROM chunks WHERE config_id = %s AND (token_count > %s OR token_count < 1
+           OR chunk_size <> %s OR chunk_overlap <> %s OR tokenizer <> %s OR commit_sha <> %s
+           OR heading_path IS NOT NULL OR line_start IS NOT NULL OR line_end IS NOT NULL)""",
+        (BASELINE_CONFIG, CHUNK_SIZE, CHUNK_SIZE, CHUNK_OVERLAP, TOKENIZER,
+         read_manifest(ROOT / "CORPUS.md").sha),
+    ).fetchone()[0]  # fmt: skip
     assert bad == 0
 
 
@@ -85,7 +109,8 @@ def test_deleting_document_cascades_to_chunks_and_embeddings(conn):
     before = count(conn)
     with conn.transaction(force_rollback=True):
         doc_id, chunk_id = conn.execute(
-            "SELECT doc_id, chunk_id FROM chunks ORDER BY chunk_id LIMIT 1"
+            "SELECT doc_id, chunk_id FROM chunks WHERE config_id = %s ORDER BY chunk_id LIMIT 1",
+            (BASELINE_CONFIG,),
         ).fetchone()
         embed(conn, chunk_id)
         conn.execute("DELETE FROM documents WHERE doc_id = %s", (doc_id,))
@@ -105,13 +130,16 @@ def test_changed_content_drops_only_its_embedding(conn):
     with conn.transaction(force_rollback=True):
         doc_id, first_id, last_id = conn.execute(
             """SELECT c.doc_id,
-                      (SELECT chunk_id FROM chunks WHERE doc_id = c.doc_id AND chunk_index = 0),
+                      (SELECT chunk_id FROM chunks
+                       WHERE doc_id = c.doc_id AND chunk_index = 0 AND config_id = %(cfg)s),
                       c.chunk_id
                FROM chunks c
-               JOIN (SELECT doc_id, max(chunk_index) m FROM chunks GROUP BY doc_id) l
+               JOIN (SELECT doc_id, max(chunk_index) m FROM chunks WHERE config_id = %(cfg)s
+                     GROUP BY doc_id) l
                  ON l.doc_id = c.doc_id AND l.m = c.chunk_index
-               WHERE c.chunk_index >= 2 AND c.token_count <= 400
-               ORDER BY c.doc_id LIMIT 1"""
+               WHERE c.config_id = %(cfg)s AND c.chunk_index >= 2 AND c.token_count <= 400
+               ORDER BY c.doc_id LIMIT 1""",
+            {"cfg": BASELINE_CONFIG},
         ).fetchone()
         embed(conn, first_id)
         embed(conn, last_id)
@@ -134,3 +162,75 @@ def test_stale_documents_are_refused(conn):
         )
         with pytest.raises(SystemExit, match="make ingest"):
             run(conn)
+
+
+def test_migration_is_idempotent(conn):
+    """Spec 0005, AC-2: the chunks DDL re-runs cleanly; every row has a config."""
+    with conn.transaction(force_rollback=True):
+        conn.execute(CHUNKS_SCHEMA.read_text())
+        conn.execute(CHUNKS_SCHEMA.read_text())
+        (nulls,) = conn.execute("SELECT count(*) FROM chunks WHERE config_id IS NULL").fetchone()
+        assert nulls == 0
+        assert conn.execute(
+            "SELECT strategy, params FROM chunk_configs WHERE config_id = %s", (BASELINE_CONFIG,)
+        ).fetchone() == ("fixed", {"size": CHUNK_SIZE, "overlap": CHUNK_OVERLAP})
+
+
+def test_structural_run_leaves_baseline_untouched(conn):
+    """Spec 0005, AC-1, AC-3, AC-9: chunking structural-v1 keeps every baseline row and
+    embedding; a re-run early-exits; structural rows carry paths and line ranges."""
+    before = fingerprint(conn)
+    (embedded,) = conn.execute(BASELINE_EMBEDDINGS, (BASELINE_CONFIG,)).fetchone()
+    first = run(conn, config_id=STRUCTURAL, force=True)
+    conn.commit()
+    assert not first.skipped and first.chunks == count(conn, STRUCTURAL)
+    again = run(conn, config_id=STRUCTURAL)
+    assert again.skipped and again.chunks == first.chunks
+    assert fingerprint(conn) == before == BASELINE_FINGERPRINT
+    assert conn.execute(BASELINE_EMBEDDINGS, (BASELINE_CONFIG,)).fetchone()[0] == embedded
+    print(f"baseline embeddings: {embedded}")
+    assert conn.execute(
+        "SELECT strategy, params, tokenizer FROM chunk_configs WHERE config_id = %s",
+        (STRUCTURAL,),
+    ).fetchone() == ("structural", chunk.CHUNK_CONFIGS[STRUCTURAL]["params"], TOKENIZER)
+    (bad,) = conn.execute(
+        """SELECT count(*) FROM chunks WHERE config_id = %s AND (heading_path IS NULL
+           OR line_start IS NULL OR line_end < line_start OR token_count > 512 OR token_count < 1
+           OR chunk_size <> 512 OR chunk_overlap <> 64 OR tokenizer <> %s)""",
+        (STRUCTURAL, TOKENIZER),
+    ).fetchone()
+    assert bad == 0
+    (uncovered,) = conn.execute(
+        """SELECT count(*) FROM documents d WHERE d.body ~ '\\S' AND NOT EXISTS
+           (SELECT 1 FROM chunks c WHERE c.doc_id = d.doc_id AND c.config_id = %s)""",
+        (STRUCTURAL,),
+    ).fetchone()
+    assert uncovered == 0
+    n, p50, p90, top = conn.execute(
+        """SELECT count(*), percentile_disc(0.5) WITHIN GROUP (ORDER BY token_count),
+                  percentile_disc(0.9) WITHIN GROUP (ORDER BY token_count), max(token_count)
+           FROM chunks WHERE config_id = %s""",
+        (STRUCTURAL,),
+    ).fetchone()
+    print(f"{STRUCTURAL}: {n} chunks; tokens p50 {p50}, p90 {p90}, max {top}")
+
+
+def test_register_config_rejects_drift_and_unknown(conn, monkeypatch):
+    """Spec 0005, AC-1: a config's first registration records it; changed params under the same
+    id fail; an unknown id fails."""
+    cfg = {"strategy": "structural", "params": {"max_tokens": 256, "overlap": 0, "min_tokens": 0}}
+    monkeypatch.setattr(chunk, "CHUNK_CONFIGS", {"test-drift": cfg})
+    try:
+        assert register_config(conn, "test-drift") == cfg
+        conn.commit()
+        assert register_config(conn, "test-drift") == cfg  # unchanged: passes
+        drifted = {**cfg, "params": {**cfg["params"], "overlap": 32}}
+        monkeypatch.setattr(chunk, "CHUNK_CONFIGS", {"test-drift": drifted})
+        with pytest.raises(SystemExit, match="drifted"):
+            register_config(conn, "test-drift")
+        with pytest.raises(SystemExit, match="unknown chunk config"):
+            register_config(conn, "no-such-config")
+    finally:
+        conn.rollback()
+        conn.execute("DELETE FROM chunk_configs WHERE config_id = 'test-drift'")
+        conn.commit()
