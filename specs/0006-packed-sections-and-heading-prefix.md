@@ -1,6 +1,6 @@
 # 0006: Packed sections, heading-path prefix, deeper top-K (week 2, final chunking iteration)
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-19
 - Depends on: 0005, eval set v1.2, baseline run `2026-10-17-3748df5b`, run `2026-10-19-62a52a83`
 

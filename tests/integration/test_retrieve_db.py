@@ -124,3 +124,32 @@ def test_other_config_chunks_never_returned(seeded):
     assert [g.chunk_id for g in retrieve(conn, embedder, query, k=10, config_id=DECOY)] == [
         decoy_id
     ]
+
+
+@pytest.mark.parametrize("config_id", ["structural-v2", "fixed-512-64-prefixed"])
+def test_new_configs_are_scoped(seeded, config_id):
+    """Spec 0006 AC-1: chunks of a new config, embedded exactly on the query, are returned only
+    when retrieving with that config."""
+    conn, rows, target, query = seeded
+    exists = conn.execute(
+        "SELECT 1 FROM chunk_configs WHERE config_id = %s", (config_id,)
+    ).fetchone()
+    new_id = uuid.uuid4()
+    if not exists:
+        conn.execute(
+            "INSERT INTO chunk_configs (config_id, strategy, params, tokenizer) "
+            "VALUES (%s, 'fixed', '{}', 'cl100k_base')",
+            (config_id,),
+        )
+    conn.execute(
+        "INSERT INTO chunks (chunk_id, doc_id, chunk_index, content, token_count, chunk_size, "
+        "chunk_overlap, tokenizer, commit_sha, config_id) "
+        "VALUES (%s, %s, 0, 'new config', 1, 1, 0, 'cl100k_base', 'x', %s)",
+        (new_id, target[2], config_id),
+    )
+    conn.execute(INSERT, (new_id, MODEL, vector_literal(bow_vector(query))))
+    embedder = FakeEmbedder(name=MODEL)
+    assert new_id not in {g.chunk_id for g in retrieve(conn, embedder, query, k=10)}
+    assert [g.chunk_id for g in retrieve(conn, embedder, query, k=10, config_id=config_id)] == [
+        new_id
+    ]

@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import math
 import uuid
@@ -13,6 +14,7 @@ from handbook_rag.embed import (
     RetriesExhausted,
     Summary,
     embed_batch,
+    embed_text,
     embed_with_retry,
 )
 
@@ -174,3 +176,52 @@ def test_unknown_config_lists_known_ids():
     """AC-4: an unknown --config exits and names the known ids."""
     with pytest.raises(SystemExit, match="fixed-512-64.*structural-v1"):
         embed.main(["--config", "nope"])
+
+
+@pytest.mark.parametrize(
+    "path, want",
+    [
+        (["A", "B"], "T\nA > B\n\nbody"),
+        ([], "T\n\nbody"),
+        (None, "T\n\nbody"),
+    ],
+)
+def test_embed_text_title_path(path, want):
+    """spec 0006 AC-5: title, path line (omitted when empty), blank line, content."""
+    assert embed_text("T", path, "body", "title-path") == want
+
+
+def test_embed_text_no_prefix_passthrough_and_unknown():
+    """spec 0006 AC-5: no prefix leaves content alone; an unknown prefix is an error."""
+    assert embed_text("T", ["A"], "body", None) == "body"
+    with pytest.raises(ValueError):
+        embed_text("T", ["A"], "body", "nope")
+
+
+def test_embed_sends_prefixed_text_but_guard_is_on_content():
+    """spec 0006 AC-5: the model gets the prefixed text; on_success items keep content for md5."""
+    it = item("body")
+    it.text = embed_text("T", ["A"], "body", "title-path")
+    e = FakeEmbedder()
+    got = []
+    embed_batch(e, [it], lambda s: None, rand, lambda items, vecs: got.extend(items))
+    assert e.calls == [["T\nA\n\nbody"]]
+    assert [embed._md5(i.content) for i in got] == [hashlib.md5(b"body").hexdigest()]
+
+
+def test_prefix_tokens_count_toward_limits():
+    """spec 0006 AC-5: token_count + prefix_tokens is what the input and request limits see."""
+    big = item("x", tokens=embed.MAX_INPUT_TOKENS)
+    big.prefix_tokens = 1
+    e = FakeEmbedder()
+    assert len(embed_batch(e, [big], lambda s: None, rand, lambda *a: None)) == 1
+    assert e.calls == []
+    items = [item(f"t{n}", tokens=8100) for n in range(37)]  # 299_700: under the request cap
+    e = FakeEmbedder()
+    embed_batch(e, items, lambda s: None, rand, lambda *a: None)
+    assert len(e.calls) == 1
+    for it in items:
+        it.prefix_tokens = 50  # 301_550: over it, so the request splits
+    e = FakeEmbedder()
+    embed_batch(e, items, lambda s: None, rand, lambda *a: None)
+    assert len(e.calls) > 1

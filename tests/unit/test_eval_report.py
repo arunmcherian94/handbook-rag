@@ -154,7 +154,7 @@ def test_groups_and_lists():
     assert "chunk_hit@1" not in by_type["ooc-off-topic"]
     assert list(s["groups"]["by_recency_basis"]) == ["in-page"]
     assert s["groups"]["by_recency_basis"]["in-page"]["chunk_hit@1"]["n"] == 2
-    assert s["lists"] == {"page_hit_no_chunk": [2], "conflict_unscored": [2]}
+    assert s["lists"] == {"page_hit_no_chunk": [2], "conflict_unscored": [2], "near_ties": []}
 
 
 def test_retrieval_only_has_no_answer_rates():
@@ -244,3 +244,68 @@ def test_render_compare():
     assert "| 9 | best relevant chunk | — | — |" in md
     assert "| 77 | chunk_hit@5 | — | — |" in md
     assert md.index("| 77 |") < md.index("| 9 |")
+
+
+def _deep(tokens, facts, pages):
+    return [{"rank": i, "chunk_id": f"c{i}", "tokens": t, "facts": f, "page_relevant": p}
+            for i, (t, f, p) in enumerate(zip(tokens, facts, pages, strict=True), 1)]  # fmt: skip
+
+
+def _deep_rec(row, near_tie=False, **kw):
+    rec = _rec(row, "lookup", 0.5, 1.0, [_hit(1, ["F1"], "H")])
+    deep = _deep([100] * 6, [[], ["F1"], [], [], [], ["F2"]], [False, True] + [False] * 4)
+    rec.update(deep=deep, retrieved=deep[:5], required_facts=["F1", "F2"], near_tie=near_tie)
+    return rec
+
+
+def test_summarize_near_ties_and_matched():
+    """AC-6, AC-7: near_ties list; matched block at the k closest to the target."""
+    recs = [_deep_rec(1, near_tie=True), _deep_rec(2)]
+    s = summarize(recs, META, NOTES, target_tokens=210)
+    assert s["lists"]["near_ties"] == [1]
+    m = s["matched"]
+    assert m["k"] == 2 and m["target_tokens"] == 210
+    assert m["tokens"]["mean"] == 200 and m["chunk_fact_recall"]["mean"] == 0.5
+    assert m["chunk_hit"]["mean"] == 1.0 and m["page_hit"]["mean"] == 1.0
+    assert m["chunk_fact_recall"]["n"] == 2
+    assert summarize(recs, META, NOTES, target_tokens=580)["matched"]["chunk_fact_recall"][
+        "mean"] == 1.0  # fmt: skip
+    assert "near_ties: 1" in render_md(s)
+    assert "Token-matched k = 2" in render_md(s)
+
+
+def test_matched_at_k_up_to_5_reads_the_list_the_model_saw():
+    """AC-6, AC-7: on a near-tie row, matched k <= 5 scores `retrieved`, as every @5 metric
+    does; k > 5 scores the deep list."""
+    rec = _deep_rec(1, near_tie=True)
+    rec["retrieved"] = _deep([100] * 5, [["F1"], ["F2"], [], [], []], [True] + [False] * 4)
+    assert summarize([rec], META, NOTES, target_tokens=210)["matched"]["chunk_fact_recall"][
+        "mean"] == 1.0  # fmt: skip
+    assert summarize([rec], META, NOTES, target_tokens=600)["matched"]["chunk_fact_recall"][
+        "mean"] == 1.0  # fmt: skip
+
+
+def test_unscored_and_deepless_records_are_skipped():
+    """AC-7: empty required_facts / missing deep -> no crash, no matched block."""
+    old = [_rec(1, "lookup", 0.5, 1.0, [])]
+    assert "matched" not in summarize(old, META, NOTES, target_tokens=2000)
+    unscored = _deep_rec(1)
+    unscored["required_facts"] = []
+    assert "matched" not in summarize([unscored], META, NOTES, target_tokens=200)
+    assert "near_ties: none" in render_md(summarize(old, META, NOTES))
+
+
+def test_render_compare_matched_block_and_row():
+    """AC-7: matched block (baseline k=5 vs this run at matched k) and per-row matched recall."""
+    base = [_rec(1, "lookup", 0.5, 1.0, [])]
+    new = [_deep_rec(1)]
+    base_sum = summarize(base, META, NOTES)
+    new_sum = summarize(new, META, NOTES, target_tokens=200)
+    md = render_compare(new_sum, new, base_sum, base, "B", [1, 2])
+    assert "Token-matched k (baseline k=5, this run k=2)" in md
+    assert "| chunk_fact_recall | 0.500 ± 0.000 (1) | 0.500 ± 0.000 (1) | +0.000 |" in md
+    assert "| tokens | 2000 ± 0 (1) | 200 ± 0 (1) | -1800 |" in md
+    assert "| 1 | chunk_fact_recall@matched | 0.500 | 0.500 |" in md
+    assert "| 2 | chunk_fact_recall@matched | — | — |" in md
+    old = render_compare(summarize(base, META, NOTES), base, base_sum, base, "B", [1])
+    assert "Token-matched" not in old and "@matched" not in old

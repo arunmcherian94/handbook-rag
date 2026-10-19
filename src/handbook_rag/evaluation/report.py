@@ -10,6 +10,11 @@ A record is the dict written as one line of rows.jsonl (built by run.py):
     page_hit_no_chunk: bool  (page hit at k=5 but no relevant chunk: a chunking problem),
     answer: str | None, citations: [{n, url_path, heading}], invalid_citations: [int],
     truncated: bool | None,
+    deep: [{rank, chunk_id, tokens, facts, page_relevant}]  (answerable rows; the depth-20
+        retrieval, spec 0006 AC-6; absent in older runs),
+    required_facts: sorted required fact ids (the set chunk_fact_recall is over; empty = row
+        unscored; absent in older runs),
+    near_tie: bool  (the deep list's top 5 chunk_ids differ from `retrieved`'s),
     abstention: asdict(checks.Abstention) | None,
     checks: asdict(checks.CodeChecks) | None  (answerable, non-abstaining rows only)
 """
@@ -17,7 +22,8 @@ A record is the dict written as one line of rows.jsonl (built by run.py):
 import re
 from collections import Counter
 
-from handbook_rag.evaluation.metrics import mean_se
+from handbook_rag.constants import TOP_K
+from handbook_rag.evaluation.metrics import matched_k, mean_se
 
 CHECK_FIELDS = ("has_citation", "citations_in_range", "headings_exist", "no_url")
 # The SE formula follows the metric's kind, never its values (a continuous metric can be all
@@ -82,7 +88,37 @@ def _by(records: list[dict], key: str) -> dict:
     return {v: _group([r for r in records if r.get(key) == v]) for v in values}
 
 
-def summarize(records: list[dict], meta: dict, notes: dict) -> dict:
+def _at_k(record: dict, k: int) -> dict[str, float]:
+    """Recall, hit, page hit and tokens at k (spec 0006 AC-7): from the list the model saw for
+    k <= 5, as every k <= 5 metric is (AC-6), so a near-tie row can't disagree with @5."""
+    ranked = record["retrieved"] if k <= TOP_K else record["deep"]
+    deep, req = ranked[:k], set(record["required_facts"])
+    covered = set().union(*(set(c["facts"]) for c in deep)) & req
+    return {
+        "chunk_fact_recall": len(covered) / len(req),
+        "chunk_hit": float(any(c["facts"] for c in deep)),
+        "page_hit": float(any(c["page_relevant"] for c in deep)),
+        "tokens": float(sum(c["tokens"] for c in deep)),
+    }
+
+
+def _matched(records: list[dict], target: float) -> dict | None:
+    scored = [r for r in records if r.get("metrics") and r.get("deep") is not None]
+    scored = [r for r in scored if r.get("required_facts")]
+    if not scored:
+        return None
+    k = matched_k([[c["tokens"] for c in r["deep"]] for r in scored], target)
+    vals = [_at_k(r, k) for r in scored]
+    out: dict = {"k": k, "target_tokens": target}
+    for key, name in (("tokens", "retrieved_tokens"), ("chunk_fact_recall",) * 2,
+                      ("chunk_hit",) * 2, ("page_hit",) * 2):  # fmt: skip
+        out[key] = _stat(f"{name}@{k}", [v[key] for v in vals])
+    return out
+
+
+def summarize(
+    records: list[dict], meta: dict, notes: dict, target_tokens: float | None = None
+) -> dict:
     """The summary.json content.
 
     meta: the AC-6 run metadata, copied in as-is.
@@ -93,9 +129,12 @@ def summarize(records: list[dict], meta: dict, notes: dict) -> dict:
     maps metric name -> {mean, se, n} (metrics.mean_se) for every key in the records'
     metrics, plus, when answers exist: ooc_pass (ooc rows), false_abstention (answerable rows),
     code_checks_passed and one rate per check (rows with checks), truncated; and label counts.
-    Lists: page_hit_no_chunk rows, conflict_unscored rows.
+    Lists: page_hit_no_chunk rows, conflict_unscored rows, near_ties rows.
+    With target_tokens and deep lists in the records: "matched" = {k, target_tokens, tokens,
+    chunk_fact_recall, chunk_hit, page_hit} at the matched k (spec 0006 AC-7), stats over the
+    scored records.
     """
-    return {
+    summary = {
         "meta": meta,
         "groups": {
             "overall": _group(records),
@@ -105,9 +144,13 @@ def summarize(records: list[dict], meta: dict, notes: dict) -> dict:
         "lists": {
             "page_hit_no_chunk": [r["row"] for r in records if r.get("page_hit_no_chunk")],
             "conflict_unscored": [r["row"] for r in records if r.get("conflict_unscored")],
+            "near_ties": [r["row"] for r in records if r.get("near_tie")],
         },
         "notes": notes,
     }
+    if target_tokens is not None and (matched := _matched(records, target_tokens)):
+        summary["matched"] = matched
+    return summary
 
 
 def _table(group: dict) -> list[str]:
@@ -115,7 +158,7 @@ def _table(group: dict) -> list[str]:
     for name, s in group.items():
         if name == "labels":
             continue
-        if name.startswith("retrieved_tokens"):
+        if name.startswith("retrieved_tokens") or name == "tokens":
             mean, se = f"{s['mean']:.0f}", f"{s['se']:.0f}"
         else:
             mean, se = f"{s['mean']:.3f}", f"{s['se']:.3f}"
@@ -140,6 +183,9 @@ def render_md(summary: dict) -> str:
     for by in ("by_type", "by_recency_basis"):
         for value, group in groups[by].items():
             out += ["", f"## {by}: {value}", "", *_table(group)]
+    if m := summary.get("matched"):
+        out += ["", f"## Token-matched k = {m['k']} (target {m['target_tokens']:.0f} tokens)", ""]
+        out += _table({k: m[k] for k in ("chunk_fact_recall", "chunk_hit", "page_hit", "tokens")})
     out += ["", "## Lists", ""]
     out += [f"- {k}: {_items(v)}" for k, v in summary["lists"].items()]
     for k, v in summary["notes"].items():
@@ -151,7 +197,7 @@ def render_md(summary: dict) -> str:
 def _fmt(name: str, s: dict | None) -> str:
     if s is None:
         return "—"
-    if name.startswith("retrieved_tokens"):
+    if name.startswith("retrieved_tokens") or name == "tokens":
         return f"{s['mean']:.0f} ± {s['se']:.0f} ({s['n']})"
     return f"{s['mean']:.3f} ± {s['se']:.3f} ({s['n']})"
 
@@ -160,7 +206,7 @@ def _delta(name: str, base: dict | None, new: dict | None) -> str:
     if base is None or new is None:
         return "—"
     d = new["mean"] - base["mean"]
-    return f"{d:+.0f}" if name.startswith("retrieved_tokens") else f"{d:+.3f}"
+    return f"{d:+.0f}" if name.startswith("retrieved_tokens") or name == "tokens" else f"{d:+.3f}"
 
 
 def _best_chunk(record: dict | None) -> str:
@@ -175,6 +221,12 @@ def _best_chunk(record: dict | None) -> str:
 def _cell(record: dict | None, name: str) -> str:
     value = ((record or {}).get("metrics") or {}).get(name)
     return "—" if value is None else f"{value:.3f}"
+
+
+def _matched_cell(record: dict | None, k: int | None) -> str:
+    if not record or k is None or not record.get("deep") or not record.get("required_facts"):
+        return "—"
+    return f"{_at_k(record, k)['chunk_fact_recall']:.3f}"
 
 
 def render_compare(
@@ -201,6 +253,20 @@ def render_compare(
     for n in ordered:
         b, t = base_all.get(n), new_all.get(n)
         out.append(f"| {n} | {_fmt(n, b)} | {_fmt(n, t)} | {_delta(n, b, t)} |")
+    if m := summary.get("matched"):
+        k = m["k"]
+        out += ["", f"### Token-matched k (baseline k=5, this run k={k})", ""]
+        out += ["| metric | baseline @5 | this run @matched | delta |", "|---|---|---|---|"]
+        for key, name in (("tokens", "retrieved_tokens@5"), ("chunk_fact_recall",) * 2,
+                          ("chunk_hit",) * 2, ("page_hit",) * 2):  # fmt: skip
+            b = base_all.get(name if key == "tokens" else f"{key}@5")
+            t = m.get(key)
+            out.append(f"| {key} | {_fmt(key, b)} | {_fmt(key, t)} | {_delta(key, b, t)} |")
+        rb, rt = base_all.get("chunk_fact_recall@5"), new_all.get("chunk_fact_recall@5")
+        out.append(
+            f"| chunk_fact_recall@5 (both at k=5) | {_fmt('x', rb)} | {_fmt('x', rt)} "
+            f"| {_delta('x', rb, rt)} |"
+        )
     base_by = {r["row"]: r for r in base_records}
     new_by = {r["row"]: r for r in records}
     synthesis = sorted(
@@ -212,5 +278,8 @@ def render_compare(
         b, t = base_by.get(i), new_by.get(i)
         for name in ("chunk_fact_recall@5", "chunk_hit@5", "page_hit@5"):
             out.append(f"| {i} | {name} | {_cell(b, name)} | {_cell(t, name)} |")
+        if "matched" in summary:
+            cells = (_cell(b, "chunk_fact_recall@5"), _matched_cell(t, summary["matched"]["k"]))
+            out.append(f"| {i} | chunk_fact_recall@matched | {cells[0]} | {cells[1]} |")
         out.append(f"| {i} | best relevant chunk | {_best_chunk(b)} | {_best_chunk(t)} |")
     return "\n".join(out) + "\n"

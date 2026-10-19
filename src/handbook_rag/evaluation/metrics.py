@@ -8,7 +8,7 @@ import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from handbook_rag.constants import EVAL_KS, NDCG_K
+from handbook_rag.constants import EVAL_DEPTH, EVAL_KS, NDCG_K
 
 
 @dataclass(frozen=True)
@@ -112,6 +112,17 @@ def row_metrics(
     for k in ks:
         out[f"retrieved_tokens@{k}"] = sum(token_counts[:k])
     return out
+
+
+def matched_k(token_lists: Sequence[Sequence[int]], target: float, depth: int = EVAL_DEPTH) -> int:
+    """The k in 1..depth whose mean over rows of sum(tokens[:k]) is closest to target.
+
+    token_lists: per row, the chunk token counts in rank order. Ties go to the smaller k.
+    """
+    if not token_lists:
+        raise ValueError("matched_k needs at least one row")
+    means = [sum(sum(t[:k]) for t in token_lists) / len(token_lists) for k in range(1, depth + 1)]
+    return min(range(1, depth + 1), key=lambda k: (abs(means[k - 1] - target), k))
 
 
 def mean_se(values: Sequence[float], binary: bool) -> Stat | None:

@@ -1,9 +1,11 @@
+import hashlib
+
 import psycopg
 import pytest
 from fakes import FakeEmbedder
 
 from handbook_rag.db import connect
-from handbook_rag.embed import pending_cost, run
+from handbook_rag.embed import _prefix_tokens, embed_text, pending_cost, run
 
 pytestmark = pytest.mark.integration
 
@@ -108,7 +110,7 @@ def test_run_is_scoped_to_config(conn):
     # Two fake configs over the same universe: even rows 'cfg-a', odd rows 'cfg-b'.
     conn.execute(
         "CREATE TEMP VIEW chunks AS SELECT chunk_id, doc_id, content, token_count, "
-        "CASE WHEN rn % 2 = 0 THEN 'cfg-a' ELSE 'cfg-b' END AS config_id FROM ("
+        "heading_path, CASE WHEN rn % 2 = 0 THEN 'cfg-a' ELSE 'cfg-b' END AS config_id FROM ("
         "SELECT *, row_number() OVER (ORDER BY chunk_id) AS rn FROM public.chunks "
         f"WHERE config_id = 'fixed-512-64' ORDER BY chunk_id LIMIT {SCOPE}) t"
     )
@@ -135,3 +137,33 @@ def test_run_is_scoped_to_config(conn):
     other = FakeEmbedder(name=MODEL)
     s = run(conn, other, batch=BATCH, config_id="cfg-b")
     assert s.skipped == 0 and s.embedded == SCOPE // 2  # cfg-a's rows did not count for cfg-b
+
+
+def test_prefixed_config_sends_prefixed_text_and_costs_prefix(conn):
+    """spec 0006 AC-5/AC-10: prefixed text embedded, md5 guard holds, cost adds prefix."""
+    conn.execute("DROP VIEW chunks")
+    conn.execute(
+        "CREATE TEMP VIEW chunks AS SELECT chunk_id, doc_id, content, token_count, heading_path, "
+        "'fixed-512-64-prefixed' AS config_id FROM public.chunks "
+        f"WHERE config_id = 'fixed-512-64' ORDER BY chunk_id LIMIT {SCOPE}"
+    )
+    conn.commit()
+    rows = conn.execute(
+        "SELECT c.chunk_id, d.title, c.heading_path, c.content, c.token_count FROM chunks c "
+        "JOIN documents d USING (doc_id) ORDER BY c.chunk_id LIMIT 10"
+    ).fetchall()
+    want = [embed_text(t, hp, c, "title-path") for _, t, hp, c, _ in rows]
+    extra = sum(_prefix_tokens(t, hp, "title-path") for _, t, hp, _, _ in rows)
+    assert all(w != r[3] for w, r in zip(want, rows, strict=True)) and extra > 0
+
+    n, tokens = pending_cost(conn, MODEL, "fixed-512-64-prefixed", 10)
+    assert n == 10 and tokens == sum(r[4] for r in rows) + extra  # AC-10
+
+    e = FakeEmbedder(name=MODEL)
+    s = run(conn, e, batch=BATCH, limit=10, config_id="fixed-512-64-prefixed")
+    assert flat(e) == want and s.embedded == 10  # stored rows passed the md5(content) guard
+    stored = conn.execute(
+        "SELECT count(*) FROM chunk_embeddings WHERE model = %s", (MODEL,)
+    ).fetchone()[0]
+    assert stored == 10
+    assert hashlib.md5(rows[0][3].encode()).hexdigest()  # guard is on content, not sent text

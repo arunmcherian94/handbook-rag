@@ -120,6 +120,7 @@ def test_row_metrics_hand_worked():
         expected_docs={"a", "b"},
         n_relevant_chunks=3,
         token_counts=[100, 200, 300, 400, 500],
+        ks=(1, 3, 5),
     )
     expected = {
         "chunk_fact_recall@1": 0.0,
@@ -215,3 +216,39 @@ def test_mean_se_empty_and_single(binary):
     """AC-7: None for no values; se 0.0 for one value."""
     assert mean_se([], binary=binary) is None
     assert mean_se([0.4], binary=binary) == Stat(mean=0.4, se=0.0, n=1)
+
+
+def test_row_metrics_k10_k20_from_20_long_list():
+    """AC-6: the new cut-offs work on a depth-20 list."""
+    facts = [set() for _ in range(20)]
+    facts[7], facts[15] = {"f1"}, {"f2"}
+    got = row_metrics(
+        chunk_facts=facts,
+        pages=[f"p{i}" for i in range(20)],
+        required={"f1": {"p7"}, "f2": {"p15"}},
+        expected_docs={"p7", "p15"},
+        n_relevant_chunks=2,
+        token_counts=[10] * 20,
+    )
+    assert got["chunk_fact_recall@10"] == 0.5
+    assert got["chunk_fact_recall@20"] == 1.0
+    assert got["chunk_all_required@10"] == 0.0 and got["chunk_all_required@20"] == 1.0
+    assert got["page_hit@5"] == 0.0 and got["page_hit@10"] == 1.0
+    assert got["retrieved_tokens@10"] == 100 and got["retrieved_tokens@20"] == 200
+
+
+def test_matched_k_closest_mean():
+    """AC-7: mean cumulative tokens 100/row -> k=1 .. ; target 250 is nearest k=2 (200 vs 300)."""
+    from handbook_rag.evaluation.metrics import matched_k
+
+    rows = [[100, 100, 100], [100, 100, 100]]
+    assert matched_k(rows, 260, depth=3) == 3
+    assert matched_k(rows, 240, depth=3) == 2
+    assert matched_k(rows, 10_000, depth=3) == 3
+
+
+def test_matched_k_tie_goes_to_smaller_k():
+    """AC-7: equidistant means pick the smaller k."""
+    from handbook_rag.evaluation.metrics import matched_k
+
+    assert matched_k([[100, 100, 100]], 150, depth=3) == 1
