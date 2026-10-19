@@ -9,6 +9,7 @@
   - 31% are under 64 tokens.
   - 6% are over 512, and they hold 28% of all tokens.
   - So the structural config makes more, smaller chunks, and retrieved tokens@5 is reported next to recall.
+- **Reading:** arXiv 2608.00824, the title-chain prefix paper. No spec change; it supports keeping the stored chunk text fixed when only the embedded text changes. → [reading, week 2](../reading/week-02.md)
 - **Housekeeping:**
   - PR #18 reviewed after merge. ADR-0013's wording was fixed in PR #19, which also added the similarity-operator comment in `ask.py`.
   - ADR-0011's date was checked and kept, since its decision is the 15 Oct one.

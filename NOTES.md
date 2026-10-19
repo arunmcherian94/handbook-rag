@@ -9,7 +9,7 @@ Index of the project notes. The notes themselves live in `docs/`.
 | Dated log: gate catches, findings, limitations | [docs/journal/](docs/journal/), listed below |
 | Follow-ups (not built) | [docs/follow-ups.md](docs/follow-ups.md) |
 | Corpus: git behaviors, limitations, assumptions | [docs/corpus.md](docs/corpus.md) |
-| Reading log | [docs/reading/](docs/reading/): [week 1](docs/reading/week-01.md) |
+| Reading log | [docs/reading/](docs/reading/): [week 1](docs/reading/week-01.md), [week 2](docs/reading/week-02.md) |
 | Eval set, results, metric definitions | [docs/eval/](docs/eval/), [results/metrics.md](docs/eval/results/metrics.md) |
 
 Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) → [0016](docs/decisions/0016-code-checks-before-judges.md); (b) → [0012](docs/decisions/0012-eval-versioning.md); (e) → [0011](docs/decisions/0011-acls-deferred-from-quality-set.md); metric questions Q1–Q3 → [0013](docs/decisions/0013-retrieval-metrics.md).

@@ -23,3 +23,6 @@ Structural first, recursive inside:
 - Citations stay valid, by heading text.
 - The effect on the 7 right-page-wrong-chunk rows is a hypothesis until the spec 0005 run measures it.
 - Follow-up runs: size and overlap sweeps; title-chain prefix.
+
+## Informed by
+- [Yang, Structure-Aware Semantic Chunking with Title-Chain Prefixes](../reading/week-02.md#yang-structure-aware-semantic-chunking-with-title-chain-prefixes-arxiv-260800824)

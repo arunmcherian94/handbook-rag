@@ -95,7 +95,7 @@ Each is one change against the `structural-v1` run:
 
 1. ~~**ask.py freeze (AC-4).**~~ Resolved 2026-10-19 (Arun): approved. The one `WHERE` clause and defaulted `config_id` parameter in `retrieve` change retrieval scoping only; the answer model and prompt stay frozen.
 2. ~~**Run mode for the first `structural-v1` run.**~~ Resolved 2026-10-19 (Arun): full run, answers included (about $0.21), so every baseline metric has a comparison.
-3. **arXiv 2608.00824 (title-chain prefixes):** Arun reads the abstract before approving; if it changes the title-chain run or the min-merge rule, edit here.
+3. ~~**arXiv 2608.00824 (title-chain prefixes).**~~ Resolved 2026-10-19 (Arun read the abstract): no change. The title-chain run stays as planned ([reading, week 2](../docs/reading/week-02.md)).
 
 ## Verification
 
