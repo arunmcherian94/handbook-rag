@@ -16,19 +16,21 @@ corpus: ## Check out pinned handbook corpus into data/handbook
 ingest: ## Load pinned corpus markdown into Postgres (needs `make up`, `make corpus`)
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ingest
 
-chunk: ## Chunk documents into 512/64 token windows (FORCE=1 ignores the early exit)
-	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.chunk $(if $(FORCE),--force)
+chunk: ## Chunk documents under CONFIG (default the baseline, fixed-512-64); FORCE=1 ignores the early exit
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.chunk $(if $(CONFIG),--config $(CONFIG)) $(if $(FORCE),--force)
 
-embed: ## Embed chunks that have no embedding for EMBED_MODEL (LIMIT=n for a test run)
-	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.embed $(if $(LIMIT),--limit $(LIMIT))
+embed: ## Embed CONFIG's chunks with no embedding for EMBED_MODEL: dry run unless CONFIRM=1, LIMIT=n
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.embed \
+		$(if $(CONFIG),--config $(CONFIG)) $(if $(filter 1,$(CONFIRM)),--confirm) $(if $(LIMIT),--limit $(LIMIT))
 
 ask: ## Answer a question from the handbook: make ask Q="..."
 	@test -n "$$Q" || { echo 'usage: make ask Q="your question"'; exit 2; }
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask "$$Q"
 
-eval: ## Run the eval set (spec 0004): CONFIRM=1 to spend (only 1 counts), LIMIT=n, RETRIEVAL_ONLY=1
+eval: ## Run the eval set: CONFIRM=1 to spend (only 1 counts), LIMIT=n, RETRIEVAL_ONLY=1, CONFIG=, BASELINE=<run id>
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.run \
-		$(if $(filter 1,$(CONFIRM)),--confirm) $(if $(LIMIT),--limit $(LIMIT)) $(if $(filter 1,$(RETRIEVAL_ONLY)),--retrieval-only)
+		$(if $(filter 1,$(CONFIRM)),--confirm) $(if $(LIMIT),--limit $(LIMIT)) $(if $(filter 1,$(RETRIEVAL_ONLY)),--retrieval-only) \
+		$(if $(CONFIG),--config $(CONFIG)) $(if $(BASELINE),--baseline $(BASELINE))
 
 test: test-unit test-integration ## Run unit + integration tests
 

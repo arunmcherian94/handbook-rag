@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from handbook_rag.evaluation.metrics import row_metrics
-from handbook_rag.evaluation.report import is_binary, render_md, summarize
+from handbook_rag.evaluation.report import is_binary, render_compare, render_md, summarize
 
 META = {"eval_set": "v1.2", "k": 5, "mode": "full"}
 NOTES = {"answer_only_facts": ["row 5 F2"], "evidence_warnings": ["row 23 F3 (optional): x"]}
@@ -205,3 +205,42 @@ def test_render_md_links_metrics_and_leaves_takeaways_to_fill():
     md = render_md(summarize(records(), META, NOTES))
     assert md.index("## Takeaways") < md.index("## Run") < md.index("## overall")
     assert "Metric definitions: [../metrics.md](../metrics.md)" in md
+
+
+def _rec(row, type_, recall, hit, retrieved):
+    return {"row": row, "type": type_, "metrics": {"chunk_fact_recall@5": recall,
+            "chunk_hit@5": hit, "page_hit@5": 1.0, "retrieved_tokens@5": 2000.0},
+            "retrieved": retrieved}  # fmt: skip
+
+
+def _hit(rank, facts, heading, heading_path=None):
+    h = {"rank": rank, "facts": facts, "heading": heading}
+    if heading_path is not None:
+        h["heading_path"] = heading_path
+    return h
+
+
+def test_render_compare():
+    """AC-14: overall deltas, "—" for a missing side, synthesis rows added, best chunk uses
+    heading_path and falls back to heading."""
+    base = [_rec(1, "lookup", 0.5, 0.0, [_hit(1, [], "X"), _hit(2, ["F1"], "Old head")])]
+    new = [
+        _rec(1, "lookup", 1.0, 1.0, [_hit(1, ["F1"], "Old head", ["A", "B"])]),
+        _rec(9, "synthesis", 0.25, 1.0, []),
+    ]
+    base_sum = summarize(base, META, NOTES)
+    new_sum = summarize(new, META, NOTES)
+    base_sum["groups"]["overall"].pop("page_hit@5")
+    md = render_compare(new_sum, new, base_sum, base, "BASE-ID", [1, 77])
+    assert md.startswith("## Comparison with baseline BASE-ID")
+    lines = md.splitlines()
+    metric_rows = [ln.split(" | ")[0].removeprefix("| ") for ln in lines[4:10]]
+    assert metric_rows[:2] == ["chunk_fact_recall@5", "retrieved_tokens@5"]
+    assert "| chunk_fact_recall@5 | 0.500 ± 0.000 (1) | 0.625 ± 0.375 (2) | +0.125 |" in md
+    assert "| retrieved_tokens@5 | 2000 ± 0 (1) | 2000 ± 0 (2) | +0 |" in md
+    assert "| page_hit@5 | — | 1.000 ± 0.000 (2) | — |" in md
+    assert "| 1 | best relevant chunk | 2 · Old head | 1 · A > B |" in md
+    assert "| 9 | chunk_fact_recall@5 | — | 0.250 |" in md
+    assert "| 9 | best relevant chunk | — | — |" in md
+    assert "| 77 | chunk_hit@5 | — | — |" in md
+    assert md.index("| 77 |") < md.index("| 9 |")

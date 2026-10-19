@@ -9,7 +9,14 @@ from handbook_rag import ask
 from handbook_rag.constants import EST_ANSWER_USD_PER_ROW
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evidence import Evidence
-from handbook_rag.evaluation.run import estimate, record, stored_chunk_params, to_run
+from handbook_rag.evaluation.run import (
+    baseline_mismatch,
+    estimate,
+    metadata,
+    record,
+    stored_chunk_params,
+    to_run,
+)
 
 ROWS = [
     Row(1, "lookup", "hello world", ("a.md",), (Fact("F1", True, {"a.md": (1,)}),)),
@@ -33,34 +40,74 @@ def test_retrieval_only_skips_ooc_rows():
 
 
 class FakeConn:
-    def __init__(self, rows):
-        self.rows = rows
+    """execute() returns successive scripted result sets; each is served by fetchone/fetchall."""
+
+    def __init__(self, *results):
+        self.results = list(results)
+        self.current = []
 
     def execute(self, *_):
+        self.current = self.results.pop(0)
         return self
 
     def fetchall(self):
-        return self.rows
+        return self.current
+
+    def fetchone(self):
+        return self.current[0] if self.current else None
+
+
+CFG = [("fixed", {"size": 512, "overlap": 64}, "tok")]
 
 
 def test_stored_chunk_params_from_db():
-    """AC-6: chunk params and corpus SHA are the stored values, not constants."""
-    params, sha = stored_chunk_params(FakeConn([(512, 64, "tok", "abc")]), "abc")
-    assert params == {"chunk_size": 512, "chunk_overlap": 64, "tokenizer": "tok"}
+    """AC-4, AC-6: the config row and corpus SHA are the stored values, not constants."""
+    params, sha = stored_chunk_params(FakeConn(CFG, [("abc",)]), "abc", "fixed-512-64")
+    assert params == {
+        "config_id": "fixed-512-64",
+        "strategy": "fixed",
+        "params": {"size": 512, "overlap": 64},
+        "tokenizer": "tok",
+    }
     assert sha == "abc"
 
 
-@pytest.mark.parametrize("rows", [[], [(512, 64, "tok", "abc"), (256, 64, "tok", "abc")]])
-def test_stored_chunk_params_not_exactly_one_set(rows):
-    """AC-6: zero or several stored parameter sets fail."""
-    with pytest.raises(SystemExit, match=f"holds {len(rows)} parameter sets"):
-        stored_chunk_params(FakeConn(rows), "abc")
+def test_stored_chunk_params_unknown_config():
+    """AC-4: a config with no chunk_configs row fails."""
+    with pytest.raises(SystemExit, match="unknown config"):
+        stored_chunk_params(FakeConn([]), "abc", "nope")
 
 
-def test_stored_chunk_params_stale():
-    """AC-6: chunks from another commit than the pin fail."""
+def test_stored_chunk_params_no_chunks():
+    """AC-4: a registered config without chunks fails."""
+    with pytest.raises(SystemExit, match="has no chunks"):
+        stored_chunk_params(FakeConn(CFG, []), "abc", "x")
+
+
+@pytest.mark.parametrize("shas", [[("old",)], [("abc",), ("old",)]])
+def test_stored_chunk_params_stale(shas):
+    """AC-6: chunks from any other commit than the pin fail."""
     with pytest.raises(SystemExit, match="chunks are stale vs CORPUS.md"):
-        stored_chunk_params(FakeConn([(512, 64, "tok", "old")]), "abc")
+        stored_chunk_params(FakeConn(CFG, shas), "abc", "x")
+
+
+def test_metadata_records_config():
+    """AC-12: run metadata has config_id and the config's params, strategy and tokenizer."""
+    cfg = {"config_id": "c", "strategy": "s", "params": {"a": 1}, "tokenizer": "t"}
+    meta = metadata("v", b"e", "sha", cfg, "m", None, 1, None)
+    assert meta["config_id"] == "c"
+    assert meta["chunk_params"] == {"strategy": "s", "a": 1, "tokenizer": "t"}
+
+
+def test_baseline_mismatch_allows_only_the_chunk_config():
+    """AC-11: a baseline that differs in more than the chunk config is reported; answer keys
+    count only when both runs answered."""
+    base = {"eval_sha256": "e", "corpus_sha": "c", "embed_model": "m", "k": 5, "limit": None,
+            "answer_model": "a", "system_prompt_sha256": "p", "config_id": "x"}  # fmt: skip
+    assert baseline_mismatch(base, base | {"config_id": "y", "chunk_params": {}}) == []
+    assert baseline_mismatch(base, base | {"limit": 10}) == ["limit: baseline None, this run 10"]
+    assert baseline_mismatch(base, base | {"answer_model": None, "system_prompt_sha256": "q"}) == []
+    assert len(baseline_mismatch(base, base | {"system_prompt_sha256": "q"})) == 1
 
 
 def test_record_uses_stored_token_counts():
@@ -74,10 +121,14 @@ def test_record_uses_stored_token_counts():
     ]
     # DB rows in a different order from the ranks.
     conn = FakeConn(
-        [(ids[1], 400, doc, "content/handbook/a.md"), (ids[0], 7, doc, "content/handbook/a.md")]
+        [
+            (ids[1], 400, doc, "content/handbook/a.md", ["A", "B"]),
+            (ids[0], 7, doc, "content/handbook/a.md", None),
+        ]
     )
     ev = Evidence(relevant={(1, "F1"): frozenset({ids[1]})}, warnings=[])
     rec = record(conn, ROWS[0], ev, chunks, None)
     assert [c["tokens"] for c in rec["retrieved"]] == [7, 400]
+    assert [c["heading_path"] for c in rec["retrieved"]] == [None, ["A", "B"]]  # AC-4
     assert rec["metrics"]["retrieved_tokens@1"] == 7
     assert rec["metrics"]["retrieved_tokens@5"] == 407

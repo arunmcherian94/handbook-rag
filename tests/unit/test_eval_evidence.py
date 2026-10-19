@@ -19,8 +19,11 @@ PAGES = {
     "b.md": ["Stipend is 1,500 USD.", "Only in b."],
 }
 CHUNKS = {
-    "a.md": [(A, "# Title\n\nLaptops are refreshed every\nthree years.\n"), (B, "Tail")],
-    "b.md": [(C, "\nStipend is 1,500 USD.\nOnly in b.\n")],
+    "a.md": [
+        (A, "# Title\n\nLaptops are refreshed every\nthree years.\n", None, None),
+        (B, "Tail", None, None),
+    ],
+    "b.md": [(C, "\nStipend is 1,500 USD.\nOnly in b.\n", None, None)],
 }
 
 
@@ -202,10 +205,12 @@ def test_check_trailing_newline_is_not_a_line(tmp_path):
     page = tmp_path / CORPUS_PREFIX / "p.md"
     page.parent.mkdir(parents=True)
     page.write_text(f"{LONG}\n", encoding="utf-8")
-    conn = FakeConn([(A, LONG)])
-    assert check([row(fact(p_md=(1,)))], conn, tmp_path).relevant[(7, "F1")] == frozenset({A})
+    conn = FakeConn([(A, LONG, None, None)])
+    assert check([row(fact(p_md=(1,)))], conn, "cfg", tmp_path).relevant[(7, "F1")] == frozenset(
+        {A}
+    )
     with pytest.raises(EvidenceError, match=r"L2 out of range for p.md \(1 lines\)"):
-        check([row(fact(p_md=(2,)))], conn, tmp_path)
+        check([row(fact(p_md=(2,)))], conn, "cfg", tmp_path)
 
 
 def test_answer_only_facts_and_ooc_rows_skipped():
@@ -215,3 +220,45 @@ def test_answer_only_facts_and_ooc_rows_skipped():
         Row(id=9, type="ooc-off-topic", question="Q?", expected="Out of scope."),
     )
     assert set(ev.relevant) == {(7, "F1")}
+
+
+PAGE = ["# Title", "##### France", "Rules for France apply here to all staff members.", "Last."]
+
+
+def aligned(content, line_start, cited=(2,)):
+    line_end = None if line_start is None else line_start + content.rstrip("\n").count("\n")
+    chunks = {"p.md": [(A, content, line_start, line_end)]}
+    return relevant_chunks(
+        [row(fact(p_md=cited))], lambda _: PAGE, lambda path: chunks[path]
+    ).relevant[(7, "F1")]
+
+
+def test_line_aligned_first_line_counts_whole():
+    """AC-10: a short cited first line of a line-aligned chunk matches; with no line range
+    (baseline rule) the same content doesn't."""
+    content = "##### France\nRules for France apply here to all staff members.\n"
+    assert aligned(content, 2) == frozenset({A})
+    with pytest.raises(EvidenceError):
+        aligned(content, None)
+
+
+def test_line_aligned_cut_edge_line_not_whole():
+    """AC-10: an edge line that differs from the source line (cut) isn't counted whole."""
+    with pytest.raises(EvidenceError):
+        aligned("France\nRules for France apply here to all staff members.\n", 2)
+
+
+def test_line_aligned_last_line_counts_whole():
+    """AC-10: a short last line without a trailing newline counts whole when it equals the
+    source line at line_end."""
+    assert aligned("# Title\n##### France", 1) == frozenset({A})
+    with pytest.raises(EvidenceError):
+        aligned("# Title\n##### Fra", 1)
+
+
+def test_matches_whole_edges_default_and_flags():
+    """AC-10: whole_edges adds the first / last line to the whole lines; default is today's rule."""
+    assert not matches(["Short."], "Short.\nMore text here.")
+    assert matches(["Short."], "Short.\nMore text here.", (True, False))
+    assert matches(["Short."], "More text here.\nShort.", (False, True))
+    assert not matches(["Short."], "More text here.\nShort.", (True, False))

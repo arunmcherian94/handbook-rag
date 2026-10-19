@@ -1,20 +1,31 @@
-"""Split ingested documents into fixed-size token windows (spec 0003, AC-1, AC-2).
+"""Split ingested documents into chunks under a named config (spec 0003; spec 0005).
 
-Functional core, imperative shell: chunk_doc and find_headings are pure functions of a body,
-so windowing and heading attribution are unit-tested without a DB; run() owns the transaction.
+`fixed` configs cut token windows (chunk_doc); `structural` configs cut at headings and split
+or merge inside them (chunk_structural). Functional core, imperative shell: both are pure
+functions of a body, unit-tested without a DB; run() owns the transaction.
 """
 
 import argparse
 import re
 import sys
 import uuid
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from itertools import accumulate
 
 import tiktoken
+from psycopg.types.json import Jsonb
 
-from handbook_rag.constants import CHUNK_BATCH, CHUNK_OVERLAP, CHUNK_SIZE, CHUNKS_SCHEMA, TOKENIZER
+from handbook_rag.constants import (
+    BASELINE_CONFIG,
+    CHECKOUT,
+    CHUNK_BATCH,
+    CHUNK_CONFIGS,
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+    CHUNKS_SCHEMA,
+    TOKENIZER,
+)
 from handbook_rag.corpus import read_manifest, verify
 from handbook_rag.db import connect
 
@@ -22,6 +33,7 @@ HEADING = re.compile(r"#{1,6}[ \t]+(.*)")
 FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
 ATTRS = re.compile(r"\s*\{[#.][^}]*\}\s*$")  # Hugo heading attributes: {#id}, {.class #id}
 BOLD = re.compile(r"^(\*\*|__)((?:(?!\1).)+)\1$")  # a heading wrapped whole in bold
+SENTENCE = re.compile(r"(?<=[.!?])\s+")
 
 
 @dataclass(frozen=True)
@@ -31,6 +43,9 @@ class Chunk:
     content: str
     token_count: int
     heading: str | None
+    heading_path: tuple[str, ...] | None = None
+    line_start: int | None = None
+    line_end: int | None = None
 
 
 @dataclass
@@ -43,28 +58,41 @@ class RunResult:
     deleted: int = 0
 
 
-def find_headings(body: str) -> tuple[list[int], list[str]]:
-    """Byte offsets and text of ATX headings outside fenced code blocks."""
-    starts: list[int] = []
-    texts: list[str] = []
+def lines_with_fence(body: str):
+    """(start byte, line, inside_fence) per line; fence open/close lines count as inside."""
     fence: str | None = None  # the open fence's run of ` or ~
     offset = 0
     for line in body.split("\n"):
         f = FENCE.match(line)
         if fence is None and f:
             fence = f.group(1)
+            yield offset, line, True
         elif (
             fence is not None and f and f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence)
         ):
             fence = None
-        elif fence is None and (m := HEADING.fullmatch(line.rstrip("\r"))):
+            yield offset, line, True
+        else:
+            yield offset, line, fence is not None
+        offset += len(line.encode("utf-8")) + 1
+
+
+def headings(body: str) -> list[tuple[int, int, str]]:
+    """(start byte, level, text) of ATX headings outside fenced code blocks (spec 0005, AC-6)."""
+    found = []
+    for offset, line, fenced in lines_with_fence(body):
+        if not fenced and (m := HEADING.fullmatch(line.rstrip("\r"))):
             text = re.sub(r"(^|[ \t]+)#+[ \t]*$", "", m.group(1)).strip()
             text = BOLD.sub(r"\2", ATTRS.sub("", text)).strip()
             if text:
-                starts.append(offset)
-                texts.append(text)
-        offset += len(line.encode("utf-8")) + 1
-    return starts, texts
+                found.append((offset, len(line) - len(line.lstrip("#")), text))
+    return found
+
+
+def find_headings(body: str) -> tuple[list[int], list[str]]:
+    """Byte offsets and text of ATX headings outside fenced code blocks."""
+    hs = headings(body)
+    return [h[0] for h in hs], [h[2] for h in hs]
 
 
 def first_text_byte(raw: bytes, a: int, b: int) -> int:
@@ -81,13 +109,21 @@ def first_text_byte(raw: bytes, a: int, b: int) -> int:
 
 
 def chunk_doc(
-    doc_id: uuid.UUID, body: str, enc, size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
+    doc_id: uuid.UUID,
+    body: str,
+    enc,
+    size: int = CHUNK_SIZE,
+    overlap: int = CHUNK_OVERLAP,
+    config_id: str = BASELINE_CONFIG,
 ) -> list[Chunk]:
     """Windows of `size` tokens every size-overlap tokens; the last one reaches the end.
 
     Slices the body by byte offset so content is the exact source text. A multi-byte
     character cut by a window edge is dropped there; the overlap carries it whole.
+    Baseline ids keep their spec 0003 formula (AC-3); any other fixed config names itself in
+    the id, so it can never take over the baseline's rows.
     """
+    key = f"{size}:{overlap}" if config_id == BASELINE_CONFIG else config_id
     if not body.strip():
         return []
     tokens = enc.encode(body, disallowed_special=())  # handbook text may contain <|endoftext|>
@@ -102,7 +138,7 @@ def chunk_doc(
         k = bisect_right(h_starts, first_text_byte(raw, offsets[start], offsets[end])) - 1
         chunks.append(
             Chunk(
-                chunk_id=uuid.uuid5(uuid.NAMESPACE_URL, f"{doc_id}:{size}:{overlap}:{i}"),
+                chunk_id=uuid.uuid5(uuid.NAMESPACE_URL, f"{doc_id}:{key}:{i}"),
                 chunk_index=i,
                 content=content,
                 token_count=end - start,
@@ -114,32 +150,277 @@ def chunk_doc(
     return chunks
 
 
+@dataclass(frozen=True)
+class Section:
+    start: int  # byte offsets into the body
+    end: int
+    level: int  # 0 for the preamble
+    path: tuple[str, ...]
+    parent: int | None  # index of the parent heading's section; None at the doc root
+
+
+def sections(body: str) -> list[Section]:
+    """One section per heading, to the next heading at any level; preamble first (AC-6).
+
+    The preamble (text before the first heading) has level 0 and path (); whitespace-only
+    sections are dropped.
+    """
+    raw = body.encode("utf-8")
+    hs = headings(body)
+    out: list[Section] = []
+    first = hs[0][0] if hs else len(raw)
+    if raw[:first].strip():
+        out.append(Section(0, first, 0, (), None))
+    stack: list[int] = []  # indices into out of the open ancestors
+    for k, (start, level, text) in enumerate(hs):
+        while stack and out[stack[-1]].level >= level:
+            stack.pop()
+        parent = stack[-1] if stack else None
+        path = (out[parent].path if parent is not None else ()) + (text,)
+        end = hs[k + 1][0] if k + 1 < len(hs) else len(raw)
+        out.append(Section(start, end, level, path, parent))
+        stack.append(len(out) - 1)
+    return out
+
+
+def merge_groups(secs: list[Section], count, max_tokens: int, min_tokens: int) -> list[list[int]]:
+    """Group section indices: tiny sections absorb adjacent siblings (AC-8).
+
+    A section under min_tokens takes the following sections while each is its sibling (same
+    parent instance and level), the span stays <= max_tokens and the group is under min. If
+    none was taken, it joins the preceding group when that group is its adjacent siblings and
+    the span fits. `count(a, b)` is the token count of body bytes a..b.
+    """
+
+    def sibling(a: int, b: int) -> bool:
+        x, y = secs[a], secs[b]
+        return x.level > 0 and x.level == y.level and x.parent == y.parent
+
+    groups: list[list[int]] = []
+    i = 0
+    while i < len(secs):
+        group = [i]
+        j = i + 1
+        if secs[i].level > 0 and count(secs[i].start, secs[i].end) < min_tokens:
+            while (
+                j < len(secs)
+                and sibling(i, j)
+                and count(secs[i].start, secs[j - 1].end) < min_tokens
+                and count(secs[i].start, secs[j].end) <= max_tokens
+            ):
+                group.append(j)
+                j += 1
+            prev = groups[-1] if groups else None
+            if (
+                len(group) == 1
+                and prev
+                and prev[-1] == i - 1
+                and sibling(prev[0], i)
+                and count(secs[prev[0]].start, secs[i].end) <= max_tokens
+            ):
+                prev.append(i)
+                i = j
+                continue
+        groups.append(group)
+        i = j
+    return groups
+
+
+def paragraph_starts(text: str) -> list[int]:
+    """Byte offsets (in text) of paragraphs after the first: a non-blank line after a blank one,
+    outside fenced code, so a fence is one paragraph (AC-7)."""
+    starts = []
+    blank = False
+    for offset, line, fenced in lines_with_fence(text):
+        is_blank = not line.strip()
+        if blank and not is_blank and offset:
+            starts.append(offset)
+        blank = is_blank and not fenced
+    return starts
+
+
+def split_points(text: str, tokens: list[int], offsets: list[int], max_tokens: int) -> list[int]:
+    """Token indices where pieces of at most max_tokens start: paragraphs, then sentences in
+    paragraphs over max, then raw token cuts in pieces still over max (AC-7)."""
+    raw = text.encode("utf-8")
+
+    def snap(byte: int) -> int:
+        return bisect_left(offsets, byte)
+
+    def refine(a: int, b: int, level: int) -> list[int]:  # cut points strictly inside (a, b)
+        if b - a <= max_tokens:
+            return []
+        if level == 0:
+            inner = [snap(x) for x in paragraph_starts(text)]
+        elif level == 1:
+            piece = raw[offsets[a] : offsets[b]].decode("utf-8", errors="ignore")
+            base = offsets[a]
+            inner = [
+                snap(base + len(piece[: m.end()].encode("utf-8"))) for m in SENTENCE.finditer(piece)
+            ]
+        else:
+            return list(range(a + 1, b))  # each token a piece; packing fills to max
+        cuts = sorted({c for c in inner if a < c < b})
+        bounds = [a, *cuts, b]
+        out = []
+        for x, y in zip(bounds, bounds[1:], strict=False):
+            out += refine(x, y, level + 1)
+            out.append(y)
+        return out[:-1]
+
+    return refine(0, len(tokens), 0)
+
+
+def pack(n: int, cuts: list[int], max_tokens: int, overlap: int) -> list[tuple[int, int]]:
+    """Token windows over 0..n ending on cut points, each <= max_tokens; each next window
+    starts `overlap` tokens before the previous end (AC-7)."""
+    if n <= max_tokens:
+        return [(0, n)]
+    bounds = [*cuts, n]
+    windows = []
+    start, prev_end = 0, 0
+    while True:
+        limit = start + max_tokens
+        k = bisect_right(bounds, limit) - 1
+        end = bounds[k] if k >= 0 and bounds[k] > prev_end else min(limit, n)
+        windows.append((start, end))
+        if end == n:
+            return windows
+        prev_end, start = end, max(end - overlap, 0)
+
+
+def chunk_structural(
+    doc_id: uuid.UUID,
+    body: str,
+    enc,
+    *,
+    config_id: str,
+    max_tokens: int,
+    overlap: int,
+    min_tokens: int,
+    line_offset: int = 0,
+) -> list[Chunk]:
+    """Sections at headings, tiny siblings merged, big spans split (spec 0005, AC-6 to AC-9).
+
+    line_offset is the number of front-matter lines ingest stripped, so line_start/line_end
+    are 1-based lines of the source file.
+    """
+    if not body.strip():
+        return []
+    raw = body.encode("utf-8")
+    newlines = [i for i, b in enumerate(raw) if b == 0x0A]
+
+    def count(a: int, b: int) -> int:
+        return len(enc.encode(raw[a:b].decode("utf-8"), disallowed_special=()))
+
+    secs = sections(body)
+    chunks = []
+    for group in merge_groups(secs, count, max_tokens, min_tokens):
+        first = secs[group[0]]
+        a, b = first.start, secs[group[-1]].end
+        path = first.path + tuple(secs[g].path[-1] for g in group[1:])
+        text = raw[a:b].decode("utf-8")
+        tokens = enc.encode(text, disallowed_special=())
+        offsets = [0, *accumulate(len(enc.decode_single_token_bytes(t)) for t in tokens)]
+        cuts = split_points(text, tokens, offsets, max_tokens) if len(tokens) > max_tokens else []
+        for s, e in pack(len(tokens), cuts, max_tokens, overlap):
+            start = a + offsets[s]
+            content = raw[start : a + offsets[e]].decode("utf-8", errors="ignore")
+            line_start = 1 + bisect_left(newlines, start) + line_offset
+            i = len(chunks)
+            chunks.append(
+                Chunk(
+                    chunk_id=uuid.uuid5(uuid.NAMESPACE_URL, f"{doc_id}:{config_id}:{i}"),
+                    chunk_index=i,
+                    content=content,
+                    token_count=e - s,
+                    heading=first.path[-1] if first.path else None,
+                    heading_path=path,
+                    line_start=line_start,
+                    line_end=line_start + len(content.removesuffix("\n").split("\n")) - 1,
+                )
+            )
+    return chunks
+
+
 UPSERT = """
 INSERT INTO chunks (chunk_id, doc_id, chunk_index, content, token_count, heading,
-                    chunk_size, chunk_overlap, tokenizer, commit_sha)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    chunk_size, chunk_overlap, tokenizer, commit_sha,
+                    config_id, heading_path, line_start, line_end)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (chunk_id) DO UPDATE SET
     doc_id = EXCLUDED.doc_id, chunk_index = EXCLUDED.chunk_index,
     content = EXCLUDED.content, token_count = EXCLUDED.token_count,
     heading = EXCLUDED.heading, chunk_size = EXCLUDED.chunk_size,
     chunk_overlap = EXCLUDED.chunk_overlap, tokenizer = EXCLUDED.tokenizer,
-    commit_sha = EXCLUDED.commit_sha
+    commit_sha = EXCLUDED.commit_sha, config_id = EXCLUDED.config_id,
+    heading_path = EXCLUDED.heading_path, line_start = EXCLUDED.line_start,
+    line_end = EXCLUDED.line_end
 """
 
 
-def up_to_date(conn, sha: str) -> int | None:
-    """Existing chunk count if every chunk is current and every non-empty doc has chunks."""
+def register_config(conn, config_id: str) -> dict:
+    """Record a code-defined config on first use; fail if the stored row drifted (AC-1)."""
+    cfg = CHUNK_CONFIGS.get(config_id)
+    if cfg is None:
+        raise SystemExit(f"unknown chunk config {config_id!r}; known: {', '.join(CHUNK_CONFIGS)}")
+    conn.execute(
+        """INSERT INTO chunk_configs (config_id, strategy, params, tokenizer)
+           VALUES (%s, %s, %s, %s) ON CONFLICT (config_id) DO NOTHING""",
+        (config_id, cfg["strategy"], Jsonb(cfg["params"]), TOKENIZER),
+    )
+    stored = conn.execute(
+        "SELECT strategy, params, tokenizer FROM chunk_configs WHERE config_id = %s", (config_id,)
+    ).fetchone()
+    if stored != (cfg["strategy"], cfg["params"], TOKENIZER):
+        raise SystemExit(
+            f"chunk config {config_id!r} drifted: stored {stored}, code "
+            f"{(cfg['strategy'], cfg['params'], TOKENIZER)}. Use a new config_id."
+        )
+    return cfg
+
+
+def up_to_date(conn, sha: str, config_id: str) -> int | None:
+    """This config's chunk count if all are at sha and every non-empty doc has one (AC-3).
+
+    Params and tokenizer are guarded by register_config.
+    """
     total, current = conn.execute(
-        """SELECT count(*), count(*) FILTER (
-               WHERE commit_sha = %s AND chunk_size = %s AND chunk_overlap = %s AND tokenizer = %s)
-           FROM chunks""",
-        (sha, CHUNK_SIZE, CHUNK_OVERLAP, TOKENIZER),
+        """SELECT count(*), count(*) FILTER (WHERE commit_sha = %s)
+           FROM chunks WHERE config_id = %s""",
+        (sha, config_id),
     ).fetchone()
     (uncovered,) = conn.execute(
         """SELECT EXISTS (SELECT 1 FROM documents d WHERE d.body ~ '\\S'
-                          AND NOT EXISTS (SELECT 1 FROM chunks c WHERE c.doc_id = d.doc_id))"""
+                          AND NOT EXISTS (SELECT 1 FROM chunks c
+                                          WHERE c.doc_id = d.doc_id AND c.config_id = %s))""",
+        (config_id,),
     ).fetchone()
     return total if total and total == current and not uncovered else None
+
+
+def front_matter_lines(path: str, body: str) -> int:
+    """Lines ingest stripped above the body in the pinned file (AC-9)."""
+    text = (CHECKOUT / path).read_text(encoding="utf-8")  # as ingest reads it
+    if not text.endswith(body):
+        raise SystemExit(f"{path}: stored body is not the file's tail. Run `make ingest`.")
+    return text[: len(text) - len(body)].count("\n")
+
+
+def chunker(cfg: dict, config_id: str, enc):
+    """(doc_id, path, body) -> chunks, plus the (chunk_size, chunk_overlap) the rows store."""
+    p = cfg["params"]
+    if cfg["strategy"] == "fixed":
+        return (lambda d, _, b: chunk_doc(d, b, enc, p["size"], p["overlap"], config_id)), (
+            p["size"],
+            p["overlap"],
+        )
+    return (
+        lambda d, path, b: chunk_structural(
+            d, b, enc, config_id=config_id, **p,
+            line_offset=front_matter_lines(path, b) if b.strip() else 0,
+        )
+    ), (p["max_tokens"], p["overlap"])  # fmt: skip
 
 
 def flush(conn, rows: list[tuple]) -> int:
@@ -156,7 +437,7 @@ def flush(conn, rows: list[tuple]) -> int:
     return len(changed)
 
 
-def run(conn, force: bool = False) -> RunResult:
+def run(conn, config_id: str = BASELINE_CONFIG, force: bool = False) -> RunResult:
     m = read_manifest()
     error = verify(m)
     if error:
@@ -164,49 +445,54 @@ def run(conn, force: bool = False) -> RunResult:
     enc = tiktoken.get_encoding(TOKENIZER)
     with conn.transaction():
         conn.execute(CHUNKS_SCHEMA.read_text())
+        cfg = register_config(conn, config_id)
+        chunk, (size, overlap) = chunker(cfg, config_id, enc)
         (stale,) = conn.execute(
             "SELECT EXISTS (SELECT 1 FROM documents WHERE commit_sha <> %s)", (m.sha,)
         ).fetchone()
         if stale:
             raise SystemExit("documents are stale vs CORPUS.md. Run `make ingest` first.")
-        if not force and (count := up_to_date(conn, m.sha)) is not None:
+        if not force and (count := up_to_date(conn, m.sha, config_id)) is not None:
             return RunResult(skipped=True, sha=m.sha, chunks=count)
 
         result = RunResult(skipped=False, sha=m.sha)
         ids: list[uuid.UUID] = []
         rows: list[tuple] = []
         with conn.cursor(name="chunk_docs") as docs:
-            docs.execute("SELECT doc_id, body FROM documents ORDER BY doc_id")
-            for doc_id, body in docs:
+            docs.execute("SELECT doc_id, path, body FROM documents ORDER BY doc_id")
+            for doc_id, path, body in docs:
                 result.docs += 1
-                for c in chunk_doc(doc_id, body, enc):
+                for c in chunk(doc_id, path, body):
                     ids.append(c.chunk_id)
+                    hp = list(c.heading_path) if c.heading_path is not None else None
                     rows.append(
                         (c.chunk_id, doc_id, c.chunk_index, c.content, c.token_count, c.heading,
-                         CHUNK_SIZE, CHUNK_OVERLAP, TOKENIZER, m.sha)
+                         size, overlap, TOKENIZER, m.sha,
+                         config_id, hp, c.line_start, c.line_end)
                     )  # fmt: skip
                 if len(rows) >= CHUNK_BATCH:
                     result.changed += flush(conn, rows)
                     rows = []
         if rows:
             result.changed += flush(conn, rows)
-        # The table holds exactly one parameter set; embeddings cascade.
+        # Rows of this config not produced now are stale; embeddings cascade (AC-3).
         result.deleted = conn.execute(
-            "DELETE FROM chunks c WHERE NOT EXISTS "
+            "DELETE FROM chunks c WHERE c.config_id = %s AND NOT EXISTS "
             "(SELECT 1 FROM unnest(%s::uuid[]) AS keep(id) WHERE keep.id = c.chunk_id)",
-            (ids,),
+            (config_id, ids),
         ).rowcount
         result.chunks = len(ids)
     return result
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Chunk ingested documents (spec 0003).")
+    ap = argparse.ArgumentParser(description="Chunk ingested documents (spec 0003, 0005).")
+    ap.add_argument("--config", default=BASELINE_CONFIG, help="chunk config id (constants)")
     ap.add_argument("--force", action="store_true", help="skip the early-exit check")
     args = ap.parse_args(argv)
     with connect() as conn:
-        r = run(conn, force=args.force)
-    params = f"{CHUNK_SIZE}/{CHUNK_OVERLAP} {TOKENIZER}"
+        r = run(conn, config_id=args.config, force=args.force)
+    params = f"config {args.config} {CHUNK_CONFIGS[args.config]['params']} {TOKENIZER}"
     if r.skipped:
         print(
             f"chunks up to date: sha {r.sha[:12]}, {params}, {r.chunks} chunks "

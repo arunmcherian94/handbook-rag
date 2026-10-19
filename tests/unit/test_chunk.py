@@ -1,11 +1,14 @@
 import math
 import uuid
+from itertools import accumulate
+from pathlib import Path
 
 import pytest
 import tiktoken
 
-from handbook_rag.chunk import chunk_doc, find_headings
-from handbook_rag.constants import CHUNK_OVERLAP, CHUNK_SIZE
+from handbook_rag.chunk import chunk_doc, chunk_structural, find_headings, headings
+from handbook_rag.constants import CHECKOUT, CHUNK_CONFIGS, CHUNK_OVERLAP, CHUNK_SIZE
+from handbook_rag.ingest import split_front_matter
 
 ENC = tiktoken.get_encoding("cl100k_base")
 DOC = uuid.UUID(int=1)
@@ -204,3 +207,208 @@ def test_chunk_ids_deterministic_and_parameterised():
     assert not set(base) & set(ids(uuid.UUID(int=2), text, ENC))
     assert not set(base) & set(ids(DOC, text, ENC, size=256, overlap=32))
     assert not set(base) & set(ids(DOC, text, ENC, overlap=0))
+
+
+# Structural chunker (spec 0005)
+
+ROOT = Path(__file__).resolve().parents[2]
+EXPENSES = ROOT / CHECKOUT / "content/handbook/finance/expenses.md"
+V1 = CHUNK_CONFIGS["structural-v1"]["params"]
+
+
+def structural(body: str, **params) -> list:
+    return chunk_structural(DOC, body, ENC, config_id="test", **{**V1, **params})
+
+
+@pytest.fixture(scope="module")
+def expenses():
+    """(file lines, chunks) for finance/expenses.md at the pin, chunked as structural-v1."""
+    if not EXPENSES.exists():
+        pytest.fail("Corpus checkout missing. Run `make corpus` first.")
+    text = EXPENSES.read_text(encoding="utf-8")
+    _, body = split_front_matter(text)
+    offset = text[: len(text) - len(body)].count("\n")
+    assert offset == 3
+    return text.split("\n"), structural(body, line_offset=offset)
+
+
+def test_line_ranges_match_source_file(expenses):
+    """AC-9, AC-15: content is the file's lines line_start..line_end, front matter counted; only
+    a sub-chunk of a split section may cut its first or last line."""
+    lines, chunks = expenses
+    whole = 0
+    for k, c in enumerate(chunks):
+        got = c.content.removesuffix("\n").split("\n")
+        want = lines[c.line_start - 1 : c.line_end]
+        assert len(got) == len(want)
+        if got == want:
+            whole += 1
+            continue
+        split = [d for d in chunks if d.heading_path == c.heading_path]
+        assert len(split) > 1, f"chunk {k} is not a split sub-chunk but cuts a line"
+        assert want[0].endswith(got[0]) and want[-1].startswith(got[-1])
+        assert got[1:-1] == want[1:-1]
+    assert whole > len(chunks) * 0.8
+
+
+def test_expenses_two_4_1_headings_are_separate(expenses):
+    """AC-6, AC-9, AC-15: the two `### 4.1` headings (lines 103, 346) are separate sections with
+    their own ranges; their children's paths run through the right one."""
+    lines, chunks = expenses
+    assert lines[102].startswith("### 4.1 TRAVEL") and lines[345].startswith("### 4.1 NON-TRAVEL")
+    by_line = {c.line_start: c for c in chunks}
+    travel, non_travel = by_line[103], by_line[346]
+    assert travel.heading_path == ("4. PROCEDURES", "4.1 TRAVEL RELATED EXPENSES")
+    assert non_travel.heading_path == ("4. PROCEDURES", "4.1 NON-TRAVEL RELATED EXPENSES")
+    assert travel.line_end < 105 and non_travel.line_end < 348  # children start new sections
+    assert by_line[105].heading_path == (*travel.heading_path, "Airfare")
+    assert by_line[348].heading_path == (
+        *non_travel.heading_path,
+        "Books (Audio/E-Books included)",
+    )
+
+
+def token_bounds(text: str, content: str, at: int) -> tuple[int, int, int]:
+    """(start, end) token indices of content found in text from byte `at`, and its byte start."""
+    raw = text.encode()
+    offs = [0, *accumulate(len(ENC.decode_single_token_bytes(t)) for t in ENC.encode(text))]
+    start = raw.index(content.encode(), at)
+    return offs.index(start), offs.index(start + len(content.encode())), start
+
+
+def test_over_max_section_splits_with_overlap_inside_section():
+    """AC-7, AC-15: an over-max section splits at paragraphs, then sentences, then tokens; sub-
+    chunks overlap by `overlap` tokens, all <= max, none crosses into the next section; a fence
+    under max is never cut."""
+    fence = "```\n" + "\n\n".join(f"code line {i} = {i};" for i in range(6)) + "\n```"
+    sentences = " ".join(f"Sentence {WORDS[i % 10]} number {i} ends here." for i in range(40))
+    section_a = f"# A\n\n{prose(30)}\n\n{fence}\n\n{sentences}\n\n{'x' * 400}\n\n"
+    body = section_a + "## B\n\nshort b text\n"
+    assert len(ENC.encode(fence)) < 60 < len(ENC.encode(sentences))
+    chunks = structural(body, max_tokens=60, overlap=8, min_tokens=0)
+    a = [c for c in chunks if c.heading == "A"]
+    assert len(a) > 5 and all(c.heading_path == ("A",) for c in a)
+    assert all(c.token_count <= 60 for c in chunks)
+    assert all("## B" not in c.content for c in a)
+    assert chunks[-1].content == "## B\n\nshort b text\n" and chunks[-1].heading_path == ("A", "B")
+    assert any(fence in c.content for c in a)
+    f0 = section_a.index(fence)
+    at, prev_end = 0, None
+    for c in a:
+        start, end, at = token_bounds(section_a, c.content, at)
+        assert not f0 < at + len(c.content) < f0 + len(fence)  # no window ends inside the fence
+        if prev_end is not None:
+            assert prev_end - start == 8
+        prev_end = end
+    assert end == len(ENC.encode(section_a))  # the last sub-chunk ends at the section's end
+    assert "".join(c.content for c in a).count("Sentence") > 40  # sentences repeat in overlaps
+
+
+def test_fence_over_max_is_cut():
+    """AC-7: a fenced block that alone exceeds max_tokens is cut, every piece <= max."""
+    body = "# A\n\n```\n" + prose(300) + "\n```\n"
+    chunks = structural(body, max_tokens=60, overlap=8)
+    assert len(chunks) > 1 and all(c.token_count <= 60 for c in chunks)
+
+
+MERGE_BODY = """# P
+
+parent text
+
+## a
+
+tiny a
+
+## b
+
+tiny b
+
+### b1
+
+tiny child
+
+## c
+
+tiny c
+
+# Q
+
+## d
+
+tiny d
+"""
+
+
+def test_tiny_sections_merge_only_with_adjacent_siblings():
+    """AC-8, AC-15: a tiny section takes its adjacent same-parent, same-level siblings and records
+    each heading; never its parent's text, a child, or another parent's section."""
+    chunks = structural(MERGE_BODY)
+    assert [c.heading_path for c in chunks] == [
+        ("P",),
+        ("P", "a", "b"),
+        ("P", "b", "b1"),
+        ("P", "c"),  # b's child sits between b and c, so c is not adjacent to them
+        ("Q",),
+        ("Q", "d"),
+    ]
+    assert [c.heading for c in chunks] == ["P", "a", "b1", "c", "Q", "d"]
+    assert "".join(c.content for c in chunks) == MERGE_BODY
+
+
+def test_merge_stops_at_min_and_falls_back_to_preceding():
+    """AC-8: absorbing stops once the group reaches min_tokens or would pass max; a last tiny
+    sibling joins the preceding sibling group if it fits."""
+    big = prose(80)
+    body = f"# R\n\n## e\n\ntiny\n\n## f\n\n{big}\n\n## g\n\n{big}\n\n## h\n\ntiny h\n"
+    chunks = structural(body, max_tokens=512, min_tokens=64)
+    assert [c.heading_path for c in chunks] == [("R",), ("R", "e", "f"), ("R", "g", "h")]
+    # f+g would pass max, so e takes f only; h has no following sibling and fits after g
+    chunks = structural(body, max_tokens=150, min_tokens=64)
+    assert [c.heading_path for c in chunks] == [("R",), ("R", "e", "f"), ("R", "g", "h")]
+    # at max 100, f (116) splits and e stays alone; h joins nothing as g's span is over max
+    chunks = structural(body, max_tokens=100, overlap=8, min_tokens=64)
+    paths = [c.heading_path for c in chunks]
+    assert paths[:2] == [("R",), ("R", "e")] and paths[-1] == ("R", "h")
+    assert {("R", "f"), ("R", "g")} <= set(paths) and all(c.token_count <= 100 for c in chunks)
+    assert all(c.token_count > 8 for c in chunks if c.heading_path in {("R", "f"), ("R", "g")})
+
+
+def test_preamble_and_every_heading_level_are_boundaries():
+    """AC-6, AC-15: text before the first heading has an empty path; headings at all six
+    levels start sections; a whitespace-only preamble is dropped."""
+    levels = "".join(f"{'#' * n} H{n}\n\nbody {n}\n\n" for n in range(1, 7))
+    chunks = structural("intro text\n\n" + levels, min_tokens=0)
+    assert chunks[0].heading_path == () and chunks[0].heading is None
+    assert chunks[0].content == "intro text\n\n"
+    assert [c.heading_path[-1] for c in chunks[1:]] == [f"H{n}" for n in range(1, 7)]
+    assert chunks[6].heading_path == tuple(f"H{n}" for n in range(1, 7))
+    assert [c.line_start for c in chunks] == [1, 3, 7, 11, 15, 19, 23]
+    assert structural("\n\n# A\n\nx\n")[0].heading_path == ("A",)
+    assert [h[1] for h in headings(levels)] == [1, 2, 3, 4, 5, 6]
+
+
+def test_preamble_never_merges():
+    """AC-6, AC-8: a tiny preamble stays its own chunk."""
+    chunks = structural("hi\n\n# A\n\ntiny\n\n# B\n\ntiny\n")
+    assert [c.heading_path for c in chunks] == [(), ("A", "B")]
+
+
+def test_structural_ids_and_empty_body():
+    """AC-9: ids are per doc, config and index; an empty body has no chunks."""
+    a = structural(MERGE_BODY)
+    assert [c.chunk_id for c in a] == [
+        uuid.uuid5(uuid.NAMESPACE_URL, f"{DOC}:test:{i}") for i in range(len(a))
+    ]
+    assert structural(" \n\n") == []
+
+
+def test_non_baseline_fixed_config_ids_differ():
+    """AC-3: only the baseline keeps the spec 0003 id formula; another fixed config with the
+    same size and overlap gets its own ids, so it can't take over the baseline's rows."""
+    text = prose(1500)
+    base = chunk_doc(DOC, text, ENC)
+    other = chunk_doc(DOC, text, ENC, CHUNK_SIZE, CHUNK_OVERLAP, "fixed-512-64-b")
+    assert base[0].chunk_id == uuid.uuid5(
+        uuid.NAMESPACE_URL, f"{DOC}:{CHUNK_SIZE}:{CHUNK_OVERLAP}:0"
+    )
+    assert {c.chunk_id for c in base}.isdisjoint(c.chunk_id for c in other)

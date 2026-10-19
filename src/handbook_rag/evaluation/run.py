@@ -20,7 +20,9 @@ import tiktoken
 
 from handbook_rag import ask
 from handbook_rag.constants import (
+    BASELINE_CONFIG,
     CHECKOUT,
+    COMPARE_ROWS,
     CORPUS_PREFIX,
     EST_ANSWER_USD_PER_ROW,
     EST_EMBED_USD_PER_1M,
@@ -36,7 +38,7 @@ from handbook_rag.evaluation.checks import abstention, code_checks, page_heading
 from handbook_rag.evaluation.evalset import Row, parse
 from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import row_metrics
-from handbook_rag.evaluation.report import render_md, summarize
+from handbook_rag.evaluation.report import render_compare, render_md, summarize
 from handbook_rag.ingest import derive_title, split_front_matter
 from handbook_rag.models import Answerer, Embedder, make_answerer, make_embedder
 from handbook_rag.prompts import SYSTEM_PROMPT
@@ -68,23 +70,34 @@ def _git(*args: str) -> str:
     return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
 
 
-def stored_chunk_params(conn, pinned_sha: str) -> tuple[dict, str]:
-    """AC-6: (chunk_params, corpus_sha) as stored in chunks, which holds exactly one parameter
-    set (chunk.py). Fails on zero or several sets, or chunks built from another commit."""
-    sets = conn.execute(
-        "SELECT DISTINCT chunk_size, chunk_overlap, tokenizer, commit_sha FROM chunks"
+def stored_chunk_params(conn, pinned_sha: str, config_id: str) -> tuple[dict, str]:
+    """AC-4, AC-6: (config, corpus_sha) as stored: the chunk_configs row and the commit its
+    chunks were built from. Fails on an unknown config, a config without chunks, or chunks built
+    from another commit than the pin."""
+    cfg = conn.execute(
+        "SELECT strategy, params, tokenizer FROM chunk_configs WHERE config_id = %s", (config_id,)
+    ).fetchone()
+    if cfg is None:
+        raise SystemExit(f"unknown config {config_id!r}; run `make chunk CONFIG={config_id}`")
+    shas = conn.execute(
+        "SELECT DISTINCT commit_sha FROM chunks WHERE config_id = %s", (config_id,)
     ).fetchall()
-    if len(sets) != 1:
+    if not shas:
+        raise SystemExit(f"config {config_id!r} has no chunks; run `make chunk CONFIG={config_id}`")
+    stale = {sha for (sha,) in shas} != {pinned_sha}
+    if stale:
+        found = ", ".join(sorted(sha for (sha,) in shas))
         raise SystemExit(
-            f"chunks table holds {len(sets)} parameter sets, expected exactly 1; run `make chunk`"
-        )
-    size, overlap, tokenizer, sha = sets[0]
-    if sha != pinned_sha:
-        raise SystemExit(
-            f"chunks are stale vs CORPUS.md (chunks {sha}, pin {pinned_sha}); "
+            f"chunks are stale vs CORPUS.md (chunks {found}, pin {pinned_sha}); "
             "run `make ingest` and `make chunk`"
         )
-    return {"chunk_size": size, "chunk_overlap": overlap, "tokenizer": tokenizer}, sha
+    strategy, params, tokenizer = cfg
+    return {
+        "config_id": config_id,
+        "strategy": strategy,
+        "params": params,
+        "tokenizer": tokenizer,
+    }, pinned_sha
 
 
 def metadata(
@@ -97,7 +110,8 @@ def metadata(
     rows: int,
     limit: int | None,
 ) -> dict:
-    """AC-6 run metadata. corpus_sha and chunk_params come from stored_chunk_params (the DB).
+    """AC-6, AC-12 run metadata. corpus_sha and chunk_params (the stored config) come from
+    stored_chunk_params (the DB); chunk_params in the output is the config's params.
     answer_model None means retrieval-only."""
     return {
         "eval_version": version,
@@ -105,7 +119,12 @@ def metadata(
         "harness_sha": _git("rev-parse", "HEAD").strip(),
         "harness_dirty": bool(_git("status", "--porcelain").strip()),
         "corpus_sha": corpus_sha,
-        "chunk_params": chunk_params,
+        "config_id": chunk_params["config_id"],
+        "chunk_params": {
+            "strategy": chunk_params["strategy"],
+            **chunk_params["params"],
+            "tokenizer": chunk_params["tokenizer"],
+        },
         "embed_model": embed_model,
         "answer_model": answer_model,
         "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
@@ -117,19 +136,40 @@ def metadata(
     }
 
 
-def _lookup(conn, chunks: list[ask.Retrieved]) -> tuple[dict[uuid.UUID, str], list[int]]:
-    """(doc_id -> documents.path with CORPUS_PREFIX, per rank the stored chunks.token_count).
+# A baseline comparison holds everything but the chunk config fixed (spec 0005, AC-11).
+SAME_AS_BASELINE = ("eval_sha256", "corpus_sha", "embed_model", "k", "limit")
+SAME_IF_BOTH_ANSWERED = ("answer_model", "system_prompt_sha256")
+
+
+def baseline_mismatch(base_meta: dict, meta: dict) -> list[str]:
+    """Metadata keys on which this run and the baseline differ, beyond the chunk config."""
+    keys = list(SAME_AS_BASELINE)
+    if base_meta.get("answer_model") and meta.get("answer_model"):
+        keys += SAME_IF_BOTH_ANSWERED
+    return [
+        f"{k}: baseline {base_meta.get(k)!r}, this run {meta.get(k)!r}"
+        for k in keys
+        if base_meta.get(k) != meta.get(k)
+    ]
+
+
+def _lookup(
+    conn, chunks: list[ask.Retrieved]
+) -> tuple[dict[uuid.UUID, str], list[int], list[list[str] | None]]:
+    """(doc_id -> documents.path with CORPUS_PREFIX, per rank the stored chunks.token_count and
+    heading_path).
 
     The stored count is authoritative: re-encoding chunk text can differ at window edges.
     """
     rows = conn.execute(
-        "SELECT c.chunk_id, c.token_count, d.doc_id, d.path "
+        "SELECT c.chunk_id, c.token_count, d.doc_id, d.path, c.heading_path "
         "FROM chunks c JOIN documents d USING (doc_id) WHERE c.chunk_id = ANY(%s)",
         ([c.chunk_id for c in chunks],),
     ).fetchall()
-    paths = {doc_id: path for _, _, doc_id, path in rows}
-    counts = {chunk_id: n for chunk_id, n, _, _ in rows}
-    return paths, [counts[c.chunk_id] for c in chunks]
+    paths = {doc_id: path for _, _, doc_id, path, _ in rows}
+    counts = {chunk_id: n for chunk_id, n, _, _, _ in rows}
+    hps = {chunk_id: hp for chunk_id, _, _, _, hp in rows}
+    return paths, [counts[c.chunk_id] for c in chunks], [hps[c.chunk_id] for c in chunks]
 
 
 def _headings_by_n(
@@ -160,7 +200,7 @@ def record(
     checkout: Path = CHECKOUT,
 ) -> dict:
     """One rows.jsonl line (schema in report.py). result is None in retrieval-only mode."""
-    paths, tokens = _lookup(conn, chunks)
+    paths, tokens, heading_paths = _lookup(conn, chunks)
     pages = [paths[c.doc_id].removeprefix(CORPUS_PREFIX) for c in chunks]
     relevant = {f.id: ev.relevant[(row.id, f.id)] for f in row.required}
     # Only required cited facts: the rank metrics are defined over them (AC-3).
@@ -188,12 +228,15 @@ def record(
                 "doc_id": str(c.doc_id),
                 "path": page,
                 "heading": c.heading,
+                "heading_path": hp,
                 "distance": c.distance,
                 "tokens": n,
                 "facts": sorted(facts),
                 "page_relevant": page in row.expected_docs,
             }
-            for c, page, n, facts in zip(chunks, pages, tokens, chunk_facts, strict=True)
+            for c, page, n, facts, hp in zip(
+                chunks, pages, tokens, chunk_facts, heading_paths, strict=True
+            )
         ],
         "metrics": metrics,
         "page_hit_no_chunk": bool(metrics)
@@ -240,11 +283,14 @@ def run(
     meta: dict,
     out_root: Path = EVAL_RUNS,
     checkout: Path = CHECKOUT,
+    config_id: str = BASELINE_CONFIG,
+    baseline: tuple[str, dict, list[dict]] | None = None,
 ) -> Path:
     """Retrieve (and answer, unless answerer is None) every row; write the run folder (AC-7).
 
     answerer None is retrieval-only mode: ooc rows are skipped and the answer model is never
-    called. checkout is the pinned corpus the AC-5 heading check reads. Returns the folder.
+    called. config_id scopes retrieval; baseline (id, summary, records) adds the AC-14 comparison
+    to summary.md. checkout is the pinned corpus the AC-5 heading check reads. Returns the folder.
     """
     out = out_root / f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
     out.mkdir(parents=True)
@@ -254,11 +300,11 @@ def run(
         for row in to_run(rows, answerer is None):
             if answerer is None:
                 result = None
-                chunks = ask.retrieve(conn, embedder, row.question, TOP_K)
+                chunks = ask.retrieve(conn, embedder, row.question, TOP_K, config_id=config_id)
                 if not chunks:
                     raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
             else:
-                result = ask.ask(conn, embedder, answerer, row.question, TOP_K)
+                result = ask.ask(conn, embedder, answerer, row.question, TOP_K, config_id=config_id)
                 chunks = result.chunks
             rec = record(conn, row, ev, chunks, result, checkout)
             records.append(rec)
@@ -272,11 +318,19 @@ def run(
         "no_retrieval_facts": [r.id for r in ran if not r.required],
         "evidence_warnings": ev.warnings,
     }
+    if baseline:
+        meta = meta | {"baseline": baseline[0]}
     summary = summarize(records, meta, notes)
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    (out / "summary.md").write_text(render_md(summary), encoding="utf-8")
+    md = render_md(summary)
+    if baseline:
+        base_id, base_summary, base_records = baseline
+        md += "\n" + render_compare(
+            summary, records, base_summary, base_records, base_id, COMPARE_ROWS
+        )
+    (out / "summary.md").write_text(md, encoding="utf-8")
     return out
 
 
@@ -285,7 +339,28 @@ def main(argv=None) -> int:
     ap.add_argument("--confirm", action="store_true", help="spend: call the embed/answer models")
     ap.add_argument("--limit", type=int, help="run only the first n rows")
     ap.add_argument("--retrieval-only", action="store_true", help="skip the answer model")
+    ap.add_argument("--config", default=BASELINE_CONFIG, help="chunk config to evaluate")
+    ap.add_argument("--baseline", metavar="RUN_ID", help="compare against this earlier run")
     args = ap.parse_args(argv)
+
+    baseline = None
+    if args.baseline:
+        folder = EVAL_RUNS / args.baseline
+        try:
+            baseline = (
+                args.baseline,
+                json.loads((folder / "summary.json").read_text(encoding="utf-8")),
+                [
+                    json.loads(line)
+                    for line in (folder / "rows.jsonl").read_text(encoding="utf-8").splitlines()
+                ],
+            )
+        except FileNotFoundError:
+            raise SystemExit(
+                f"baseline run {args.baseline} not found in {EVAL_RUNS} (summary.json, "
+                "rows.jsonl); re-run the baseline retrieval-only first: "
+                "`make eval CONFIG=fixed-512-64 RETRIEVAL_ONLY=1 CONFIRM=1`"
+            ) from None
 
     m = read_manifest()
     error = verify(m)
@@ -296,9 +371,9 @@ def main(argv=None) -> int:
     rows = list(eval_set.rows[: args.limit] if args.limit is not None else eval_set.rows)
 
     with connect() as conn:
-        chunk_params, corpus_sha = stored_chunk_params(conn, m.sha)
+        chunk_params, corpus_sha = stored_chunk_params(conn, m.sha, args.config)
         try:
-            ev = evidence_mod.check(rows, conn)
+            ev = evidence_mod.check(rows, conn, args.config)
         except EvidenceError as e:
             raise SystemExit(str(e)) from None
         for w in ev.warnings:
@@ -309,7 +384,7 @@ def main(argv=None) -> int:
         mode = "retrieval-only" if args.retrieval_only else "full"
         cost = estimate(todo, args.retrieval_only)
         print(
-            f"eval {eval_set.version}: {len(todo)} rows ({n_ans} answerable, "
+            f"eval {eval_set.version}, config {args.config}: {len(todo)} rows ({n_ans} answerable, "
             f"{len(todo) - n_ans} ooc), mode {mode}"
         )
         print(
@@ -322,6 +397,16 @@ def main(argv=None) -> int:
 
         # Built only after confirm, so a dry run needs no API key.
         embedder = make_embedder()
+        (has_embeddings,) = conn.execute(
+            "SELECT EXISTS (SELECT 1 FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
+            "WHERE c.config_id = %s AND e.model = %s)",
+            (args.config, embedder.name),
+        ).fetchone()
+        if not has_embeddings:
+            raise SystemExit(
+                f"config {args.config!r} has no embeddings for {embedder.name}; "
+                f"run `make embed CONFIG={args.config}`"
+            )
         answerer = None if args.retrieval_only else make_answerer()
         meta = metadata(
             eval_set.version,
@@ -333,7 +418,14 @@ def main(argv=None) -> int:
             len(todo),
             args.limit,
         )
-        out = run(conn, rows, ev, embedder, answerer, meta=meta)
+        if baseline and (diff := baseline_mismatch(baseline[1]["meta"], meta)):
+            raise SystemExit(
+                f"baseline {baseline[0]} differs in more than the chunk config (AC-11):\n  "
+                + "\n  ".join(diff)
+            )
+        out = run(
+            conn, rows, ev, embedder, answerer, meta=meta, config_id=args.config, baseline=baseline
+        )
 
     overall = json.loads((out / "summary.json").read_text(encoding="utf-8"))["groups"]["overall"]
     print(f"wrote {out}")

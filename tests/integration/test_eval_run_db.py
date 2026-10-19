@@ -11,7 +11,7 @@ import psycopg
 import pytest
 from fakes import FakeAnswerer, FakeEmbedder, bow_vector
 
-from handbook_rag.constants import CHECKOUT, CORPUS_PREFIX, EVAL_RUNS
+from handbook_rag.constants import BASELINE_CONFIG, CHECKOUT, CORPUS_PREFIX, EVAL_RUNS
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.evaluation import evidence
 from handbook_rag.evaluation import run as run_mod
@@ -25,7 +25,7 @@ MODEL = "fake:eval-run-test"
 META_KEYS = {
     "eval_version", "eval_sha256", "harness_sha", "harness_dirty", "corpus_sha", "chunk_params",
     "embed_model", "answer_model", "system_prompt_sha256", "k", "timestamp", "rows", "mode",
-    "limit",
+    "limit", "config_id",
 }  # fmt: skip
 MISSING = "zzqx this line is in no stored chunk qxzz"
 
@@ -54,8 +54,8 @@ def setup(tmp_path):
         rows = conn.execute(
             "SELECT c.chunk_id, c.content, d.path, COALESCE(c.heading, d.title) "
             "FROM chunks c JOIN documents d USING (doc_id) "
-            "WHERE d.path LIKE %s ORDER BY c.chunk_id LIMIT 30",
-            (CORPUS_PREFIX + "%",),
+            "WHERE d.path LIKE %s AND c.config_id = %s ORDER BY c.chunk_id LIMIT 30",
+            (CORPUS_PREFIX + "%", BASELINE_CONFIG),
         ).fetchall()
         if len(rows) < 30:
             pytest.fail("chunks table is empty or too small. Run `make chunk` first.")
@@ -98,7 +98,12 @@ def _rows(path_a, path_b, question, optional_line=1):
 
 
 def _meta(answer_model, rows):
-    params = {"chunk_size": 1, "chunk_overlap": 0, "tokenizer": "t"}
+    params = {
+        "config_id": BASELINE_CONFIG,
+        "strategy": "fixed",
+        "params": {"size": 1, "overlap": 0},
+        "tokenizer": "t",
+    }
     return run_mod.metadata("v0.0", b"eval", "sha", params, MODEL, answer_model, rows, None)
 
 
@@ -112,13 +117,15 @@ def test_unmatchable_required_fact_raises(setup):
     conn, checkout, path_a, _, question = setup
     row = Row(9, "lookup", question, (path_a,), (Fact("F1", True, {path_a: (2,)}),))
     with pytest.raises(evidence.EvidenceError, match="row 9 F1"):
-        evidence.check([row], conn, checkout)
+        evidence.check([row], conn, BASELINE_CONFIG, checkout)
 
 
 def test_unmatchable_optional_fact_warns(setup):
     """AC-2: the same failure on an optional fact is a warning only."""
     conn, checkout, path_a, path_b, question = setup
-    ev = evidence.check(_rows(path_a, path_b, question, optional_line=2), conn, checkout)
+    ev = evidence.check(
+        _rows(path_a, path_b, question, optional_line=2), conn, BASELINE_CONFIG, checkout
+    )
     assert ev.relevant[(1, "F1")]
     assert ev.warnings == [
         f"row 1 F2 (optional): no stored chunk contains a cited line of {path_b}"
@@ -129,7 +136,7 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
     """AC-6, AC-7: no answerer call, ooc rows skipped, all three files and every meta key."""
     conn, checkout, path_a, path_b, question = setup
     rows = _rows(path_a, path_b, question)
-    ev = evidence.check(rows, conn, checkout)
+    ev = evidence.check(rows, conn, BASELINE_CONFIG, checkout)
     answerer = FakeAnswerer("never [1]")
     embedder = FakeEmbedder(name=MODEL)
     out = run_mod.run(
@@ -146,6 +153,16 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
     assert r["retrieved"][0]["facts"] == ["F1"]  # chunk A ranks first; optional F2 not scored
     assert r["retrieved"][0]["path"] == path_a and r["retrieved"][0]["page_relevant"]
     assert r["page_hit_no_chunk"] is False
+    # AC-4: each retrieved entry carries its chunk's heading_path (list or None).
+    assert all("heading_path" in x for x in r["retrieved"])
+    ids0 = [x["chunk_id"] for x in r["retrieved"]]
+    want_hp = dict(
+        conn.execute(
+            "SELECT chunk_id::text, heading_path FROM chunks WHERE chunk_id::text = ANY(%s)",
+            (ids0,),
+        ).fetchall()
+    )
+    assert [x["heading_path"] for x in r["retrieved"]] == [want_hp[i] for i in ids0]
     # AC-3: retrieved tokens are the stored chunks.token_count, not a re-encoding.
     ids = [x["chunk_id"] for x in r["retrieved"]]
     stored = dict(
@@ -171,7 +188,7 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
     """AC-4, AC-5, AC-7: answered rows get abstention; answerable non-abstentions get checks."""
     conn, checkout, path_a, path_b, question = setup
     lookup, _, ooc = _rows(path_a, path_b, question)
-    ev = evidence.check([lookup, ooc], conn, checkout)
+    ev = evidence.check([lookup, ooc], conn, BASELINE_CONFIG, checkout)
     embedder = FakeEmbedder(name=MODEL)
     answerer = FakeAnswerer("The handbook says so [1].")
     out = run_mod.run(
@@ -216,7 +233,7 @@ def test_heading_checked_against_pinned_file(setup, tmp_path):
     """AC-5: a stored heading absent from the pinned file fails headings_exist (not DB vs DB)."""
     conn, checkout, path_a, path_b, question = setup
     lookup = _rows(path_a, path_b, question)[0]
-    ev = evidence.check([lookup], conn, checkout)
+    ev = evidence.check([lookup], conn, BASELINE_CONFIG, checkout)
     page = checkout / CORPUS_PREFIX / path_a
     page.write_text("\n".join(page.read_text().split("\n")[:2]) + "\n", encoding="utf-8")
     out = run_mod.run(
@@ -237,15 +254,52 @@ def test_heading_checked_against_pinned_file(setup, tmp_path):
 
 
 def test_stored_chunk_params_match_db():
-    """AC-6: provenance read from the stored chunks; a wrong pin is reported as stale."""
+    """AC-4, AC-6: provenance read from the config row and its chunks; a wrong pin is stale."""
     with connect() as conn:
         (want,) = conn.execute(
-            "SELECT DISTINCT chunk_size, chunk_overlap, tokenizer, commit_sha FROM chunks"
+            "SELECT DISTINCT commit_sha FROM chunks WHERE config_id = %s", (BASELINE_CONFIG,)
         ).fetchall()
-        params, sha = run_mod.stored_chunk_params(conn, want[3])
-        assert (params["chunk_size"], params["chunk_overlap"], params["tokenizer"], sha) == want
+        cfg = conn.execute(
+            "SELECT strategy, params, tokenizer FROM chunk_configs WHERE config_id = %s",
+            (BASELINE_CONFIG,),
+        ).fetchone()
+        params, sha = run_mod.stored_chunk_params(conn, want[0], BASELINE_CONFIG)
+        assert (params["strategy"], params["params"], params["tokenizer"]) == cfg
+        assert params["config_id"] == BASELINE_CONFIG and sha == want[0]
         with pytest.raises(SystemExit, match="chunks are stale vs CORPUS.md"):
-            run_mod.stored_chunk_params(conn, "0" * 40)
+            run_mod.stored_chunk_params(conn, "0" * 40, BASELINE_CONFIG)
+
+
+def test_unknown_config_fails():
+    """AC-4: a config id with no chunk_configs row fails."""
+    with connect() as conn, pytest.raises(SystemExit, match="unknown config"):
+        run_mod.stored_chunk_params(conn, "x", "no-such-config")
+
+
+def test_config_without_chunks_fails():
+    """AC-4: a registered config with no chunks fails."""
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO chunk_configs (config_id, strategy, params, tokenizer) "
+            "VALUES ('test-empty', 'fixed', '{}', 'cl100k_base')"
+        )
+        try:
+            with pytest.raises(SystemExit, match="has no chunks"):
+                run_mod.stored_chunk_params(conn, "x", "test-empty")
+        finally:
+            conn.rollback()
+
+
+def test_missing_baseline_fails_before_spend(monkeypatch):
+    """AC-14: a --baseline run id with no folder fails before any client is built."""
+
+    def boom(*_, **__):
+        raise AssertionError("must fail before building a model")
+
+    monkeypatch.setattr(run_mod, "make_embedder", boom)
+    monkeypatch.setattr(run_mod, "make_answerer", boom)
+    with pytest.raises(SystemExit, match="re-run the baseline retrieval-only"):
+        run_mod.main(["--baseline", "0000-00-00-nonexistent", "--confirm"])
 
 
 def test_dry_run_spends_nothing(monkeypatch, capsys):
@@ -264,5 +318,10 @@ def test_dry_run_spends_nothing(monkeypatch, capsys):
     after = set(EVAL_RUNS.iterdir()) if EVAL_RUNS.exists() else set()
     assert after == before
     out = capsys.readouterr().out
-    assert "2 rows" in out and "mode full" in out and "estimated cost" in out
+    assert (
+        "config fixed-512-64" in out
+        and "2 rows" in out
+        and "mode full" in out
+        and "estimated cost" in out
+    )
     assert "Dry run: add CONFIRM=1 to spend." in out

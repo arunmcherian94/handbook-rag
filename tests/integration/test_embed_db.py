@@ -3,7 +3,7 @@ import pytest
 from fakes import FakeEmbedder
 
 from handbook_rag.db import connect
-from handbook_rag.embed import run
+from handbook_rag.embed import pending_cost, run
 
 pytestmark = pytest.mark.integration
 
@@ -29,7 +29,7 @@ def conn():
         # Temp view shadows `chunks` for this session: run() sees a fixed universe of SCOPE chunks.
         conn.execute(
             "CREATE TEMP VIEW chunks AS SELECT * FROM public.chunks "
-            f"ORDER BY chunk_id LIMIT {SCOPE}"
+            f"WHERE config_id = 'fixed-512-64' ORDER BY chunk_id LIMIT {SCOPE}"
         )
         conn.commit()
         yield conn
@@ -100,3 +100,38 @@ def test_vector_for_changed_chunk_is_not_stored(conn):
         )
         other.commit()
         other.close()
+
+
+def test_run_is_scoped_to_config(conn):
+    """AC-4: run(config_id=X) embeds, counts and costs only X's chunks."""
+    conn.execute("DROP VIEW chunks")
+    # Two fake configs over the same universe: even rows 'cfg-a', odd rows 'cfg-b'.
+    conn.execute(
+        "CREATE TEMP VIEW chunks AS SELECT chunk_id, doc_id, content, token_count, "
+        "CASE WHEN rn % 2 = 0 THEN 'cfg-a' ELSE 'cfg-b' END AS config_id FROM ("
+        "SELECT *, row_number() OVER (ORDER BY chunk_id) AS rn FROM public.chunks "
+        f"WHERE config_id = 'fixed-512-64' ORDER BY chunk_id LIMIT {SCOPE}) t"
+    )
+    conn.commit()
+    want = [
+        r[0]
+        for r in conn.execute(
+            "SELECT content FROM chunks WHERE config_id = 'cfg-a' ORDER BY chunk_id"
+        )
+    ]
+    n, tokens = pending_cost(conn, MODEL, "cfg-a")
+    assert n == len(want) == SCOPE // 2 and tokens > 0
+    assert pending_cost(conn, MODEL, "cfg-a", 10)[0] == 10  # AC-13: limit matches run()
+
+    first = FakeEmbedder(name=MODEL)
+    s = run(conn, first, batch=BATCH, limit=10, config_id="cfg-a")
+    assert flat(first) == want[:10] and (s.embedded, s.skipped) == (10, 0)
+
+    second = FakeEmbedder(name=MODEL)
+    s = run(conn, second, batch=BATCH, config_id="cfg-a")
+    assert flat(second) == want[10:] and s.skipped == 10  # SKIPPED counts cfg-a only
+    assert pending_cost(conn, MODEL, "cfg-a") == (0, 0)
+
+    other = FakeEmbedder(name=MODEL)
+    s = run(conn, other, batch=BATCH, config_id="cfg-b")
+    assert s.skipped == 0 and s.embedded == SCOPE // 2  # cfg-a's rows did not count for cfg-b

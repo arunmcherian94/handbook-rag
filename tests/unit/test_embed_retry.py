@@ -5,6 +5,7 @@ import uuid
 import pytest
 from fakes import FakeEmbedder, status_error, timeout_error
 
+from handbook_rag import embed
 from handbook_rag.constants import MAX_REQUEST_TOKENS
 from handbook_rag.embed import (
     FatalEmbedError,
@@ -134,3 +135,42 @@ def test_other_4xx_isolated_like_bad_input():
     lone = item("x")
     failures = embed_batch(FakeEmbedder(errors=[status_error(413)]), [lone], None, rand, None)
     assert [(f[0], f[2]) for f in failures] == [(lone.chunk_id, 413)]
+
+
+def test_main_without_confirm_never_embeds(monkeypatch, capsys):
+    """AC-13: no --confirm -> prints the estimate and a dry-run notice; the API is never called."""
+
+    class Boom(FakeEmbedder):
+        def embed(self, texts):
+            raise AssertionError("embed called on a dry run")
+
+    class Conn:
+        def execute(self, sql, params):
+            assert params == ("fake:embed-test", "structural-v1", None)
+            return self
+
+        def fetchone(self):
+            return (3, 1500)
+
+        def commit(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(embed, "make_embedder", lambda: Boom(name="fake:embed-test"))
+    monkeypatch.setattr(embed, "connect", lambda: Conn())
+    monkeypatch.setattr(embed, "run", lambda *a, **k: pytest.fail("run called on a dry run"))
+    assert embed.main(["--config", "structural-v1"]) == 0
+    out = capsys.readouterr().out
+    assert "embed structural-v1: 3 pending chunks for fake:embed-test, ~1500 tokens" in out
+    assert "$0.0000" in out and "Dry run: add CONFIRM=1 to spend." in out
+
+
+def test_unknown_config_lists_known_ids():
+    """AC-4: an unknown --config exits and names the known ids."""
+    with pytest.raises(SystemExit, match="fixed-512-64.*structural-v1"):
+        embed.main(["--config", "nope"])
