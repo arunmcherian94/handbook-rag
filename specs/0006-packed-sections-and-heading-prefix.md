@@ -1,4 +1,4 @@
-# 0006: Packed sections, heading-path prefix, matched-budget recall (week 2, final chunking iteration)
+# 0006: Packed sections, heading-path prefix, deeper top-K (week 2, final chunking iteration)
 
 - Status: draft
 - Date: 2026-10-19
@@ -14,7 +14,7 @@
 
 Two more problems follow from this:
 
-- **The recall@k metric mixes boundary quality with chunk size.** Without a matched-budget metric, a better boundary rule can still lose.
+- **Recall at a fixed k mixes boundary quality with chunk size.** Smaller chunks need a larger k to give the model the same amount of text. Without a token-matched comparison, a better boundary rule can still lose.
 - **Short chunks look alike.** The embedded text is the section body only, so ten entity pages each give an identical-looking "Time Off Policies" chunk.
 
 This spec runs the final chunking iteration under the stop rule. Each run changes one thing:
@@ -22,7 +22,7 @@ This spec runs the final chunking iteration under the stop rule. Each run change
 - `structural-v3` is v2 plus a heading-path prefix in the embedded text.
 - `fixed-512-64-prefixed` is the baseline plus the same prefix, so the prefix's effect is measured apart from the chunking.
 
-The decision is made on recall at a matched token budget.
+The decision is made on fact recall at a token-matched k. If a config is kept, it would be deployed by raising K, not by switching to a token budget.
 
 Profile at the pin (simulated, cl100k_base):
 - Packing whole sections in document order up to 512 tokens gives about 18,700 packed chunks: p50 392 tokens, p10 170.
@@ -68,22 +68,20 @@ Profile at the pin (simulated, cl100k_base):
   - Embed's md5 guard stays on `content`.
   - The embed cost estimate counts the prefix tokens.
 
-**Matched-budget recall**
+**Deeper top-K**
 
-- AC-6: **The eval scores fact recall at a matched token budget.**
-  - For every answerable row, the run also retrieves the top `BUDGET_DEPTH = 20` chunks: one extra `ask.retrieve` call from `evaluation/run.py`, which costs one more query embedding per row. In full mode, `ask.ask` is called exactly as today.
-  - Walking that list in rank order, a chunk is taken while the running sum of `token_count` stays at or under `BUDGET_TOKENS = 2335`, the baseline's mean retrieved_tokens@5 in `3748df5b`.
-  - New row metrics:
-    - `chunk_fact_recall@budget`: required facts covered by the taken chunks, divided by the required facts
-    - `chunks@budget`: how many chunks were taken
-    - `retrieved_tokens@budget`: their token total
+- AC-6: **The eval scores every answerable row to depth 20.**
+  - For every answerable row, the run also retrieves the top `EVAL_DEPTH = 20` chunks: one extra `ask.retrieve` call from `evaluation/run.py`, which costs one more query embedding per row. In full mode, `ask.ask` is called exactly as today with k = 5. The answer path doesn't change.
+  - `EVAL_KS` grows from (1, 3, 5) to (1, 3, 5, 10, 20). Every at-k retrieval metric, including `retrieved_tokens@k`, is reported at each cut-off, computed on the depth-20 list. The 5-chunk metrics must equal those computed from the k=5 list.
   - The record stores the depth-20 list (rank, chunk_id, tokens, facts).
   - If the deep list's top 5 ids differ from the k=5 list, the row is listed in summary.md (a near-tie). This does not fail the run.
-  - Run metadata records `BUDGET_DEPTH` and `BUDGET_TOKENS`.
-  - The `--baseline` compatibility check (spec 0005 AC-11) also requires both values to match.
-- AC-7: **The comparison report includes the budget metrics.**
-  - The spec 0005 AC-14 table shows `chunk_fact_recall@budget`, `chunks@budget` and `retrieved_tokens@budget` next to recall@5.
-  - The per-row table adds `chunk_fact_recall@budget` for each run.
+  - Run metadata records `EVAL_DEPTH`.
+  - The `--baseline` compatibility check (spec 0005 AC-11) also requires `EVAL_DEPTH` to match.
+- AC-7: **Token-matched k in the comparison report.**
+  - The matched k of a run is the k in 1..20 whose mean `retrieved_tokens@k` over the answerable rows is closest to the baseline run's mean `retrieved_tokens@5`. Ties go to the smaller k.
+  - The summary records `matched_k` and the run's overall `chunk_fact_recall`, `chunk_hit` and `page_hit` at that k, with ± SE.
+  - The spec 0005 AC-14 table adds a block for the matched k: the baseline at k=5 against this run at its matched k, with the tokens for each, next to recall@5.
+  - The per-row table adds `chunk_fact_recall` at the matched k for each run.
   - The per-row rows are COMPARE_ROWS, the synthesis rows, and the structural-v1 regressions (11, 34, 44, 49, 51, 58, 88, 100).
 
 **Runs and decision**
@@ -91,18 +89,18 @@ Profile at the pin (simulated, cl100k_base):
 - AC-8: **Run plan.** Each step is gated on Arun's `CONFIRM=1`. Estimates come from the dry runs.
   1. `make chunk` for the three configs (free).
   2. `make embed` for each: about 25k chunks for each structural config and 22,378 for the prefixed baseline, about $0.6 for all three.
-  3. A retrieval-only run of `fixed-512-64`, the new budget baseline. Its top 5 must match `3748df5b` on all 33 rows (spec 0005 AC-5).
+  3. A retrieval-only run of `fixed-512-64` at depth 20, the new baseline for comparisons. Its top 5 must match `3748df5b` on all 33 rows (spec 0005 AC-5).
   4. Retrieval-only runs of `structural-v1`, `structural-v2`, `structural-v3` and `fixed-512-64-prefixed`, each with `BASELINE=` the step-3 run. About $0.001 in all.
-  5. A full answer run only for the winner, if it isn't `fixed-512-64`. About $0.21.
+  5. A full answer run for the winner, today, if it isn't `fixed-512-64`. About $0.21. It reports answer metrics at k = 5, the frozen answer path.
 
   Every other run setting is as in spec 0005 AC-11: corpus 5273b21, eval v1.2, embed model, answer model, prompt, k = 5, exact search.
 - AC-9: **Decision rule (the stop rule), applied to step 4:**
   - Boundaries: compare `structural-v2` against `fixed-512-64`.
   - Prefix: compare `fixed-512-64-prefixed` against `fixed-512-64`.
   - Both together: compare `structural-v3` against `fixed-512-64-prefixed`.
-  - The primary metric is `chunk_fact_recall@budget`. A change counts only if its delta exceeds the larger of the two runs' SEs. Otherwise it is "no difference".
+  - The primary metric is `chunk_fact_recall` at each run's matched k (AC-7). The comparator is the baseline-side run at its own matched k: k=5 for `fixed-512-64`, and its matched k for `fixed-512-64-prefixed`. A change counts only if its delta exceeds the larger of the two runs' SEs. Otherwise it is "no difference".
   - If no structural config beats its fixed counterpart, keep fixed-512 chunking and write the negative result into ADR-0019. The prefix is decided separately, on its own comparison.
-  - recall@5 is reported next to every comparison, because it is what users get while k stays frozen. A structural win only at the budget means token-budget retrieval would be needed, which is a week-4 change, after the freeze. That is recorded in follow-ups, not built.
+  - recall@5 is reported next to every comparison, because it is what users get while k stays frozen. If the winner's matched k isn't 5, using it means raising K for that config. That's a week-4 change, after the freeze, recorded in follow-ups and not built here.
   - The result goes into an ADR (a new one, or an ADR-0019 update), the journal and the run takeaways. Arun writes the takeaways.
 
 **Cost guard and tests**
@@ -118,17 +116,18 @@ Profile at the pin (simulated, cl100k_base):
   - the prefixed configs' content and line ranges equal their source configs' (`structural-v3` = `structural-v2`; `fixed-512-64-prefixed` = the baseline)
   - the prefix string, including the empty-path case. Embed sends the prefixed text and stores the md5 of `content`.
   - the fixed chunks' heading_path at the first byte
-  - matched budget:
-    - the cumulative cutoff, including a first chunk over budget (0 chunks taken)
-    - recall over the taken chunks
+  - deeper top-K:
+    - metrics at k = 10 and 20 from the depth-20 list; the k ≤ 5 metrics equal those from the k=5 list
+    - matched k: the closest mean tokens, ties to the smaller k
     - the near-tie listing
-    - the compatibility check failing on a budget mismatch
+    - the compatibility check failing on an `EVAL_DEPTH` mismatch
   - Integration tests cover AC-2 against the DB and retrieval scoping for the new configs. Existing tests stay green and ruff is clean.
 
 ## Out of scope
 
 - size, overlap and min-size sweeps (dropped under the stop rule)
-- token-budget retrieval in `ask.py`. k stays 5 and the answer model and prompt stay frozen through week 3.
+- changing k or the retrieval rule in `ask.py`: k stays 5, and the answer model and prompt stay frozen through week 3. A larger K for a kept config is week 4.
+- token-budget retrieval (Arun, 19 Oct: deploy with top-K and a larger K instead)
 - prefixing what the answer model sees
 - a `chunk_embeddings.embed_input` column: the prefix is part of the config, so the configs already keep the embeddings apart
 - deleting `structural-v1` rows
@@ -142,13 +141,14 @@ Profile at the pin (simulated, cl100k_base):
 | Prefix | Title and heading path, embedded text only | **In the answer text too:** changes what the frozen prompt sees. **Path only:** the title is what tells the ten entity pages apart. |
 | Prefix storage | A config param with its own chunk rows | **`embed_input` column (spec 0005 plan):** a schema change and a new PK for the same separation. The cost is duplicated chunk rows, about 47k. |
 | Prefix control | `fixed-512-64-prefixed` | **Skip it:** a v3 win couldn't be told apart from a prefix win that would help fixed chunks just as much. |
-| Decision metric | `chunk_fact_recall@budget`, with recall@5 next to it | **recall@5 only:** penalizes smaller chunks for their size, not their boundaries. |
-| Budget | 2,335 tokens, depth 20 | Depth 20 holds the budget for structural-v1 (13 chunks on average); larger chunks need fewer. |
+| Decision metric | Fact recall at the token-matched k, with recall@5 next to it (Arun, 19 Oct) | **recall@5 only:** penalizes smaller chunks for their size, not their boundaries. **Recall within a fixed token budget:** deployment would need token-budget retrieval; Arun prefers top-K with a larger K. **A fixed k=10 for all:** the token amounts differ, so it is still unfair to small chunks. |
+| Depth | 20 | structural-v1 needs about k=13 to match the baseline's tokens; packed configs should need about 5–6. |
 
 ## Open questions
 
-1. **Packing scope:** packing across H2 headings is what spec 0005 rejected as "recursive-only". The difference here is that every chunk boundary falls on a heading, unless a single section is over max. Arun to confirm, or choose H2-bounded packing.
-2. **Full answer run for the winner (AC-8 step 5):** run it today, or leave it to the ADR?
+1. ~~**Packing scope.**~~ Resolved 2026-10-19 (Arun): across headings within a document (AC-3). Every chunk boundary still falls on a heading unless a single section is over max.
+2. ~~**Full answer run for the winner.**~~ Resolved 2026-10-19 (Arun): yes, today, if the winner isn't `fixed-512-64` (AC-8 step 5).
+3. ~~**Budget metric.**~~ Resolved 2026-10-19 (Arun): deeper top-K with a token-matched k instead of a token budget (AC-6, AC-7).
 
 ## Verification
 
