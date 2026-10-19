@@ -30,6 +30,7 @@
   - The packer can emit a mostly-overlap window when the only cut sits just past the previous end. It's rare, and costs a near-duplicate chunk, not correctness.
   - `front_matter_lines` re-reads each file per run (the run takes about 30s).
   - The embed cost SQL repeats the pending predicate.
+- **First run (Task 7):** structural-v1 was embedded (49,215 chunks, about $0.19). The baseline retrieval-only re-run `2026-10-19-287181bb` matches `2026-10-17-3748df5b` on all 33 answerable rows (AC-5). The full run `2026-10-19-62a52a83` cost about $0.21. The summary and takeaways are in `docs/eval/results/2026-10-19-62a52a83/`, and recall@5 fell from 0.495 to 0.358.
 
 ---
 
