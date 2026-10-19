@@ -24,6 +24,21 @@
 - **Code-review catch (fixed):** the token-matched block read the depth-20 list even when the matched k was ≤ 5. On a near-tie row, it could disagree with the same run's recall@5, and recall at the matched k is the decision metric (AC-9). It now reads the k=5 list for k ≤ 5, and a test covers it.
 - **Integration fix:** the new chunk test assumed the dev DB had no rows of the new configs. It now compares their counts before and after its rolled-back transaction.
 - **Code-review items not fixed:** listed for Arun in the PR.
+- **AC-8 runs (19 Oct, about $0.61 embedding plus about $0.0001 of query embeddings):**
+  - Embedded all three configs: 26,372 + 26,372 + 22,378 chunks, 0 failed. 429s were retried.
+  - Step 3: `fixed-512-64` at depth 20, run `2026-10-19-d2625d91`. Its top 5 match `3748df5b` on all 33 answerable rows, in order (one-off script, not committed). No near-ties.
+  - Step 4: `structural-v1` f06df047, `structural-v2` e585d65b, `structural-v3` 068599a6, `fixed-512-64-prefixed` fbadbf12, each with `BASELINE=d2625d91`. Only v1 has a near-tie row (52).
+  - Step 5 skipped: the winner is `fixed-512-64`.
+- **AC-9 decision:** every comparison is "no difference" at the matched k (v2 vs fixed −0.078, prefixed vs fixed +0.036, v3 vs prefixed −0.063; SEs about 0.08). Fixed-512 stays and ADR-0019 is rejected with the numbers. At k=5 structural is worse by about two paired SEs. The prefix is not adopted on 3 wins and 1 loss; it is carried as a second arm in Wednesday's embedding comparison (Arun). Why no full answer run: retrieval is identical in both modes (step 3), the frozen answer path can't recover facts that weren't retrieved, and the spec ran it only for a winner other than the baseline.
+- **Limitation:** 32 scored rows give an SE of about 0.08 per run, so the unpaired rule detects only large changes. The v3-vs-prefixed matched comparison was read from the two summaries; the harness compares each run only against its baseline (review item 4).
+- **AC-8 runs (19 Oct, about $0.61 embedding plus about $0.0001 of query embeddings):**
+  - Embedded all three configs: 26,372 + 26,372 + 22,378 chunks, 0 failed. 429s were retried.
+  - Step 3: `fixed-512-64` at depth 20, run `2026-10-19-d2625d91`. Its top 5 match `3748df5b` on all 33 answerable rows, in order (one-off script, not committed). No near-ties.
+  - Step 4: `structural-v1` f06df047, `structural-v2` e585d65b, `structural-v3` 068599a6, `fixed-512-64-prefixed` fbadbf12, each with `BASELINE=d2625d91`. Only v1 has a near-tie row (52).
+  - Step 5 skipped: the winner is `fixed-512-64`.
+- **AC-9 decision:** every comparison is "no difference" at the matched k (v2 vs fixed −0.078, prefixed vs fixed +0.036, v3 vs prefixed −0.063; SEs about 0.08). Fixed-512 stays and ADR-0019 is rejected with the numbers. At k=5 structural is worse by about two paired SEs. The prefix is not adopted on 3 wins and 1 loss; it is carried as a second arm in Wednesday's embedding comparison (Arun). Why no full answer run: retrieval is identical in both modes (step 3), the frozen answer path can't recover facts that weren't retrieved, and the spec ran it only for a winner other than the baseline.
+- **Fixed size and overlap sweep moved to week 4 (Arun):** the stop rule dropped it, but ADR-0003 and the roadmap promise it. Size and k are coupled (k × size is the context budget), k is frozen until week 4, and reranking (week 3) can shift the best size. It goes with context assembly ([follow-ups](../follow-ups.md#from-the-spec-0006-runs-2026-10-19)).
+- **Limitation:** 32 scored rows give an SE of about 0.08 per run, so the unpaired rule detects only large changes. The v3-vs-prefixed matched comparison was read from the two summaries; the harness compares each run only against its baseline (review item 4).
 
 ---
 

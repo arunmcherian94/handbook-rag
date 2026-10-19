@@ -34,7 +34,7 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [0016. Grade with code first; judges only for coded failures](docs/decisions/0016-code-checks-before-judges.md)
 - [0017. Git history decides currency, never facts](docs/decisions/0017-history-decides-currency.md)
 - [0018. Subagents on file-disjoint slices via the orchestrate skill](docs/decisions/0018-subagent-orchestration.md)
-- [0019. Structural first, recursive inside: headings bound chunks](docs/decisions/0019-structural-first-recursive-inside-chunking.md)
+- [0019. Structural first, recursive inside: headings bound chunks](docs/decisions/0019-structural-first-recursive-inside-chunking.md) (rejected after spec 0006 runs)
 - [0020. Chunk configs coexist in one table, keyed by config_id](docs/decisions/0020-chunk-configs-coexist.md)
 
 ## Journal
