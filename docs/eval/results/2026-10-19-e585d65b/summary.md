@@ -2,7 +2,10 @@
 
 ## Takeaways
 
-_To fill before committing the run (LLM-drafted, human-approved): what to improve in the next iteration, and whether the previous run's fixes worked._
+- **Packing helped, but not enough.** structural-v2 packs whole sections up to 512 tokens. Against v1, recall@5 went from 0.358 to 0.375, recall@10 from 0.410 to 0.521, and tokens@5 from 815 to 1,714. The fix for small sections worked on size: 548 chunks under 64 tokens, against 6,223 in v1.
+- **Against the baseline (the boundaries question):** at the matched k=7, recall is 0.417 against 0.495: −0.078, within the SE (0.081), so no difference. At k=5, paired, it is −0.120 ± 0.054: 7 rows lose (34, 35, 44, 49, 51, 58, 100) and row 8 wins.
+- **Why it still loses:** sections whose heading matches the question's wording outrank the chunks that hold the facts. In row 49, the baseline found the facts in "Shipping Locations" and "Equipment"; v2's top 5 is five manager-onboarding and transfer sections with no facts. In row 100, the baseline's `time-off-types.md` "Overview" window holds F2; in v2 it is pushed out by "Paid Time Off and Absence" (data guide) and "Returning from PTO Process". A 512-token window mixes the topic words and the fact text, which the section-bounded chunks don't.
+- **Next:** none for structural chunking (stop rule). Fixed-512 stays.
 
 ## Run
 

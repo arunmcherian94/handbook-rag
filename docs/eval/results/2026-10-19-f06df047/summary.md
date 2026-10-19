@@ -2,7 +2,10 @@
 
 ## Takeaways
 
-_To fill before committing the run (LLM-drafted, human-approved): what to improve in the next iteration, and whether the previous run's fixes worked._
+- **structural-v1 re-scored at depth 20, to compare at a matched token budget.** recall@5 0.358 is unchanged from 62a52a83. At the matched k=13 (2,284 tokens) it is 0.421 against the baseline's 0.495: −0.074, within the SE (0.081), so "no difference" under the spec 0006 rule. (The 19 Oct preview's 0.442 cut by a token budget, not by k.)
+- At k=5, paired over the same rows, it is −0.136 ± 0.059: 8 rows lose (11, 34, 44, 49, 51, 58, 88, 100) and only row 8 wins.
+- Row 52 is a near-tie: the k=5 and depth-20 lists disagree on the top 5, so its @5 and @10 metrics come from different lists.
+- **Next:** none. v1 is superseded by v2 and v3, and structural chunking is not adopted ([ADR-0019](../../../decisions/0019-structural-first-recursive-inside-chunking.md)).
 
 ## Run
 

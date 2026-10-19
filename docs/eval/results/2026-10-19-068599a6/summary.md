@@ -2,7 +2,10 @@
 
 ## Takeaways
 
-_To fill before committing the run (LLM-drafted, human-approved): what to improve in the next iteration, and whether the previous run's fixes worked._
+- **The prefix helps structural chunks, but v3 still trails.** v3 is v2 plus the title and heading path in the embedded text. Against v2: recall@5 went from 0.375 to 0.422 and page_hit@5 from 0.719 to 0.812, the baseline's level. Paired, it is +0.047 ± 0.047: rows 5, 34, 49, 51 and 58 win, and 88 loses.
+- **Against the prefixed baseline (both changes together):** at the matched k=7, recall is 0.469 against 0.531: −0.063, within the SE, so no difference. At k=5, paired, it is −0.109 ± 0.054: rows 35, 44, 58, 88, 89 and 100 lose, and row 8 wins.
+- **Row 88 regressed:** v2 found it at rank 4, v3 didn't. With the prefix, the Timeline continuation chunk (504 tokens, same title and path as the first Timeline chunk) and a data-engineering "Quarter calendar" chunk entered the top 5 and pushed out the Cadence chunk that holds the fact.
+- **Next:** none for structural chunking (stop rule). The prefix is judged on the fixed comparison.
 
 ## Run
 

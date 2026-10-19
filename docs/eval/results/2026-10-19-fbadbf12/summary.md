@@ -2,7 +2,10 @@
 
 ## Takeaways
 
-_To fill before committing the run (LLM-drafted, human-approved): what to improve in the next iteration, and whether the previous run's fixes worked._
+- **The prefix on fixed chunks: a small, unconfirmed gain.** recall@5 rose from 0.495 to 0.531, chunk_hit@5 from 0.594 to 0.625 and MRR from 0.380 to 0.407. page_hit@5 is the same (0.812). The matched k is 5, since the prefix doesn't change the content or the tokens sent.
+- Paired, it is +0.036 ± 0.034: rows 5, 58 and 89 win, and row 49 loses. That is within the SE, and a 3-to-1 split happens by chance about 60% of the time, so the verdict is no difference.
+- **Decision (Arun, 19 Oct):** not adopted as the baseline. It runs as a second arm in the embedding-model comparison, prefixed and plain for each model. It's adopted if it wins again.
+- **If kept:** the embed insert guard checks only `content`, so a title or heading-path change would leave an old vector (follow-up from the build).
 
 ## Run
 

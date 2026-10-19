@@ -2,7 +2,9 @@
 
 ## Takeaways
 
-_To fill before committing the run (LLM-drafted, human-approved): what to improve in the next iteration, and whether the previous run's fixes worked._
+- **New comparison baseline for spec 0006.** `fixed-512-64`, retrieval-only, scored to depth 20. Its top 5 match `2026-10-17-3748df5b` on all 33 answerable rows, in order, with no near-ties. The extra depth-20 retrieve didn't change what the model sees, so recall@5 is still 0.495 and page_hit@5 0.812.
+- **Depth adds recall:** chunk_fact_recall is 0.495 @5, 0.589 @10 and 0.677 @20. Seven rows (10, 55, 59, 65, 87, 92, 99) find no fact even at 20, so chunking can't fix them; they are for hybrid search and reranking (week 3).
+- **Why a new run instead of reusing 3748df5b:** the run metadata gained `eval_depth`, so the old run fails the baseline compatibility check.
 
 ## Run
 
