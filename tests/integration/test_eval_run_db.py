@@ -25,7 +25,7 @@ MODEL = "fake:eval-run-test"
 META_KEYS = {
     "eval_version", "eval_sha256", "harness_sha", "harness_dirty", "corpus_sha", "chunk_params",
     "embed_model", "answer_model", "system_prompt_sha256", "k", "timestamp", "rows", "mode",
-    "limit", "config_id",
+    "limit", "config_id", "eval_depth",
 }  # fmt: skip
 MISSING = "zzqx this line is in no stored chunk qxzz"
 
@@ -143,7 +143,7 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
         conn, rows, ev, embedder, None, meta=_meta(None, 2), out_root=tmp_path, checkout=checkout
     )
     assert answerer.calls == []
-    assert len(embedder.calls) == 2
+    assert len(embedder.calls) == 4  # spec 0006 AC-6: k=5 and depth-20 query per answerable row
     assert out.parent == tmp_path
     assert {p.name for p in out.iterdir()} == {"rows.jsonl", "summary.json", "summary.md"}
     records, summary = _read(out)
@@ -173,6 +173,11 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
     assert [x["tokens"] for x in r["retrieved"]] == [stored[i] for i in ids]
     assert r["metrics"]["retrieved_tokens@5"] == sum(stored[i] for i in ids[:5])
     assert r["answer"] is None and r["abstention"] is None and r["checks"] is None
+    # Spec 0006 AC-6: the depth-20 list, required fact ids and near-tie flag are recorded.
+    assert len(r["deep"]) == 20 and [d["rank"] for d in r["deep"]] == list(range(1, 21))
+    assert [d["chunk_id"] for d in r["deep"][:5]] == ids0 and r["near_tie"] is False
+    assert r["required_facts"] == ["F1"] and r["deep"][0]["facts"] == ["F1"]
+    assert "chunk_hit@20" in r["metrics"] and summary["meta"]["eval_depth"] == 20
     # Row 2: its only required fact is answer-only, so retrieval is recorded but not scored.
     assert records[2]["metrics"] == {} and records[2]["page_hit_no_chunk"] is False
     assert len(records[2]["retrieved"]) == 5
@@ -203,6 +208,7 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
     )
     r = _read(out)[0][1]
     assert len(answerer.calls) == 1
+    assert len(embedder.calls) == 2  # spec 0006 AC-6: ask's own query plus the depth-20 one
     assert r["answer"] == "The handbook says so [1]."
     assert r["citations"][0]["n"] == 1
     assert r["abstention"]["abstained"] is False and r["abstention"]["false_abstention"] is False
@@ -222,6 +228,8 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
     records, summary = _read(out)
     r = records[3]
     assert r["metrics"] == {} and r["checks"] is None
+    assert r["deep"] == [] and r["near_tie"] is False  # spec 0006 AC-6: ooc rows are not deepened
+    assert len(embedder.calls) == 3  # one more: the ooc row's single ask query
     assert r["abstention"] == {
         "abstained": True, "passed": True, "false_abstention": None, "label": None
     }  # fmt: skip

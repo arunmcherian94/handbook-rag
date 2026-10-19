@@ -26,8 +26,11 @@ from handbook_rag.constants import (
     CORPUS_PREFIX,
     EST_ANSWER_USD_PER_ROW,
     EST_EMBED_USD_PER_1M,
+    EVAL_DEPTH,
+    EVAL_KS,
     EVAL_RUNS,
     EVAL_SET,
+    REGRESSION_ROWS,
     TOKENIZER,
     TOP_K,
 )
@@ -52,9 +55,13 @@ def to_run(rows: list[Row], retrieval_only: bool) -> list[Row]:
 
 
 def estimate(rows: list[Row], retrieval_only: bool) -> dict:
-    """AC-8: question tokens for the embedding cost; a flat per-row answer cost."""
+    """AC-8, spec 0006 AC-10: question tokens for the embedding cost (twice for an answerable
+    row: the k=5 and the depth-20 query); a flat per-row answer cost."""
     enc = tiktoken.get_encoding(TOKENIZER)
-    tokens = sum(len(enc.encode(r.question, disallowed_special=())) for r in rows)
+    tokens = sum(
+        len(enc.encode(r.question, disallowed_special=())) * (2 if r.answerable else 1)
+        for r in rows
+    )
     embed_usd = tokens * EST_EMBED_USD_PER_1M / 1_000_000
     answer_usd = 0.0 if retrieval_only else len(rows) * EST_ANSWER_USD_PER_ROW
     return {
@@ -129,6 +136,7 @@ def metadata(
         "answer_model": answer_model,
         "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "k": TOP_K,
+        "eval_depth": EVAL_DEPTH,
         "timestamp": datetime.now(UTC).isoformat(),
         "rows": rows,
         "mode": "retrieval-only" if answer_model is None else "full",
@@ -136,8 +144,8 @@ def metadata(
     }
 
 
-# A baseline comparison holds everything but the chunk config fixed (spec 0005, AC-11).
-SAME_AS_BASELINE = ("eval_sha256", "corpus_sha", "embed_model", "k", "limit")
+# A baseline comparison holds everything but the chunk config fixed (spec 0005 AC-11, 0006 AC-6).
+SAME_AS_BASELINE = ("eval_sha256", "corpus_sha", "embed_model", "k", "eval_depth", "limit")
 SAME_IF_BOTH_ANSWERED = ("answer_model", "system_prompt_sha256")
 
 
@@ -196,25 +204,38 @@ def record(
     row: Row,
     ev: Evidence,
     chunks: list[ask.Retrieved],
+    deep: list[ask.Retrieved],
     result: ask.AskResult | None,
     checkout: Path = CHECKOUT,
 ) -> dict:
-    """One rows.jsonl line (schema in report.py). result is None in retrieval-only mode."""
+    """One rows.jsonl line (schema in report.py). chunks is the k=5 list the model saw; deep the
+    depth-20 list ([] for an ooc row). result is None in retrieval-only mode."""
     paths, tokens, heading_paths = _lookup(conn, chunks)
     pages = [paths[c.doc_id].removeprefix(CORPUS_PREFIX) for c in chunks]
     relevant = {f.id: ev.relevant[(row.id, f.id)] for f in row.required}
-    # Only required cited facts: the rank metrics are defined over them (AC-3).
-    chunk_facts = [{fid for fid, ids in relevant.items() if c.chunk_id in ids} for c in chunks]
+
+    def facts_of(cs: list[ask.Retrieved]) -> list[set[str]]:
+        # Only required cited facts: the rank metrics are defined over them (AC-3).
+        return [{fid for fid, ids in relevant.items() if c.chunk_id in ids} for c in cs]
+
+    chunk_facts = facts_of(chunks)
+    deep_facts = facts_of(deep)
+    deep_paths, deep_tokens, _ = _lookup(conn, deep) if deep else ({}, [], [])
+    deep_pages = [deep_paths[c.doc_id].removeprefix(CORPUS_PREFIX) for c in deep]
     metrics: dict[str, float] = {}
     if relevant:  # an answerable row whose required facts are all answer-only scores nothing
-        metrics = row_metrics(
-            chunk_facts,
-            pages,
+        args = (
             {f.id: set(f.cites) for f in row.required},
             set(row.expected_docs),
             len(frozenset().union(*relevant.values())),
-            tokens,
         )
+        # Spec 0006 AC-6: k<=5 and the rank metrics come from the list the model saw; @10/@20
+        # from the deep list.
+        m_deep = row_metrics(deep_facts, deep_pages, *args, deep_tokens, ks=EVAL_KS)
+        m5 = row_metrics(
+            chunk_facts, pages, *args, tokens, ks=tuple(k for k in EVAL_KS if k <= TOP_K)
+        )
+        metrics = m_deep | m5
     rec = {
         "row": row.id,
         "type": row.type,
@@ -238,6 +259,21 @@ def record(
                 chunks, pages, tokens, chunk_facts, heading_paths, strict=True
             )
         ],
+        "deep": [
+            {
+                "rank": i,
+                "chunk_id": str(c.chunk_id),
+                "tokens": n,
+                "facts": sorted(facts),
+                "page_relevant": page in row.expected_docs,
+            }
+            for i, (c, page, n, facts) in enumerate(
+                zip(deep, deep_pages, deep_tokens, deep_facts, strict=True), start=1
+            )
+        ],
+        "required_facts": sorted(f.id for f in row.required),
+        "near_tie": bool(deep)
+        and [c.chunk_id for c in deep[:TOP_K]] != [c.chunk_id for c in chunks],
         "metrics": metrics,
         "page_hit_no_chunk": bool(metrics)
         and metrics[f"page_hit@{TOP_K}"] == 1
@@ -306,7 +342,12 @@ def run(
             else:
                 result = ask.ask(conn, embedder, answerer, row.question, TOP_K, config_id=config_id)
                 chunks = result.chunks
-            rec = record(conn, row, ev, chunks, result, checkout)
+            deep = (
+                ask.retrieve(conn, embedder, row.question, EVAL_DEPTH, config_id=config_id)
+                if row.answerable
+                else []
+            )
+            rec = record(conn, row, ev, chunks, deep, result, checkout)
             records.append(rec)
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             recall = rec["metrics"].get(f"chunk_fact_recall@{TOP_K}")
@@ -320,7 +361,10 @@ def run(
     }
     if baseline:
         meta = meta | {"baseline": baseline[0]}
-    summary = summarize(records, meta, notes)
+    target = None
+    if baseline:
+        target = baseline[1]["groups"]["overall"][f"retrieved_tokens@{TOP_K}"]["mean"]
+    summary = summarize(records, meta, notes, target_tokens=target)
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
@@ -328,7 +372,12 @@ def run(
     if baseline:
         base_id, base_summary, base_records = baseline
         md += "\n" + render_compare(
-            summary, records, base_summary, base_records, base_id, COMPARE_ROWS
+            summary,
+            records,
+            base_summary,
+            base_records,
+            base_id,
+            list(dict.fromkeys(COMPARE_ROWS + REGRESSION_ROWS)),
         )
     (out / "summary.md").write_text(md, encoding="utf-8")
     return out

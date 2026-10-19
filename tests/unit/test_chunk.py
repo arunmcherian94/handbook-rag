@@ -1,3 +1,4 @@
+import hashlib
 import math
 import uuid
 from itertools import accumulate
@@ -6,8 +7,22 @@ from pathlib import Path
 import pytest
 import tiktoken
 
-from handbook_rag.chunk import chunk_doc, chunk_structural, find_headings, headings
-from handbook_rag.constants import CHECKOUT, CHUNK_CONFIGS, CHUNK_OVERLAP, CHUNK_SIZE
+from handbook_rag.chunk import (
+    chunk_doc,
+    chunk_packed,
+    chunk_structural,
+    chunker,
+    find_headings,
+    headings,
+    sections,
+)
+from handbook_rag.constants import (
+    BASELINE_CONFIG,
+    CHECKOUT,
+    CHUNK_CONFIGS,
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+)
 from handbook_rag.ingest import split_front_matter
 
 ENC = tiktoken.get_encoding("cl100k_base")
@@ -412,3 +427,192 @@ def test_non_baseline_fixed_config_ids_differ():
         uuid.NAMESPACE_URL, f"{DOC}:{CHUNK_SIZE}:{CHUNK_OVERLAP}:0"
     )
     assert {c.chunk_id for c in base}.isdisjoint(c.chunk_id for c in other)
+
+
+def test_structural_v1_output_is_pinned():
+    """Spec 0005, AC-9; spec 0006, AC-2: structural-v1 output on expenses.md is byte-identical
+    to what the shared emit loop was refactored from (ids, content, tokens, headings, lines)."""
+    text = EXPENSES.read_text(encoding="utf-8")
+    _, body = split_front_matter(text)
+    chunks = chunk_structural(DOC, body, ENC, config_id="structural-v1", **V1, line_offset=3)
+    h = hashlib.md5()
+    for c in chunks:
+        h.update(
+            repr(
+                (str(c.chunk_id), c.chunk_index, c.content, c.token_count, c.heading,
+                 c.heading_path, c.line_start, c.line_end)
+            ).encode()
+        )  # fmt: skip
+    assert (len(chunks), h.hexdigest()) == (80, "ba1162ac239ae7fa48f6bbd53e19d44b")
+
+
+# Packed sections and heading-path prefix (spec 0006)
+
+V2 = CHUNK_CONFIGS["structural-v2"]["params"]
+EXPENSES_PATH = "content/handbook/finance/expenses.md"
+
+
+def packed(body: str, **params) -> list:
+    return chunk_packed(DOC, body, ENC, config_id="test", **{**V2, **params})
+
+
+def ntok(text: str) -> int:
+    return len(ENC.encode(text))
+
+
+def test_packed_parent_child_sibling_pack_up_to_max():
+    """Spec 0006, AC-3, AC-4, AC-11: parent, child, sibling and next top-level sections pack
+    together; the pack takes the first section's heading and real path."""
+    (c,) = packed(MERGE_BODY)
+    assert c.content == MERGE_BODY and c.token_count == ntok(MERGE_BODY)
+    assert c.heading == "P" and c.heading_path == ("P",)
+    assert (c.line_start, c.line_end) == (1, MERGE_BODY.count("\n"))
+
+
+def test_packed_is_greedy_and_cuts_only_at_headings():
+    """Spec 0006, AC-3, AC-11: with no section over max, packs tile the body at section
+    starts, each <= max, and each pack stops only because the next section would pass max."""
+    body = "intro\n\n" + "".join(
+        f"{'#' * (1 + i % 3)} S{i}\n\n{prose(5 + 7 * (i % 4))}\n\n" for i in range(24)
+    )
+    starts = {s.start for s in sections(body)}
+    raw = body.encode()
+    chunks = packed(body, max_tokens=80)
+    assert len(chunks) > 3 and "".join(c.content for c in chunks) == body
+    at = 0
+    for c, nxt in zip(chunks, [*chunks[1:], None], strict=True):
+        assert at in starts and c.token_count == ntok(c.content) <= 80
+        at += len(c.content.encode())
+        if nxt is not None:
+            next_end = min((s.end for s in sections(body) if s.start == at), default=None)
+            assert ntok(raw[at - len(c.content.encode()) : next_end].decode()) > 80
+    assert chunks[0].heading_path == () and chunks[0].heading is None  # preamble leads a pack
+    assert chunks[1].content.startswith("#") and chunks[1].heading == chunks[1].heading_path[-1]
+
+
+def test_packed_over_max_section_closes_pack_and_splits_alone():
+    """Spec 0006, AC-3, AC-11: a section over max closes the current pack and splits with
+    overlap inside itself only; packing resumes after it, with no overlap between packs."""
+    sentences = " ".join(f"Sentence {WORDS[i % 10]} number {i} ends here." for i in range(40))
+    section_b = f"## B\n\n{prose(30)}\n\n{sentences}\n\n"
+    head, tail = "# A\n\nsmall a\n\n", "## C\n\nsmall c\n\n## D\n\nsmall d\n"
+    body = head + section_b + tail
+    chunks = packed(body, max_tokens=60, overlap=8)
+    assert chunks[0].content == head and chunks[-1].content == tail
+    assert chunks[-1].heading_path == ("A", "C")
+    b = chunks[1:-1]
+    assert len(b) > 2 and all(c.heading_path == ("A", "B") for c in b)
+    assert b[0].content.startswith("## B") and all(c.token_count <= 60 for c in chunks)
+    at, prev_end = 0, None
+    for c in b:
+        start, end, at = token_bounds(section_b, c.content, at)
+        if prev_end is not None:
+            assert prev_end - start == 8
+        prev_end = end
+    assert end == ntok(section_b)  # the last sub-chunk ends at the section's end
+    assert len(head.encode()) + len(section_b.encode()) + len(tail.encode()) == len(body.encode())
+
+
+def test_packed_never_crosses_documents():
+    """Spec 0006, AC-3, AC-11: two documents chunk apart; ids are per doc and each doc's
+    chunks rebuild exactly its own body."""
+    a, b = "# A\n\nfirst doc\n", "# B\n\nsecond doc\n"
+    ca = chunk_packed(DOC, a, ENC, config_id="test", **V2)
+    cb = chunk_packed(uuid.UUID(int=2), b, ENC, config_id="test", **V2)
+    assert "".join(c.content for c in ca) == a and "".join(c.content for c in cb) == b
+    assert {c.chunk_id for c in ca}.isdisjoint(c.chunk_id for c in cb)
+    assert [c.chunk_id for c in ca] == [uuid.uuid5(uuid.NAMESPACE_URL, f"{DOC}:test:0")]
+    assert packed(" \n\n") == []
+
+
+@pytest.fixture(scope="module")
+def expenses_v2():
+    """(file lines, body, chunks) for finance/expenses.md chunked as structural-v2."""
+    text = EXPENSES.read_text(encoding="utf-8")
+    _, body = split_front_matter(text)
+    return text.split("\n"), body, packed(body, line_offset=3)
+
+
+def test_packed_line_ranges_match_source_file(expenses_v2):
+    """Spec 0006, AC-4, AC-11: content is the file's lines line_start..line_end, front matter
+    counted; only a sub-chunk of a split section may cut its first or last line; every whole
+    pack opens on a heading line (or the preamble)."""
+    lines, _, chunks = expenses_v2
+    whole = 0
+    for k, c in enumerate(chunks):
+        got = c.content.removesuffix("\n").split("\n")
+        want = lines[c.line_start - 1 : c.line_end]
+        assert len(got) == len(want)
+        if got == want:
+            whole += 1
+            assert c.heading_path == () or got[0].lstrip().startswith("#")
+            continue
+        split = [d for d in chunks if d.heading_path == c.heading_path]
+        assert len(split) > 1, f"chunk {k} is not a split sub-chunk but cuts a line"
+        assert want[0].endswith(got[0]) and want[-1].startswith(got[-1])
+        assert got[1:-1] == want[1:-1]
+    assert whole > len(chunks) // 2  # bigger packs leave more sections over max, so more splits
+    assert all(c.token_count <= 512 for c in chunks)
+
+
+def test_packed_heading_path_is_first_sections(expenses_v2):
+    """Spec 0006, AC-4, AC-11: heading_path is the path of the section the chunk opens with,
+    as sections() builds it; heading is its last element; nothing is appended."""
+    _, body, chunks = expenses_v2
+    raw = body.encode()
+    secs = sections(body)
+    at = 0
+    for c in chunks:
+        at = raw.index(c.content.encode(), at)
+        first = max((s for s in secs if s.start <= at), key=lambda s: s.start)
+        assert c.heading_path == first.path
+        assert c.heading == (first.path[-1] if first.path else None)
+    assert len({c.heading_path for c in chunks}) > 10
+
+
+def run_config(config_id: str, monkeypatch) -> tuple[list, tuple[int, int]]:
+    """Chunk expenses.md through chunker() as `make chunk` would."""
+    monkeypatch.chdir(ROOT)
+    text = EXPENSES.read_text(encoding="utf-8")
+    _, body = split_front_matter(text)
+    fn, stored = chunker(CHUNK_CONFIGS[config_id], config_id, ENC)
+    return fn(DOC, EXPENSES_PATH, body), stored
+
+
+def test_prefixed_configs_match_their_sources(monkeypatch):
+    """Spec 0006, AC-1, AC-4, AC-11: structural-v3 has v2's content, headings and line ranges;
+    fixed-512-64-prefixed has the baseline's content and headings, adds heading paths, keeps
+    NULL line ranges; each config has its own ids."""
+    v2, v2_stored = run_config("structural-v2", monkeypatch)
+    v3, v3_stored = run_config("structural-v3", monkeypatch)
+    key = lambda c: (c.chunk_index, c.content, c.token_count, c.heading, c.heading_path,  # noqa: E731
+                     c.line_start, c.line_end)  # fmt: skip
+    assert [key(c) for c in v3] == [key(c) for c in v2] and len(v2) > 1
+    assert v2[0].line_start == 4 and v2_stored == v3_stored == (512, 64)
+    assert {c.chunk_id for c in v2}.isdisjoint(c.chunk_id for c in v3)
+    base, base_stored = run_config(BASELINE_CONFIG, monkeypatch)
+    pre, pre_stored = run_config("fixed-512-64-prefixed", monkeypatch)
+    assert [(c.content, c.token_count, c.heading) for c in pre] == [
+        (c.content, c.token_count, c.heading) for c in base
+    ]
+    assert base_stored == pre_stored == (CHUNK_SIZE, CHUNK_OVERLAP)
+    assert all(c.heading_path is None and c.line_start is None for c in base)
+    assert all(c.heading_path is not None and c.line_start is None for c in pre)
+    assert {c.chunk_id for c in base}.isdisjoint(c.chunk_id for c in pre)
+
+
+def test_fixed_heading_path_at_attribution_byte():
+    """Spec 0006, AC-4, AC-11: with_path records the full path of the heading in force at the
+    window's first text byte, () before the first heading; without it the path stays None."""
+    body = "intro\n" + prose(400) + "\n# A\n" + prose(300) + "\n## B\n" + prose(500)
+    body += "\n# C\n" + prose(400)
+    chunks = chunk_doc(DOC, body, ENC, config_id="test", with_path=True)
+    paths = [c.heading_path for c in chunks]
+    assert paths[0] == () and chunks[0].heading is None
+    assert {("A",), ("A", "B"), ("C",)} <= set(paths)
+    assert all(c.heading == (c.heading_path[-1] if c.heading_path else None) for c in chunks)
+    plain = chunk_doc(DOC, body, ENC, config_id="test")
+    assert [c.content for c in plain] == [c.content for c in chunks]
+    assert all(c.heading_path is None for c in plain)
+    (c,) = chunk_doc(DOC, "\n\n## Planning PTO\n\nTell your lead.", ENC, with_path=True)
+    assert c.heading_path == ("Planning PTO",)

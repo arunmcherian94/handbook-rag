@@ -25,6 +25,15 @@ FINGERPRINT = """SELECT count(*), md5(string_agg(chunk_id::text || content, '|' 
                  FROM chunks WHERE config_id = %s"""
 # The baseline as embedded for run 2026-10-17-3748df5b (spec 0005, AC-3).
 BASELINE_FINGERPRINT = (22378, "a74cd0329fbcd326128f12b6fb46d6de")
+# Every stored column, and the embeddings present, for a config (spec 0006, AC-2).
+ROWS = """SELECT count(*), md5(string_agg(concat_ws('|', chunk_id, doc_id, chunk_index, content,
+                 token_count, heading, chunk_size, chunk_overlap, tokenizer, commit_sha,
+                 heading_path::text, line_start, line_end), '#' ORDER BY chunk_id))
+          FROM chunks WHERE config_id = %s"""
+EMBEDDINGS = """SELECT count(*), md5(string_agg(e.chunk_id::text || e.model, '|'
+                 ORDER BY e.chunk_id, e.model))
+                FROM chunk_embeddings e JOIN chunks c USING (chunk_id) WHERE c.config_id = %s"""
+NEW_CONFIGS = ("structural-v2", "structural-v3", "fixed-512-64-prefixed")
 BASELINE_EMBEDDINGS = """SELECT count(*) FROM chunk_embeddings e JOIN chunks c USING (chunk_id)
                          WHERE c.config_id = %s"""
 
@@ -213,6 +222,71 @@ def test_structural_run_leaves_baseline_untouched(conn):
         (STRUCTURAL,),
     ).fetchone()
     print(f"{STRUCTURAL}: {n} chunks; tokens p50 {p50}, p90 {p90}, max {top}")
+
+
+def snapshot(conn) -> dict:
+    return {
+        cfg: (conn.execute(ROWS, (cfg,)).fetchone(), conn.execute(EMBEDDINGS, (cfg,)).fetchone())
+        for cfg in (BASELINE_CONFIG, STRUCTURAL)
+    }
+
+
+def test_packed_and_prefixed_runs_leave_existing_configs_untouched(conn):
+    """Spec 0006, AC-1, AC-2, AC-4: chunking the three new configs keeps every fixed-512-64 and
+    structural-v1 row, chunk_id and embedding; structural-v3 rows equal structural-v2 rows on
+    content and line ranges, and fixed-512-64-prefixed rows equal the baseline's content.
+    Rolled back, so the new configs' rows in the dev DB are as they were before the test."""
+    if not count(conn, STRUCTURAL):
+        run(conn, config_id=STRUCTURAL)
+        conn.commit()
+    before = snapshot(conn)
+    new_before = [count(conn, cfg) for cfg in NEW_CONFIGS]
+    with conn.transaction(force_rollback=True):
+        for cfg in NEW_CONFIGS:
+            r = run(conn, config_id=cfg, force=True)
+            assert not r.skipped and r.chunks == count(conn, cfg) > 0
+        assert snapshot(conn) == before
+        assert fingerprint(conn) == BASELINE_FINGERPRINT
+        (diff,) = conn.execute(
+            """SELECT count(*)
+               FROM (SELECT * FROM chunks WHERE config_id = 'structural-v2') a
+               FULL JOIN (SELECT * FROM chunks WHERE config_id = 'structural-v3') b
+                 USING (doc_id, chunk_index)
+               WHERE (a.content, a.line_start, a.line_end, a.heading, a.heading_path)
+                     IS DISTINCT FROM (b.content, b.line_start, b.line_end, b.heading,
+                                       b.heading_path)"""
+        ).fetchone()
+        assert diff == 0
+        assert count(conn, "structural-v3") == count(conn, "structural-v2")
+        (diff,) = conn.execute(
+            """SELECT count(*) FROM chunks a JOIN chunks b USING (doc_id, chunk_index)
+               WHERE a.config_id = %s AND b.config_id = 'fixed-512-64-prefixed'
+                 AND (a.content, a.token_count, a.heading)
+                     IS DISTINCT FROM (b.content, b.token_count, b.heading)""",
+            (BASELINE_CONFIG,),
+        ).fetchone()
+        assert diff == 0 and count(conn, "fixed-512-64-prefixed") == count(conn)
+        (bad,) = conn.execute(
+            """SELECT count(*) FROM chunks WHERE config_id = 'fixed-512-64-prefixed'
+               AND (heading_path IS NULL OR line_start IS NOT NULL OR line_end IS NOT NULL
+                    OR heading IS DISTINCT FROM heading_path[cardinality(heading_path)])"""
+        ).fetchone()
+        assert bad == 0
+        (bad,) = conn.execute(
+            """SELECT count(*) FROM chunks WHERE config_id = 'structural-v2' AND (
+               heading_path IS NULL OR line_start IS NULL OR line_end < line_start
+               OR token_count > 512 OR token_count < 1 OR chunk_size <> 512 OR chunk_overlap <> 64
+               OR heading IS DISTINCT FROM heading_path[cardinality(heading_path)])"""
+        ).fetchone()
+        assert bad == 0
+        n, p50, p90 = conn.execute(
+            """SELECT count(*), percentile_disc(0.5) WITHIN GROUP (ORDER BY token_count),
+                      percentile_disc(0.9) WITHIN GROUP (ORDER BY token_count)
+               FROM chunks WHERE config_id = 'structural-v2'"""
+        ).fetchone()
+        print(f"structural-v2: {n} chunks; tokens p50 {p50}, p90 {p90}")
+    assert snapshot(conn) == before
+    assert [count(conn, cfg) for cfg in NEW_CONFIGS] == new_before
 
 
 def test_register_config_rejects_drift_and_unknown(conn, monkeypatch):

@@ -17,6 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import openai
+import tiktoken
 
 from handbook_rag.constants import (
     BACKOFF_BASE,
@@ -30,6 +31,7 @@ from handbook_rag.constants import (
     MAX_REQUEST_TOKENS,
     PROGRESS_EVERY,
     RETRY_4XX,
+    TOKENIZER,
 )
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.models import Embedder, make_embedder
@@ -43,6 +45,12 @@ class Pending:
     doc_id: object
     content: str
     token_count: int
+    text: str | None = None  # what is sent; None means content (unprefixed)
+    prefix_tokens: int = 0
+
+    @property
+    def tokens(self) -> int:
+        return self.token_count + self.prefix_tokens
 
 
 @dataclass
@@ -122,8 +130,8 @@ def embed_batch(embedder, items: list[Pending], sleep, rand, on_success) -> list
     for it in items:
         if not it.content.strip():
             failures.append(_fail(it, "local", "empty or whitespace-only content"))
-        elif it.token_count > MAX_INPUT_TOKENS:
-            failures.append(_fail(it, "local", f"{it.token_count} tokens > {MAX_INPUT_TOKENS}"))
+        elif it.tokens > MAX_INPUT_TOKENS:
+            failures.append(_fail(it, "local", f"{it.tokens} tokens > {MAX_INPUT_TOKENS}"))
         else:
             ok.append(it)
     _send(embedder, ok, sleep, rand, on_success, failures)
@@ -133,10 +141,12 @@ def embed_batch(embedder, items: list[Pending], sleep, rand, on_success) -> list
 def _send(embedder, items, sleep, rand, on_success, failures) -> None:
     if not items:
         return
-    if len(items) > 1 and sum(i.token_count for i in items) > MAX_REQUEST_TOKENS:
+    if len(items) > 1 and sum(i.tokens for i in items) > MAX_REQUEST_TOKENS:
         return _split(embedder, items, sleep, rand, on_success, failures)
     try:
-        vectors = embed_with_retry(embedder, [i.content for i in items], sleep, rand)
+        vectors = embed_with_retry(
+            embedder, [i.content if i.text is None else i.text for i in items], sleep, rand
+        )
     except openai.APIStatusError as e:  # 400/422 and other non-fatal 4xx (e.g. 413)
         if len(items) > 1:
             return _split(embedder, items, sleep, rand, on_success, failures)
@@ -155,11 +165,40 @@ def _md5(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
+def embed_text(title: str, heading_path, content: str, prefix: str | None) -> str:
+    """The text sent to the embedding model; stored content is never changed (spec 0006 AC-5)."""
+    if prefix is None:
+        return content
+    if prefix != "title-path":
+        raise ValueError(f"unknown embed_prefix {prefix!r}")
+    path = " > ".join(heading_path or [])
+    return f"{title}\n{path}\n\n{content}" if path else f"{title}\n\n{content}"
+
+
+def _prefix_tokens(title, heading_path, prefix) -> int:
+    if prefix is None:
+        return 0
+    enc = tiktoken.get_encoding(TOKENIZER)
+    return len(enc.encode(embed_text(title, heading_path, "", prefix), disallowed_special=()))
+
+
+def _config_prefix(config_id) -> str | None:
+    return CHUNK_CONFIGS.get(config_id, {}).get("params", {}).get("embed_prefix")
+
+
 PENDING = """
-SELECT c.chunk_id, c.doc_id, c.content, c.token_count FROM chunks c
+SELECT c.chunk_id, c.doc_id, c.content, c.token_count, d.title, c.heading_path
+FROM chunks c JOIN documents d ON d.doc_id = c.doc_id
 WHERE NOT EXISTS (SELECT 1 FROM chunk_embeddings e WHERE e.chunk_id = c.chunk_id AND e.model = %s)
   AND c.config_id = %s
 ORDER BY c.chunk_id
+"""
+PENDING_PREFIX = """
+SELECT d.title, c.heading_path FROM chunks c
+JOIN documents d ON d.doc_id = c.doc_id
+WHERE NOT EXISTS (SELECT 1 FROM chunk_embeddings e WHERE e.chunk_id = c.chunk_id AND e.model = %s)
+  AND c.config_id = %s
+ORDER BY c.chunk_id LIMIT %s
 """
 SKIPPED = """
 SELECT count(*) FROM chunks c JOIN chunk_embeddings e ON e.chunk_id = c.chunk_id
@@ -187,7 +226,12 @@ ON CONFLICT DO NOTHING
 
 def pending_cost(conn, model, config_id, limit=None) -> tuple[int, int]:
     """(count, summed token_count) of the chunks run() would embed for this config and model."""
-    return tuple(conn.execute(COST, (model, config_id, limit)).fetchone())
+    n, tokens = conn.execute(COST, (model, config_id, limit)).fetchone()
+    prefix = _config_prefix(config_id)
+    if prefix is not None:  # AC-10: the estimate counts the prefix tokens
+        rows = conn.execute(PENDING_PREFIX, (model, config_id, limit)).fetchall()
+        tokens += sum(_prefix_tokens(t, hp, prefix) for t, hp in rows)
+    return n, tokens
 
 
 def run(
@@ -204,7 +248,18 @@ def run(
     sql, params = PENDING, [embedder.name, config_id]
     if limit is not None:
         sql, params = sql + " LIMIT %s", [embedder.name, config_id, limit]
-    rows = [Pending(*r) for r in conn.execute(sql, params).fetchall()]
+    prefix = _config_prefix(config_id)
+    rows = [
+        Pending(
+            cid,
+            did,
+            content,
+            tc,
+            embed_text(title, hp, content, prefix),
+            _prefix_tokens(title, hp, prefix),
+        )
+        for cid, did, content, tc, title, hp in conn.execute(sql, params).fetchall()
+    ]
     conn.commit()
 
     def on_success(items, vectors):

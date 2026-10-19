@@ -1,8 +1,9 @@
-"""Split ingested documents into chunks under a named config (spec 0003; spec 0005).
+"""Split ingested documents into chunks under a named config (spec 0003; 0005; 0006).
 
 `fixed` configs cut token windows (chunk_doc); `structural` configs cut at headings and split
-or merge inside them (chunk_structural). Functional core, imperative shell: both are pure
-functions of a body, unit-tested without a DB; run() owns the transaction.
+or merge inside them (chunk_structural); `structural-packed` configs pack whole sections up to
+max_tokens (chunk_packed). Functional core, imperative shell: all are pure functions of a body,
+unit-tested without a DB; run() owns the transaction.
 """
 
 import argparse
@@ -115,13 +116,15 @@ def chunk_doc(
     size: int = CHUNK_SIZE,
     overlap: int = CHUNK_OVERLAP,
     config_id: str = BASELINE_CONFIG,
+    with_path: bool = False,
 ) -> list[Chunk]:
     """Windows of `size` tokens every size-overlap tokens; the last one reaches the end.
 
     Slices the body by byte offset so content is the exact source text. A multi-byte
     character cut by a window edge is dropped there; the overlap carries it whole.
     Baseline ids keep their spec 0003 formula (AC-3); any other fixed config names itself in
-    the id, so it can never take over the baseline's rows.
+    the id, so it can never take over the baseline's rows. with_path also records the full
+    path of the attributed heading, () before the first one (spec 0006, AC-4).
     """
     key = f"{size}:{overlap}" if config_id == BASELINE_CONFIG else config_id
     if not body.strip():
@@ -130,6 +133,7 @@ def chunk_doc(
     offsets = [0, *accumulate(len(enc.decode_single_token_bytes(t)) for t in tokens)]
     raw = body.encode("utf-8")
     h_starts, h_texts = find_headings(body)
+    h_paths = [s.path for s in sections(body) if s.level > 0] if with_path else []
     stride = size - overlap
     chunks = []
     for i, start in enumerate(range(0, len(tokens), stride)):
@@ -143,6 +147,7 @@ def chunk_doc(
                 content=content,
                 token_count=end - start,
                 heading=h_texts[k] if k >= 0 else None,
+                heading_path=(h_paths[k] if k >= 0 else ()) if with_path else None,
             )
         )
         if end == len(tokens):
@@ -289,36 +294,27 @@ def pack(n: int, cuts: list[int], max_tokens: int, overlap: int) -> list[tuple[i
         prev_end, start = end, max(end - overlap, 0)
 
 
-def chunk_structural(
+def emit(
     doc_id: uuid.UUID,
-    body: str,
+    raw: bytes,
     enc,
+    groups: list[list[Section]],
+    path_of,
     *,
     config_id: str,
     max_tokens: int,
     overlap: int,
-    min_tokens: int,
-    line_offset: int = 0,
+    line_offset: int,
 ) -> list[Chunk]:
-    """Sections at headings, tiny siblings merged, big spans split (spec 0005, AC-6 to AC-9).
-
-    line_offset is the number of front-matter lines ingest stripped, so line_start/line_end
-    are 1-based lines of the source file.
-    """
-    if not body.strip():
-        return []
-    raw = body.encode("utf-8")
+    """Chunks for groups of consecutive sections: each group's span is one chunk, or is split
+    with overlap inside it when over max (spec 0005, AC-7, AC-9). `path_of(group)` is the
+    heading_path its chunks record; heading is the first section's."""
     newlines = [i for i, b in enumerate(raw) if b == 0x0A]
-
-    def count(a: int, b: int) -> int:
-        return len(enc.encode(raw[a:b].decode("utf-8"), disallowed_special=()))
-
-    secs = sections(body)
     chunks = []
-    for group in merge_groups(secs, count, max_tokens, min_tokens):
-        first = secs[group[0]]
-        a, b = first.start, secs[group[-1]].end
-        path = first.path + tuple(secs[g].path[-1] for g in group[1:])
+    for group in groups:
+        first = group[0]
+        a, b = first.start, group[-1].end
+        path = path_of(group)
         text = raw[a:b].decode("utf-8")
         tokens = enc.encode(text, disallowed_special=())
         offsets = [0, *accumulate(len(enc.decode_single_token_bytes(t)) for t in tokens)]
@@ -341,6 +337,79 @@ def chunk_structural(
                 )
             )
     return chunks
+
+
+def span_counter(raw: bytes, enc):
+    """count(a, b): the token count of body bytes a..b, encoded as one span."""
+
+    def count(a: int, b: int) -> int:
+        return len(enc.encode(raw[a:b].decode("utf-8"), disallowed_special=()))
+
+    return count
+
+
+def chunk_structural(
+    doc_id: uuid.UUID,
+    body: str,
+    enc,
+    *,
+    config_id: str,
+    max_tokens: int,
+    overlap: int,
+    min_tokens: int,
+    line_offset: int = 0,
+) -> list[Chunk]:
+    """Sections at headings, tiny siblings merged, big spans split (spec 0005, AC-6 to AC-9).
+
+    line_offset is the number of front-matter lines ingest stripped, so line_start/line_end
+    are 1-based lines of the source file.
+    """
+    if not body.strip():
+        return []
+    raw = body.encode("utf-8")
+    secs = sections(body)
+    groups = merge_groups(secs, span_counter(raw, enc), max_tokens, min_tokens)
+    return emit(
+        doc_id, raw, enc, [[secs[g] for g in group] for group in groups],
+        lambda group: group[0].path + tuple(s.path[-1] for s in group[1:]),
+        config_id=config_id, max_tokens=max_tokens, overlap=overlap, line_offset=line_offset,
+    )  # fmt: skip
+
+
+def pack_sections(secs: list[Section], count, max_tokens: int) -> list[list[int]]:
+    """Group section indices greedily in order while the span stays <= max_tokens, at any
+    heading level; a section over max is a group of its own (spec 0006, AC-3)."""
+    groups: list[list[int]] = []
+    for i, sec in enumerate(secs):
+        if groups and count(secs[groups[-1][0]].start, sec.end) <= max_tokens:
+            groups[-1].append(i)
+        else:
+            groups.append([i])
+    return groups
+
+
+def chunk_packed(
+    doc_id: uuid.UUID,
+    body: str,
+    enc,
+    *,
+    config_id: str,
+    max_tokens: int,
+    overlap: int,
+    line_offset: int = 0,
+) -> list[Chunk]:
+    """Whole sections packed up to max_tokens; an over-max section split alone (spec 0006,
+    AC-3, AC-4). No overlap between packs; heading_path is the first section's real path."""
+    if not body.strip():
+        return []
+    raw = body.encode("utf-8")
+    secs = sections(body)
+    groups = pack_sections(secs, span_counter(raw, enc), max_tokens)
+    return emit(
+        doc_id, raw, enc, [[secs[g] for g in group] for group in groups],
+        lambda group: group[0].path,
+        config_id=config_id, max_tokens=max_tokens, overlap=overlap, line_offset=line_offset,
+    )  # fmt: skip
 
 
 UPSERT = """
@@ -408,15 +477,20 @@ def front_matter_lines(path: str, body: str) -> int:
 
 
 def chunker(cfg: dict, config_id: str, enc):
-    """(doc_id, path, body) -> chunks, plus the (chunk_size, chunk_overlap) the rows store."""
-    p = cfg["params"]
+    """(doc_id, path, body) -> chunks, plus the (chunk_size, chunk_overlap) the rows store.
+
+    embed_prefix changes only the embedded text (spec 0006, AC-5), so it is not a chunker
+    param; a prefixed fixed config records heading paths for the prefix (AC-4).
+    """
+    p = {k: v for k, v in cfg["params"].items() if k != "embed_prefix"}
     if cfg["strategy"] == "fixed":
-        return (lambda d, _, b: chunk_doc(d, b, enc, p["size"], p["overlap"], config_id)), (
-            p["size"],
-            p["overlap"],
-        )
+        with_path = "embed_prefix" in cfg["params"]
+        return (
+            lambda d, _, b: chunk_doc(d, b, enc, p["size"], p["overlap"], config_id, with_path)
+        ), (p["size"], p["overlap"])
+    fn = chunk_packed if cfg["strategy"] == "structural-packed" else chunk_structural
     return (
-        lambda d, path, b: chunk_structural(
+        lambda d, path, b: fn(
             d, b, enc, config_id=config_id, **p,
             line_offset=front_matter_lines(path, b) if b.strip() else 0,
         )

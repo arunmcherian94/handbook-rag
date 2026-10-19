@@ -6,7 +6,7 @@ import uuid
 import pytest
 
 from handbook_rag import ask
-from handbook_rag.constants import EST_ANSWER_USD_PER_ROW
+from handbook_rag.constants import EST_ANSWER_USD_PER_ROW, EVAL_DEPTH
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evidence import Evidence
 from handbook_rag.evaluation.run import (
@@ -27,10 +27,17 @@ ROWS = [
 def test_estimate_full_and_retrieval_only():
     """AC-8: answers cost per row in full mode, nothing in retrieval-only mode."""
     full = estimate(ROWS, retrieval_only=False)
-    assert full["embed_tokens"] == 3  # "hello", " world", "hello" in cl100k
+    # Answerable "hello world" (2 tokens) is embedded twice, ooc "hello" (1) once.
+    assert full["embed_tokens"] == 5
     assert full["answer_usd"] == pytest.approx(2 * EST_ANSWER_USD_PER_ROW)
     assert full["total_usd"] == pytest.approx(full["embed_usd"] + full["answer_usd"])
     assert estimate(ROWS, retrieval_only=True)["answer_usd"] == 0.0
+
+
+def test_estimate_counts_two_query_embeds_per_answerable_row():
+    """Spec 0006 AC-10: k=5 and depth-20 queries for answerable rows, one for ooc rows."""
+    assert estimate(ROWS[:1], True)["embed_tokens"] == 4
+    assert estimate(ROWS[1:], False)["embed_tokens"] == 1
 
 
 def test_retrieval_only_skips_ooc_rows():
@@ -110,6 +117,18 @@ def test_baseline_mismatch_allows_only_the_chunk_config():
     assert len(baseline_mismatch(base, base | {"system_prompt_sha256": "q"})) == 1
 
 
+def test_baseline_mismatch_on_eval_depth():
+    """Spec 0006 AC-6: a baseline with another (or no) eval_depth fails the compatibility check."""
+    base = {"eval_sha256": "e", "corpus_sha": "c", "embed_model": "m", "k": 5, "limit": None,
+            "eval_depth": EVAL_DEPTH}  # fmt: skip
+    assert baseline_mismatch(base, base) == []
+    assert baseline_mismatch(base, base | {"eval_depth": 10}) == [
+        f"eval_depth: baseline {EVAL_DEPTH!r}, this run 10"
+    ]
+    old = {k: v for k, v in base.items() if k != "eval_depth"}
+    assert len(baseline_mismatch(old, base)) == 1
+
+
 def test_record_uses_stored_token_counts():
     """AC-3: retrieved tokens are the stored chunks.token_count, in rank order, not a
     re-encoding of the content."""
@@ -127,8 +146,57 @@ def test_record_uses_stored_token_counts():
         ]
     )
     ev = Evidence(relevant={(1, "F1"): frozenset({ids[1]})}, warnings=[])
-    rec = record(conn, ROWS[0], ev, chunks, None)
+    rec = record(conn, ROWS[0], ev, chunks, [], None)
     assert [c["tokens"] for c in rec["retrieved"]] == [7, 400]
     assert [c["heading_path"] for c in rec["retrieved"]] == [None, ["A", "B"]]  # AC-4
     assert rec["metrics"]["retrieved_tokens@1"] == 7
     assert rec["metrics"]["retrieved_tokens@5"] == 407
+
+
+def _deep_setup(order):
+    """Eight chunks on one page, chunk 0 relevant to F1; deep is the chunks in `order`."""
+    doc = uuid.uuid4()
+    ids = [uuid.uuid4() for _ in range(8)]
+    chunks = [
+        ask.Retrieved(n, ids[i], doc, "a", "H", "t", 0.1, 512, 64, "t", "sha")
+        for n, i in enumerate(order, start=1)
+    ]
+    stored = [(cid, 10 + i, doc, "content/handbook/a.md", None) for i, cid in enumerate(ids)]
+    ev = Evidence(relevant={(1, "F1"): frozenset({ids[0]})}, warnings=[])
+    return stored, ev, chunks
+
+
+def test_record_deep_agrees_with_k5_when_not_near_tie():
+    """Spec 0006 AC-6: when the deep top-5 is the k=5 list, the k<=5 metrics from either list are
+    equal, and the deep entries and required facts are recorded."""
+    stored, ev, deep = _deep_setup([3, 0, 1, 2, 4, 5, 6, 7])
+    rec = record(FakeConn(stored, stored), ROWS[0], ev, deep[:5], deep, None)
+    assert rec["near_tie"] is False
+    assert rec["required_facts"] == ["F1"]
+    assert [d["rank"] for d in rec["deep"]] == list(range(1, 9))
+    assert rec["deep"][1]["facts"] == ["F1"] and rec["deep"][1]["page_relevant"]
+    assert rec["deep"][0]["tokens"] == 10 + 3
+    assert rec["metrics"]["chunk_mrr"] == 0.5
+    assert "chunk_hit@20" in rec["metrics"] and "chunk_hit@10" in rec["metrics"]
+    ref = record(FakeConn(stored, stored), ROWS[0], ev, deep[:5], deep[:5], None)["metrics"]
+    for key, value in ref.items():
+        if not key.endswith(("@10", "@20")):
+            assert rec["metrics"][key] == value, key
+
+
+def test_record_flags_near_tie_and_scores_k5_list_for_low_ks():
+    """Spec 0006 AC-6: a deep top-5 that differs from the retrieved list sets near_tie; the k<=5
+    metrics still come from the k=5 list the model saw."""
+    stored, ev, deep = _deep_setup([3, 0, 1, 2, 4, 5, 6, 7])
+    seen = [deep[1], deep[0], deep[2], deep[3], deep[4]]
+    rec = record(FakeConn(stored, stored), ROWS[0], ev, seen, deep, None)
+    assert rec["near_tie"] is True
+    assert rec["metrics"]["chunk_mrr"] == 1.0  # the k=5 list has the relevant chunk first
+    assert rec["metrics"]["chunk_hit@1"] == 1
+
+
+def test_record_ooc_has_no_deep():
+    """Spec 0006 AC-6: an ooc row has no deep retrieval and is not a near tie."""
+    stored, ev, chunks = _deep_setup([0, 1, 2, 3, 4])
+    rec = record(FakeConn(stored), ROWS[1], ev, chunks, [], None)
+    assert rec["deep"] == [] and rec["near_tie"] is False and rec["metrics"] == {}

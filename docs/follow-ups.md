@@ -43,3 +43,7 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
 - **Mostly-overlap windows:** `pack` can emit a window that is nearly all overlap when the only cut sits just past the previous end. Rare; costs a near-duplicate chunk.
 - **Front-matter line count:** `chunk.run` re-reads each source file to count front-matter lines. Ingest could store the count instead.
 - **Embed cost query:** the cost SQL repeats the pending-chunks predicate; derive it from `PENDING`.
+
+## From the spec 0006 build (2026-10-19)
+
+- **Stale prefixed vectors:** for a prefixed config, the embedded text includes `documents.title` and `heading_path`, but `flush` and embed's insert guard only notice changes to `content`. A new pin that changes a title or a heading path without changing a chunk's bytes would keep the old vector. That can't happen at pin 5273b21. If a prefixed config is kept, guard on the md5 of the embedded text instead (a spec change to AC-5).
