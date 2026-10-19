@@ -31,6 +31,18 @@
   - `front_matter_lines` re-reads each file per run (the run takes about 30s).
   - The embed cost SQL repeats the pending predicate.
 - **First run (Task 7):** structural-v1 was embedded (49,215 chunks, about $0.19). The baseline retrieval-only re-run `2026-10-19-287181bb` matches `2026-10-17-3748df5b` on all 33 answerable rows (AC-5). The full run `2026-10-19-62a52a83` cost about $0.21. The summary and takeaways are in `docs/eval/results/2026-10-19-62a52a83/`, and recall@5 fell from 0.495 to 0.358.
+- **Preview: heading-only vs budget (19 Oct, about $0.0001 of query embeddings; scratch script, not committed).** Each of the 32 scored rows was retrieved to depth 20 in three arms. "Budget" is fact recall over the top-ranked chunks whose cumulative tokens stay within 2,335, the baseline's mean retrieved_tokens@5.
+
+  | arm | recall@5 | page_hit@5 | recall @ 2,335 tokens | chunks in budget |
+  |---|---|---|---|---|
+  | fixed-512-64 | 0.495 | 0.812 | 0.479 | 4.5 |
+  | structural-v1 | 0.358 | 0.688 | 0.442 | 13.1 |
+  | structural-v1 without heading-only chunks | 0.374 | 0.688 | 0.442 | 11.3 |
+
+  - Heading-only chunks are not the main cause. Dropping them leaves row 58 and the page_hit drop unchanged. Row 58's top 5 still has the entity pages' `## Time Off Policies` sections, which are a heading plus one teaser line ("Comprehensive support when you need time away.") at 12–14 tokens. 14 chunks under 32 tokens remain in the top 5s, all short sections that have a body.
+  - At a matched budget the gap shrinks from −0.137 to −0.037. Structural wins on rows 52, 53 and 38 at budget. Rows 49, 58, 88 and 100 still lose: short sections whose heading matches the question's wording outrank the section that holds the fact, while a 512-token window carries the heading and the fact together.
+  - Row 112 (ooc, "do i still have admin rights on the AWS sandbox acct"): structural retrieved the sandbox page's "Accessing your AWS Account" section, which says the IAM user has `AdministratorAccess`. The model answered from it and hedged on "still". The baseline's top 5 didn't include that section, so the model abstained. Better-targeted retrieval caused the change, not lost evidence. The other ooc_pass changes are the wording check flipping (19 rows, so about three rows of noise).
+- **Stop rule (Arun, 19 Oct):** one more iteration, spec 0006 plus a matched-budget retrieval metric (a harness reporting change; ask.py and the answer model stay frozen), finished by the end of Tuesday's build blocks. If structural chunking still loses to `fixed-512-64` at a matched token budget, keep fixed-512, write the negative result into ADR-0019, and move to the embedding comparison on Wednesday. Size and overlap sweeps are dropped either way.
 
 ---
 
