@@ -33,6 +33,8 @@ FROM chunk_embeddings e
 JOIN chunks c USING (chunk_id)
 JOIN documents d USING (doc_id)
 WHERE e.model = %(model)s
+-- OpenAI embeddings are unit-normalised, so <=> (cosine) and <#> (neg. inner product) rank alike.
+-- Choose between them on cost and index support. <-> is L2 distance, <+> is L1.
 ORDER BY e.embedding <=> %(q)s::vector
 LIMIT %(k)s
 """

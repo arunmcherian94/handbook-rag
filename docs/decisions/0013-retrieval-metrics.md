@@ -5,7 +5,7 @@
 - **Journal:** [2026-10-16 eval metric decisions](../journal/2026-10-16-eval-metric-decisions.md)
 
 ## Context
-Earlier plan (2026-10-16, superseded 2026-10-16), spec 0004 inputs from the review: the pages behind `[required]` facts are the must-retrieve set (recall as a fraction); other expected docs are acceptable alternates (any hit). Replaced by: recall counts required facts, any cited source satisfies; markers on every row in v1.2. See spec 0004.
+Earlier on 2026-10-16 (spec 0004 inputs from the review), the plan was: the pages behind `[required]` facts are the must-retrieve set (recall as a fraction), and other expected docs are acceptable alternates (any hit). It was replaced the same day: recall counts required facts, any cited source satisfies, and v1.2 puts markers on every row. See spec 0004.
 
 Custom vs textbook metrics: a fresh research agent found no standard for retrieval evals when chunking changes. The closest common advice is span labels fixed across chunkings (Chroma) and recall over reference facts (RAGAS and DeepEval, via an LLM). That's what we do, from labels. Textbook chunk recall is rejected: overlap and alternative pages inflate the denominator, and it shifts with chunking.
 
