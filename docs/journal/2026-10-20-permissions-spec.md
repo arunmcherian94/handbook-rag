@@ -47,7 +47,7 @@
     - Contractors are reimbursed via iiPay (`finance/expenses.md` L693, L729).
     - Independent contractors must log time away (`time-away-philosophy.md` L187).
     - `contingent-worker-policy.md` was not added, because it's written for the people hiring contractors.
-  - **Reading takeaways:** Claude writes them at Arun's request, an exception to CLAUDE.md's "in Arun's words" for this entry. Arun reviews them in the PR.
+  - **Reading takeaways:** Claude writes them at Arun's request, an exception to CLAUDE.md's "in Arun's words" for this entry. Arun reviewed and approved them (20 Oct).
   - **Prompt injection beyond retrieval** is noted as a week 5 [follow-up](../follow-ups.md#from-the-spec-0007-review-2026-10-20).
 - **Housekeeping:** removed the AC-8, AC-9 and limitation bullets duplicated in [2026-10-19-packed-build](2026-10-19-packed-build.md), and a duplicated "spec 0006 runs" section in follow-ups.
 

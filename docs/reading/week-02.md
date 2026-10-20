@@ -9,7 +9,7 @@ and what it changes in this project. Newest first within each date.
 
 ### Permission models in production RAG
 
-*LLM-drafted at Arun's request (20 Oct), Arun reviews in the spec 0007 PR.* All nine pages were fetched on 20 Oct; the quotes are from the pages.
+*LLM-drafted at Arun's request, Arun-approved (20 Oct).* All nine pages were fetched on 20 Oct; the quotes are from the pages.
 
 Takeaways:
 - **Index-time ACLs (early binding) are only as fresh as the sync; strong designs add a fetch-time check.** I chose early binding for v1 and can state the staleness window.
