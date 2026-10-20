@@ -1,0 +1,172 @@
+# DRAFT, pending review (Arun approves the restricted paths in the spec 0007 PR).
+#
+# Synthetic ACL policy for the public handbook at pin 5273b21 (spec 0007, ADR-0021).
+# Paths are relative to content/handbook/. A path ending in "/" is a prefix; anything else is exact.
+# Resolution: an exact path beats any prefix; among prefixes the longest wins. The catch-all ("") is explicit.
+# people-ops is listed on every rule, so the admin sees everything through the policy, never a bypass.
+# Redirect stubs ignore their own rule and inherit their target's allow-list (no stub targets a restricted path at the pin).
+# Chunk counts are fixed-512-64 at the pin. Restricted total: 46 docs, 379 chunks.
+
+version: policy-v1
+
+groups:
+  - staff            # employees and contractors (catch-all audience)
+  - employee
+  - contractor
+  - new-contractor   # temporary service providers: onboarding and contractor pages only
+  - manager          # people managers
+  - people-ops       # all-access admin function
+  # entities (employees only): GitLab legal entities and PEOs named on general-and-entity-benefits/_index.md
+  - entity:us-inc
+  - entity:uk-ltd
+  - entity:ie-ltd
+  - entity:nl-bv
+  - entity:be-bv
+  - entity:de-gmbh
+  - entity:fr-sas
+  - entity:es-srl
+  - entity:in-pvt
+  - entity:il-ltd
+  - entity:ca-corp
+  - entity:au-pty
+  - entity:nz-pty
+  - entity:sg-pte
+  - entity:kr-ltd
+  - entity:jp-gk
+  - entity:peo-remote
+  - entity:peo-global-expansion
+  - entity:peo-papaya
+
+rules:
+  # --- Catch-all ---------------------------------------------------------------------------------
+  # Public handbook: open to every employee and contractor. 4,042 docs / 21,999 chunks end up here.
+  - path: ""
+    allow: [staff, people-ops]
+
+  # --- Compensation (employee-only): 1 doc / 6 chunks --------------------------------------------
+  # "Our standardized framework utilizes local labor market data ... compensation directly aligns with
+  # pay for performance" (compensation/_index.md). Pay framework for employees; ADR-0011 gate catch:
+  # "restrict employee-only benefits and compensation pages".
+  # Not restricted: stock-options.md, incentives.md (no employee-only signal).
+  - path: total-rewards/compensation/
+    allow: [employee, people-ops]
+
+  # --- People-manager-only: 22 docs / 69 chunks --------------------------------------------------
+  # "The purpose of the Annual Compensation Review is to provide managers with the opportunity to reflect
+  # on team members' accomplishments" (1 doc / 2 chunks; overrides the employee-only prefix above).
+  - path: total-rewards/compensation/compensation-review-cycle/
+    allow: [manager, people-ops]
+  # "Conversations with regards to compensation are an important part of being a people manager." (7)
+  - path: leadership/compensation-review-conversations.md
+    allow: [manager, people-ops]
+  # "Managing and identifying underperformance can be one of the most difficult responsibilities of a manager" (7)
+  - path: leadership/underperformance.md
+    allow: [manager, people-ops]
+  # "Your first few months as a manager at GitLab can be exhilarating." (1 doc / 4)
+  - path: people-group/learning-and-development/manager-development/
+    allow: [manager, people-ops]
+  # "As a Support Manager at GitLab, you will be focusing on the following things" (18 docs / 49)
+  - path: support/managers/
+    allow: [manager, people-ops]
+
+  # --- Entity-specific: 26 docs / 304 chunks -----------------------------------------------------
+  # "**Entity-Specific Benefits** are additional benefits available to team members in countries where
+  # GitLab has established entities or uses Professional Employer Organizations (PEOs)."
+  # (general-and-entity-benefits/_index.md). That index page itself stays open: it holds the
+  # "Contractor Benefits" section (L424), which contractors must see.
+
+  # "All policies on this page apply to **US-based team members** who are employed by GitLab Inc. or
+  # GitLab Federal LLC." (people-policies/inc-usa.md)
+  - path: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/   # 1 doc / 25
+    allow: [entity:us-inc, people-ops]
+  - path: people-policies/inc-usa.md                                            # 14
+    allow: [entity:us-inc, people-ops]
+  - path: people-policies/leave-of-absence/us.md                                # 19; FMLA/CFRA, US only
+    allow: [entity:us-inc, people-ops]
+
+  # UK Ltd benefits page (pension, statutory sick pay rules for UK employees)
+  - path: total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md # 19
+    allow: [entity:uk-ltd, people-ops]
+
+  # Ireland Ltd benefits and Ireland-only policy
+  - path: total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md  # 10
+    allow: [entity:ie-ltd, people-ops]
+  - path: people-policies/ireland-ltd/                                          # 1 doc / 6; right to disconnect (Ireland)
+    allow: [entity:ie-ltd, people-ops]
+
+  # Netherlands and Belgium BV benefits
+  - path: total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md  # 11
+    allow: [entity:nl-bv, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md      # 5
+    allow: [entity:be-bv, people-ops]
+
+  # "These standards apply to all GitLab team members hired through GitLab GmbH" (entity/gmbh-germany.md)
+  - path: entity/gmbh-germany.md                                                # 18
+    allow: [entity:de-gmbh, people-ops]
+
+  # France SAS benefits and France-only charters (remote work, right to disconnect)
+  - path: total-rewards/benefits/general-and-entity-benefits/france-sas.md      # 9
+    allow: [entity:fr-sas, people-ops]
+  - path: people-policies/france-sas/                                           # 2 docs / 29
+    allow: [entity:fr-sas, people-ops]
+
+  # Entity standards pages, same "team members hired through <entity>" scope pattern as GmbH
+  - path: entity/iberia-srl-spain.md                                            # 13
+    allow: [entity:es-srl, people-ops]
+  - path: entity/india-pvt-ltd.md                                               # 10
+    allow: [entity:in-pvt, people-ops]
+  - path: people-policies/india-ltd/                                            # 2 docs / 12; India EOP and POSH policy
+    allow: [entity:in-pvt, people-ops]
+  - path: entity/israel-ltd.md                                                  # 9
+    allow: [entity:il-ltd, people-ops]
+
+  # Remaining entity benefits pages, one entity each
+  - path: total-rewards/benefits/general-and-entity-benefits/canada-corp-benefits.md     # 8
+    allow: [entity:ca-corp, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/pty-benefits-australia.md   # 14
+    allow: [entity:au-pty, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/pty-benefits-new-zealand.md # 12
+    allow: [entity:nz-pty, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/singapore-pte-ltd.md        # 7
+    allow: [entity:sg-pte, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/korea-ltd-benefits.md       # 6
+    allow: [entity:kr-ltd, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/gitlab-gk.md                # 4
+    allow: [entity:jp-gk, people-ops]
+
+  # PEO-administered benefits (team members employed through Remote, Global Expansion, Papaya)
+  - path: total-rewards/benefits/general-and-entity-benefits/remote-com.md               # 18
+    allow: [entity:peo-remote, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/global-expansion.md         # 24
+    allow: [entity:peo-global-expansion, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/papaya-global-benefits.md   # 2
+    allow: [entity:peo-papaya, people-ops]
+
+  # --- Narrow persona (new-contractor): 20 docs / 257 chunks visible, 1.15% ----------------------
+  # Onboarding and contractor pages a temporary service provider needs. "Temporary Service Provider
+  # (Contractor/Consultant) Onboarding" is a section of people-group/general-onboarding/_index.md.
+  # These stay open to staff too.
+  - path: people-group/general-onboarding/                                      # 4 docs / 24
+    allow: [staff, new-contractor, people-ops]
+  - path: total-rewards/benefits/general-and-entity-benefits/_index.md          # 14; "Contractor Benefits" L424
+    allow: [staff, new-contractor, people-ops]
+  - path: people-group/contracts-probation-periods.md                           # 17; "Contractors, Contingent Workers, & Temporary Service Providers"
+    allow: [staff, new-contractor, people-ops]
+  - path: people-group/employment-solutions.md                                  # 4; "Team Members Hired as Contractors via our GitLab Services Inc Entity"
+    allow: [staff, new-contractor, people-ops]
+  - path: company/culture/all-remote/onboarding.md                              # 10
+    allow: [staff, new-contractor, people-ops]
+  - path: eta/corporate-it/end-user-services/onboarding101/                     # 3 docs / 14; laptop and account setup
+    allow: [staff, new-contractor, people-ops]
+  - path: security/corporate/services/onboarding/                               # 1 doc / 3
+    allow: [staff, new-contractor, people-ops]
+  - path: values/_index.md                                                      # 56
+    allow: [staff, new-contractor, people-ops]
+  - path: tools-and-tips/_index.md                                              # 36
+    allow: [staff, new-contractor, people-ops]
+  - path: people-group/_index.md                                                # 12
+    allow: [staff, new-contractor, people-ops]
+  - path: people-group/time-off-and-absence/                                    # 4 docs / 34; contractors get company-wide PTO
+    allow: [staff, new-contractor, people-ops]
+  - path: finance/expenses.md                                                   # 33
+    allow: [staff, new-contractor, people-ops]

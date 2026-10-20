@@ -36,6 +36,7 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [0018. Subagents on file-disjoint slices via the orchestrate skill](docs/decisions/0018-subagent-orchestration.md)
 - [0019. Structural first, recursive inside: headings bound chunks](docs/decisions/0019-structural-first-recursive-inside-chunking.md) (rejected after spec 0006 runs)
 - [0020. Chunk configs coexist in one table, keyed by config_id](docs/decisions/0020-chunk-configs-coexist.md)
+- [0021. Document-level group allow-lists on chunks, filtered in SQL; identity from the session](docs/decisions/0021-permission-model.md)
 
 ## Journal
 
@@ -54,3 +55,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-19: chunking spec, spec 0005](docs/journal/2026-10-19-chunking-spec.md)
 - [2026-10-19: structure-aware chunker build, spec 0005](docs/journal/2026-10-19-chunker-build.md)
 - [2026-10-19: packed sections and prefix build, spec 0006](docs/journal/2026-10-19-packed-build.md)
+- [2026-10-20: permissions design records, spec 0007](docs/journal/2026-10-20-permissions-spec.md)
