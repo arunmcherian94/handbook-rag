@@ -10,7 +10,7 @@ The corpus is the public handbook, so every document is `acl_tags = {public}` an
 
 ADR-0011 kept the quality set ACL-free and deferred permission cases until this design existed. This spec settles the design (decisions D1–D7 of 20 Oct, [ADR-0021](../docs/decisions/0021-permission-model.md)) and the suite that tests it. Part A is the pre-filter, the identity guardrail and the permissions suite. Part B is Friday's recall-starvation measurement on a separate HNSW path. Nothing is built from this PR.
 
-The restricted sets are synthetic, derived from audience signals in the content: "apply to all GitLab team members hired through GitLab GmbH", "an important part of being a people manager". They live in a reviewed draft, [`acl/policy-v1.yaml`](../acl/policy-v1.yaml). Under it, 46 docs (379 of 22,378 `fixed-512-64` chunks, 1.7%) are restricted from staff. The other 4,042 docs are open to every persona except the narrow one and the agency contractor, who sees only the engineering subtree among them (recon, [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md)).
+The restricted sets are synthetic, derived from audience signals in the content: "apply to all GitLab team members hired through GitLab GmbH", "an important part of being a people manager". They live in the approved [`acl/policy-v1.yaml`](../acl/policy-v1.yaml). Under it, 46 docs (379 of 22,378 `fixed-512-64` chunks, 1.7%) are restricted from staff. The other 4,042 docs are open to every persona except the narrow one and the agency contractor, who sees only the engineering subtree among them (recon, [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md)).
 
 ## Acceptance criteria
 
@@ -37,9 +37,9 @@ Identity
   | employment_type employee | `staff`, `employee` |
   | employment_type contractor | `staff`, `contractor` |
   | employment_type temporary (Temporary Service Provider) | `new-contractor` |
-  | employment_type agency, function X (contractor engaged through an agency) | `new-contractor`, `agency:X`; never `people-ops`, and `agency:X` must be in the vocabulary or resolution fails |
-  | role people-manager | `manager` |
-  | function people-ops | `people-ops` |
+  | employment_type agency, function X (contractor engaged through an agency) | `new-contractor`, `agency:X`; `agency:X` must be in the vocabulary or resolution fails |
+  | role people-manager (employees only) | `manager` |
+  | function people-ops (employees only) | `people-ops` |
   | entity X | `entity:X` |
 
   The six personas:
@@ -115,7 +115,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
   - HNSW with `hnsw.iterative_scan` = `strict_order` and `relaxed_order` (pgvector ≥ 0.8.0; the DB has 0.8.7)
 
   Reported, per persona and per setting:
-  - **Primary: ANN recall@k against the exact filtered top k**, |HNSW_filtered ∩ exact_filtered| / k at k = 5 and 20, plus the number of results returned (and the count of questions returning fewer than k). It needs no eval facts, so it is defined for every persona and question.
+  - **Primary: ANN recall@k against the exact filtered top k**, |HNSW_filtered ∩ exact_filtered| / min(k, |exact_filtered|) at k = 5 and 20, plus the number of results returned (and the count of questions returning fewer than k). The denominator counts only what exact search could return, so a persona that sees fewer than k chunks isn't scored as an ANN miss. It needs no eval facts, so it is defined for every persona and question.
   - **Secondary: fact recall** (AC-12 authorized recall), only for rows where the persona is entitled to at least one required fact, with n shown. At the pin, n is 17 v1.2 rows for `narrow`, 18 for `agency`, 31 for `us-ic`, `manager` and `contractor`, and 32 for `admin`.
   - Latency p50/p95. Settings are recorded: `ef_search`, `max_scan_tuples`.
 - AC-19: **Write-up:** a journal entry with the numbers and an ADR-0020/0021 consequence: when production gets an ANN index, use iterative scans or partition by group. No production change.
@@ -166,7 +166,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
 ## History
 
 - 2026-10-20: drafted; approved and merged in PR #27 (Arun). Status set to approved with the amendment.
-- 2026-10-20, amended in place before any build (nothing had consumed `policy-v1`): persona shares clustered at ~98% plus one point at 1.15%, so Part B had no mid-selectivity point. Added the `agency` persona (engineering, 32.46%) and the `engineering/` rule with the `agency:engineering` group (AC-6). Part B's primary metric is now ANN recall@k against the exact filtered top k, with fact recall secondary and n shown (AC-18). At least 4 agency cases added (AC-15). Recon and figures: [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md#amendment-agency-persona-and-part-b-metric).
+- 2026-10-20, amended in place before any build (nothing had consumed `policy-v1`): persona shares clustered at ~98% plus one point at 1.15%, so Part B had no mid-selectivity point. Added the `agency` persona (engineering, 32.46%) and the `engineering/` rule with the `agency:engineering` group (AC-6). Part B's primary metric is now ANN recall@k against the exact filtered top k, divided by min(k, |exact|) (Arun), with fact recall secondary and n shown (AC-18). At least 4 agency cases added (AC-15). Recon and figures: [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md#amendment-agency-persona-and-part-b-metric).
 
 ## Verification
 

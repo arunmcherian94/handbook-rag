@@ -4,7 +4,7 @@
 # Paths are relative to content/handbook/. A path ending in "/" is a prefix; the catch-all "" is the root prefix; anything else is exact.
 # Resolution: an exact path beats any prefix; among prefixes the longest wins. The catch-all ("") is explicit.
 # people-ops is listed on every rule, so the admin sees everything through the policy, never a bypass.
-# Redirect stubs ignore their own rule and inherit their target's allow-list (no stub targets a restricted path at the pin).
+# Redirect stubs ignore their own rule and inherit their target's allow-list (no stub targets a path restricted from staff at the pin; the five stubs under engineering/ target engineering pages, so the agency persona sees stub and target alike).
 # Chunk counts are fixed-512-64 at the pin. Restricted from staff: 46 docs, 379 chunks.
 # Open to staff: 4,042 docs / 21,999 chunks; engineering/ and the new-contractor rules narrow only the non-staff personas.
 

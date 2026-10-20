@@ -81,16 +81,33 @@ Spec 0007 was amended in place after PR #27: nothing is built and nothing has co
   Admin is at 32 rather than 33 because one row's required facts are all answer-only. The narrow persona does have entitled rows (17; 9 with every expected doc entitled), so fact recall is defined for it. It stays secondary anyway.
 - **Checks:** a throwaway resolver (`uv run --no-project --with pyyaml`) confirmed `people-ops` on every rule, every group in the vocabulary and no stale rule. No-orphan and one-parent-document scripts don't exist yet. They're AC-4 invariants, built in Part A.
 - **Code-review catches (fixed before the PR):**
-  - **An agency user with `function` people-ops would have resolved to `people-ops`** (all access) through the existing function row. AC-6 now says the agency row never yields `people-ops`, and `agency:X` must be in the vocabulary.
+  - **Role and function rows escalated non-employees.** An agency, contractor or temporary user with `function` people-ops would have resolved to `people-ops` (all access), and one with `role` people-manager to `manager`. In AC-6, both rows now apply to employees only (none of the six personas changes). `agency:X` must be in the vocabulary.
   - **The catch-all comment** still said 4,042 docs resolve to it. It's 2,770 docs / 14,736 chunks now; 4,042 / 21,999 is what staff can see.
   - **"Restricted" was ambiguous** once `engineering/` narrows non-staff personas. The 46 docs are "restricted from staff" in the policy header and the spec.
   - **This entry's "why"** gave narrow's row count as the reason for the metric change, which contradicted its own table. Reworded.
   - **ADR-0021 D3** didn't list the agency employment type.
-  - Lower priority, left for Arun: AC-18 divides by k, not min(k, |exact|). Every persona sees at least 257 chunks, so exact always fills k = 20 at the pin.
+  - **Second review pass:** the Problem section still said "reviewed draft"; ADR-0021 D7 lacked the min(k, |exact|) denominator; the policy's stub comment said "restricted" without "from staff"; and a Claude fact-check sat inside Arun's reading takeaway (moved to a labelled note).
+  - Lower priority, decided by Arun: AC-18 now divides by min(k, |exact|) instead of k. Dividing by k would count chunks a persona can't see as ANN misses. At the pin both give the same numbers, since every persona sees at least 257 chunks.
   - No change: reading stubs and the Chroma deferral ride in this PR at Arun's request.
 - **Statuses:** spec 0007 draft → approved, ADR-0021 proposed → accepted, and the "DRAFT" header dropped from `policy-v1.yaml`. Arun approved all three by merging #27.
 - **ADR-0020 accepted** (Arun). Checked against the DB: `chunk_configs` exists, `chunks.config_id` has an FK to it, `heading_path` and the line range are on `chunks`, and five configs coexist. `chunk_embeddings.embed_input` was never built, because spec 0006 made the prefix a config param instead. The ADR now says so.
 - **Spec edits:** AC-6 (six personas, the agency resolution row), AC-15 (at least 4 agency cases, at least 2 in-department allowed and 2 out-of-department denied with twins), AC-18 (primary ANN recall@k against the exact filtered top k plus the results-returned count, at three selectivity points; fact recall secondary with n). Also the Problem section, References (pgvector 0.8.0, Weaviate filtering, Vespa HNSW) and a new History section. ADR-0021 D6 and D7 match.
+- **Embedding comparison planning (for Wed 21 Oct, spec 0008):**
+  - **Prefix arm only on a winner** (Arun): every candidate runs on `fixed-512-64`. Only a model that beats 3-small then gets a `fixed-512-64-prefixed` run. 3-small already has both arms (spec 0006: +0.036, within the SE, so it's a tie). Skipping the rest loses only a model-by-prefix interaction, which 33 rows couldn't detect. [Follow-ups](../follow-ups.md#from-the-spec-0006-runs-2026-10-19) updated.
+  - **Leaderboard snapshot, checked 20 Oct 2026 in the browser** (rankings drift, so it's dated). [MTEB(eng, v2)](https://mteb-leaderboard.hf.space/benchmark/MTEB(eng%2C%20v2)), 188 models:
+
+    | rank | model | zero-shot | mean (task) | retrieval |
+    |---|---|---|---|---|
+    | #1 | ingot-8b-r3 | 82% | 75.98 | 70.00 |
+    | #5 | Qwen3-Embedding-8B | 95% | 75.23 | 69.44 |
+    | #7 | Qwen3-Embedding-4B | 95% | 74.61 | 68.46 |
+    | #9 | gemini-embedding-001 | 95% | 73.30 | 64.35 |
+    | #25 | Qwen3-Embedding-0.6B | 95% | 70.47 | 61.83 |
+    | #88 | text-embedding-3-large | NA | — | 57.98 |
+    | #116 | text-embedding-3-small (ours) | NA | — | 53.48 |
+
+    Voyage-4 isn't on MTEB(eng, v2). On [RTEB(eng, beta)](https://mteb-leaderboard.hf.space/benchmark/RTEB(eng%2C%20beta)) (retrieval only, legal/finance/code/health, scores hidden, ranks shown): voyage-4-large #1, voyage-4 #12, gemini-embedding-001 #13, Qwen3-Embedding-8B #14, text-embedding-3-large #35.
+  - **Provider differences to handle in spec 0008:** chunks stay cl100k-sized, so chunk ids and scoring don't change. Each model's own tokenizer counts more tokens, so the adapter must fail rather than truncate silently. The cost estimate is approximate for non-OpenAI models. Query and document input types (Voyage `input_type`, Gemini `task_type`, the Qwen3 query instruction) must be set, or that model is handicapped. The answer model isn't affected: it sees chunk text only.
 
 ---
 

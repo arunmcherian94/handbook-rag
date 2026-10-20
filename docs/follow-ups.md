@@ -50,7 +50,7 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
 
 ## From the spec 0006 runs (2026-10-19)
 
-- **Heading-path prefix as a second arm:** in the embedding-model comparison, embed each candidate model on both `fixed-512-64` and `fixed-512-64-prefixed` (about $0.2 extra per model). Adopt the prefix only if it wins again; on text-embedding-3-small it was +0.036 at k=5, 3 rows won and 1 lost, within the SE (Arun, 19 Oct).
+- **Heading-path prefix, on the winner only:** every candidate in the embedding-model comparison runs on `fixed-512-64`. Only a model that beats text-embedding-3-small then gets a `fixed-512-64-prefixed` run (about $1). Adopt the prefix only if it wins there. On 3-small it was +0.036 at k=5, 3 rows won and 1 lost, within the SE (Arun, 19 Oct). Changed from both arms for every candidate (Arun, 20 Oct): 33 rows can't detect a model-by-prefix interaction.
 - **Fixed size and overlap sweep, week 4 with context assembly:** 256/32 and 1024/128, then overlap 0 and 128 at 512 ([ADR-0003](decisions/0003-baseline-chunking-512-64.md)). Decide on recall at the token-matched k, after the week-3 reranker, when k unfreezes. About $0.2 of embedding per config (Arun, 19 Oct).
 
 ## From the spec 0007 review (2026-10-20)

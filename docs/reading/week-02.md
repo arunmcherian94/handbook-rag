@@ -9,13 +9,21 @@ and what it changes in this project. Newest first within each date.
 
 ### MTEB caveats
 
-For Wed 21 Oct's embedding-model comparison. Takeaways are Arun's, after reading.
+For Wed 21 Oct's embedding-model comparison. *Arun's notes, edited by Claude for accuracy at Arun's request (20 Oct). The Maintaining MTEB and Hugging Face notes were taken together.*
+
+Takeaways:
+- **A leaderboard rank needs its zero-shot score next to it.** Top models often get there by training on benchmark tasks.
+- **Small rank gaps mean little; large ones are worth trusting directionally.** On our 33 rows, only a large difference will show. So pick candidates well above text-embedding-3-small, then decide on our own data.
+- **Rank isn't the only criterion:** context window, language coverage and domain fit matter too.
+- **Rankings drift.** Record the date of any leaderboard check (snapshot in the [20 Oct journal](../journal/2026-10-20-permissions-spec.md)).
 
 | Source | Date | My takeaway | Decisions informed |
 |---|---|---|---|
-| [MTEB maintainers, Maintaining MTEB (arXiv 2506.21182)](https://arxiv.org/abs/2506.21182), §5.1 "Case Study 1: Assessing zero-shot levels" in the [full text](https://arxiv.org/html/2506.21182) (the abstract page has no sections); Appendix C defines the score | 2025 | TODO (Arun, after reading) | How to read Wednesday's comparison against leaderboard rank |
-| [Hugging Face / lyon-nlp, MTEB Leaderboard: user guide and best practices](https://huggingface.co/blog/lyon-nlp-group/mteb-leaderboard-best-practices) | undated | TODO (Arun, after reading) | Treating top leaderboard models as statistically equivalent; leakage and overfitting caveats for Wednesday's comparison |
-| [ZeroEntropy, MTEB concept page](https://zeroentropy.dev/concepts/mteb/) | undated | TODO (Arun, after reading) | Contamination; "trust directionally, evaluate on your data" for Wednesday's comparison |
+| [MTEB maintainers, Maintaining MTEB (arXiv 2506.21182)](https://arxiv.org/abs/2506.21182), §5.1 "Case Study 1: Assessing zero-shot levels" in the [full text](https://arxiv.org/html/2506.21182) (the abstract page has no sections); Appendix C defines the score | 2025 | MTEB (Massive Text Embedding Benchmark) has a public leaderboard on Hugging Face. The zero-shot score estimates how much of a model's training data overlaps the benchmark's own training splits. Higher means less overlap: 95% means it trained on about 5% of the splits. Top-ranked models often get there by training on benchmark tasks, so check a model's zero-shot score before trusting its rank. | How to read Wednesday's comparison against leaderboard rank |
+| [Hugging Face / lyon-nlp, MTEB Leaderboard: user guide and best practices](https://huggingface.co/blog/lyon-nlp-group/mteb-leaderboard-best-practices) | undated | Models close together on the leaderboard are often not meaningfully different, so a small score gap isn't a reliable ranking. text-embedding-3-small ranks fairly low, so pick candidates well above it, where a real difference can show on our 33 rows. Rank isn't the only criterion: weigh the context window (against our 512-token chunks), multilingual support and fit to our domain (models can do better on particular domains, such as legal). | Treating top leaderboard models as statistically equivalent; leakage and overfitting caveats for Wednesday's comparison |
+| [ZeroEntropy, MTEB concept page](https://zeroentropy.dev/concepts/mteb/) | undated | Retrieval labels are mostly binary (relevant or not), so the leaderboard rewards finding a relevant doc more than ranking the most relevant one first. Models that look strong on binary labels can order results poorly, and graded labels reshuffle the ranks. Rank doesn't transfer reliably to private corpora; contamination is one cause. Trust large gaps directionally, then evaluate on our own data, which no candidate has trained on. Rankings drift as datasets are added or re-weighted, so record the leaderboard date or version. | Contamination; "trust directionally, evaluate on your data" for Wednesday's comparison |
+
+*Claude's note on the ZeroEntropy row, not Arun's takeaway:* the page says the labels are "binary", but MTEB's headline retrieval metric is nDCG@10, and some of its datasets have graded labels. Our page metrics are binary too, and graded nDCG is a follow-up. *On the zero-shot row:* "trained on about 5% of the splits" is the paper's own reading of e5-mistral's 95% (§5.1).
 
 Reference only: [Muennighoff et al., MTEB: Massive Text Embedding Benchmark (arXiv 2210.07316)](https://arxiv.org/abs/2210.07316) (2022) and the [MTEB leaderboard](https://huggingface.co/spaces/mteb/leaderboard).
 

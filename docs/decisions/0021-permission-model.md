@@ -28,7 +28,7 @@
   - contractor, who can still see Contractor Benefits
   - narrow temporary contractor who sees only onboarding and contractor pages, about 1.2% of chunks
   - agency contractor in engineering, who sees the engineering subtree plus onboarding and contractor pages, about 32.5% of chunks (added 20 Oct, spec 0007 amendment)
-- **D7, recall starvation:** measured on Friday on a separate HNSW path, at three selectivity points (~98%, agency, narrow) with iterative scans on vs off. The primary metric is ANN recall@k against the exact filtered top k. The production exact path is untouched.
+- **D7, recall starvation:** measured on Friday on a separate HNSW path, at three selectivity points (~98%, agency, narrow) with iterative scans on vs off. The primary metric is ANN recall@k against the exact filtered top k, divided by min(k, |exact|). The production exact path is untouched.
 - **Guardrail, identity comes from the session and never from the question:**
   - `Principal` is constructed only in the identity module.
   - Every retrieval path requires one, with no default.
