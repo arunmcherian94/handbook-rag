@@ -1,6 +1,6 @@
 # 0020. Chunk configs coexist in one table, keyed by config_id
 
-- **Status:** proposed
+- **Status:** accepted (2026-10-20, Arun). Built in specs 0005–0006, except `embed_input`, which spec 0006 superseded (below).
 - **Date:** 2026-10-19
 - **Journal:** [2026-10-19 chunking spec](../journal/2026-10-19-chunking-spec.md)
 
@@ -16,7 +16,7 @@ Week 2 compares chunkings against the baseline, so the baseline's 22,378 chunks 
 - **A `chunk_configs` table** (config_id, strategy, params, tokenizer) and `chunks.config_id` as an FK. Code defines the configs; the table records them, and a run fails if the stored params differ from the code's, so an id never changes meaning.
 - **Everything that reads chunks takes a config,** defaulting to the baseline `fixed-512-64`. It is never chosen by a global "active" flag, which would make runs depend on order.
 - **Per-chunk metadata:** heading path and file line range.
-- **Embedding input, planned for the title-chain run:** `chunk_embeddings.embed_input` (default `'content'`), PK `(chunk_id, model, embed_input)`. A retrieval index is then `(config_id, model, embed_input)`. Chunk rows and line ranges stay fixed, so scoring is unaffected. Contextual retrieval would also store its generated text, so re-embedding doesn't change it.
+- **Embedding input, planned for the title-chain run** (superseded by [spec 0006](../../specs/0006-packed-sections-and-heading-prefix.md): the prefix is a config param with its own chunk rows, `fixed-512-64-prefixed`, so no `embed_input` column was built): `chunk_embeddings.embed_input` (default `'content'`), PK `(chunk_id, model, embed_input)`. A retrieval index is then `(config_id, model, embed_input)`. Chunk rows and line ranges stay fixed, so scoring is unaffected. Contextual retrieval would also store its generated text, so re-embedding doesn't change it.
 
 Rejected:
 - **Configs in a code dict only:** editing params under an existing id silently mislabels rows already chunked.
