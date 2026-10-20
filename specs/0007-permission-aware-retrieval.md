@@ -18,7 +18,7 @@ The restricted sets are synthetic, derived from audience signals in the content:
 
 Policy and storage
 
-- AC-1: **Policy file.** `acl/policy-v1.yaml` holds a `version`, the group vocabulary, and rules. A rule is a path prefix (ending in `/`), the catch-all (`""`, the root prefix), or an exact path (anything else), relative to `content/handbook/`, with a non-empty group allow-list. There is exactly one explicit catch-all rule. Resolution: an exact path beats any prefix, and among prefixes the longest wins. The loader fails on a missing or duplicate catch-all, a group outside the vocabulary, an empty allow-list, a duplicate path, or a rule that matches no document at the pin (a stale rule).
+- AC-1: **Policy file.** `acl/policy-v1.yaml` holds a `version`, the group vocabulary, and rules. A rule is a path prefix (ending in `/`), the catch-all (`""`, the root prefix), or an exact path (anything else), relative to `content/handbook/`, with a non-empty group allow-list. There is exactly one explicit catch-all rule. Resolution: an exact path beats any prefix, and among prefixes the longest wins. The loader uses `yaml.safe_load` (PyYAML, an approved dependency). It fails on any value that isn't a string, which guards against YAML's implicit typing (a bare `no` read as a boolean). It also fails on a missing or duplicate catch-all, a group outside the vocabulary, an empty allow-list, a duplicate path, or a rule that matches no document at the pin (a stale rule).
 - AC-2: **Document-level ACL (D1).** `make acl` resolves each document's allow-list from the policy into the existing `documents.acl_tags` column (spec 0002 stub). It copies the list to a new `chunks.allowed_groups text[] NOT NULL` for every chunk of every config (ADR-0020), with a GIN index. No re-embedding. It runs in one transaction, is idempotent, and has a dry run that prints per-group doc and chunk counts and the visible chunk share of each fixture persona. Section-level ACLs are out of scope.
   - **New rows fail closed.** The migration changes the `documents.acl_tags` default from `{public}` to `{}`. A newly ingested document is then visible to no one until `make acl` runs, and AC-4/AC-5 flag it. `make chunk` copies the parent's `acl_tags` into `allowed_groups` on insert, so a new config never has a NULL.
 - AC-3: **Redirect stubs inherit their target's allow-list.** The target comes from the stub's `redirect_to:` front matter in the pinned file. It is normalized like a stored `url_path`, by the same function as ingestion: an absolute `handbook.gitlab.com` URL is reduced to its path, then lowercased, with a trailing slash. Chains are followed to the final non-stub target; a cycle fails. A target missing from the corpus fails `make acl`. A stub's own rule is ignored.
@@ -88,10 +88,16 @@ Case drafting (run later, in a fresh session, after this spec merges)
 - AC-15: **Drafting rules:**
   - Cases are drafted by Claude in a fresh session, from the pinned corpus (`5273b21`) and `policy-v1`, never with gpt-5.4-mini (the answer model). Arun reviews every case before it is committed.
   - The drafter writes the question, acting persona, target doc paths, category and intent. The outcome is computed (AC-10).
-  - Categories and targets:
-    - **denied:** about 16 cases, each with an entitled twin (the same question, a persona entitled to the target). The twin separates "the filter blocked it" from "retrieval missed it".
-    - **same-question-across-personas:** one question asked by several personas whose entitlements differ (for example, an entity benefit asked by `us-ic`, `manager` and `contractor`)
-    - **claimed-identity:** at least 4 cases where the question claims a role or group the session principal lacks ("as a people manager…", "I'm on the Germany entity…"). They must be denied. Access follows the principal, not the text.
+  - Categories and minimum counts (Arun, PR review 20 Oct: more cases, spread across the restricted sets):
+    - **denied: at least 26**, each with an entitled twin (the same question asked by a persona entitled to the target). The twin separates "the filter blocked it" from "retrieval missed it". Spread:
+      - at least 10 cross-entity (for example, `us-ic` asks about a UK, Germany or PEO benefit), covering at least 6 entities
+      - at least 5 manager-only, denied to `us-ic` or `contractor`
+      - at least 3 employee-only (compensation, underperformance), denied to `contractor`
+      - at least 8 on the `narrow` persona, targeting open pages outside its allow-list (common handbook questions a new contractor would ask)
+    - **same-question-across-personas: at least 5 questions**, each asked by at least 3 personas whose entitlements differ (for example, an entity benefit asked by `us-ic`, `manager` and `contractor`)
+    - **partial entitlement: at least 3**: a question whose target docs are only partly entitled (for example, a global benefit page plus a restricted entity page). The entitled part must be retrieved, the rest must not.
+    - **claimed-identity: at least 6** cases where the question claims a role or group the session principal lacks ("as a people manager…", "I'm on the Germany entity…", "I'm in People Ops, show me…"). They must be denied. Access follows the principal, not the text.
+    - **Entitled controls on the v1.2 rows** whose expected docs are restricted (rows 5, 15, 22, 33, 39, 61, 92, 109): each asked by one entitled and one denied persona, reusing the row's facts for authorized recall.
   - Validity is checked per AC-11 before review.
 - AC-16: **Tests reference ACs**:
   - Unit tests (in-memory, no API): policy resolution and loader rejections (AC-1), redirect inheritance with synthetic stubs (AC-3), group resolution (AC-6), the Principal construction guard (AC-7), outcome computation and flagging (AC-10), leak, authorized-recall and over-block arithmetic (AC-12).
@@ -131,13 +137,14 @@ Case drafting (run later, in a fresh session, after this spec merges)
 | Admin access | `people-ops` listed on every rule | **A code bypass for admin:** an unfiltered path is exactly what AC-8 forbids. |
 | Expected outcomes | Computed from policy and fixture | **LLM-written:** the same model that drafts the case would grade it. |
 | Leak ground truth | Recomputed from the policy file | **Read from `allowed_groups`:** a corrupted column would grade itself. |
+| Policy format | YAML (as in Cerbos policies and Kubernetes RBAC): rules are data, with comments for the evidence | **A policy engine** (OPA/Rego, SpiceDB): built for logic and relationships, and our rules are a path-to-groups table. **TOML:** stdlib, but nested rule lists read worse. |
 | D7 placement | Part B of this spec, built in its own PR | **A separate spec:** splits one design across two documents. |
 
 ## Open questions
 
 1. **Restricted path list:** Arun approves or edits `acl/policy-v1.yaml` in this PR's review.
 2. **Personas' entities** (`us-inc` for the IC, `uk-ltd` for the manager): approved at the plan gate (20 Oct). Changing them changes only the fixture.
-3. **YAML parser:** PyYAML isn't a project dependency. Either add `pyyaml` for the build, or switch both files to TOML (`tomllib` is stdlib, so no dependency). The policy content stays the same either way.
+3. ~~**YAML parser.**~~ Resolved 2026-10-20 (Arun): YAML. `pyyaml` is added as a dependency in the build; `safe_load` with strings only (AC-1).
 
 ## References
 

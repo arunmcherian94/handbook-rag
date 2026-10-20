@@ -43,24 +43,26 @@ rules:
   - path: ""
     allow: [staff, people-ops]
 
-  # --- Compensation (employee-only): 1 doc / 6 chunks --------------------------------------------
+  # --- Employee-only: 2 docs / 13 chunks ----------------------------------------------------------
   # "Our standardized framework utilizes local labor market data ... compensation directly aligns with
   # pay for performance" (compensation/_index.md). Pay framework for employees; ADR-0011 gate catch:
   # "restrict employee-only benefits and compensation pages".
   # Not restricted: stock-options.md, incentives.md (no employee-only signal).
   - path: total-rewards/compensation/
     allow: [employee, people-ops]
+  # Manager guidance, but with sections written for the team member being managed: "Team Member: Discuss
+  # Circumstances Immediately With Your Manager" (L65), PIP compensation impact (L117), no transfers during
+  # remediation (L121). Hiding it from the affected employee is wrong (Arun, PR review 20 Oct). (7)
+  - path: leadership/underperformance.md
+    allow: [employee, people-ops]
 
-  # --- People-manager-only: 19 docs / 69 chunks --------------------------------------------------
+  # --- People-manager-only: 18 docs / 62 chunks --------------------------------------------------
   # "The purpose of the Annual Compensation Review is to provide managers with the opportunity to reflect
   # on team members' accomplishments" (1 doc / 2 chunks; overrides the employee-only prefix above).
   - path: total-rewards/compensation/compensation-review-cycle/
     allow: [manager, people-ops]
   # "Conversations with regards to compensation are an important part of being a people manager." (7)
   - path: leadership/compensation-review-conversations.md
-    allow: [manager, people-ops]
-  # "Managing and identifying underperformance can be one of the most difficult responsibilities of a manager" (7)
-  - path: leadership/underperformance.md
     allow: [manager, people-ops]
   # "Your first few months as a manager at GitLab can be exhilarating." (1 doc / 4)
   - path: people-group/learning-and-development/manager-development/

@@ -51,8 +51,14 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
 ## From the spec 0006 runs (2026-10-19)
 
 - **Heading-path prefix as a second arm:** in the embedding-model comparison, embed each candidate model on both `fixed-512-64` and `fixed-512-64-prefixed` (about $0.2 extra per model). Adopt the prefix only if it wins again; on text-embedding-3-small it was +0.036 at k=5, 3 rows won and 1 lost, within the SE (Arun, 19 Oct).
-
-## From the spec 0006 runs (2026-10-19)
-
-- **Heading-path prefix as a second arm:** in the embedding-model comparison, embed each candidate model on both `fixed-512-64` and `fixed-512-64-prefixed` (about $0.2 extra per model). Adopt the prefix only if it wins again; on text-embedding-3-small it was +0.036 at k=5, 3 rows won and 1 lost, within the SE (Arun, 19 Oct).
 - **Fixed size and overlap sweep, week 4 with context assembly:** 256/32 and 1024/128, then overlap 0 and 128 at 512 ([ADR-0003](decisions/0003-baseline-chunking-512-64.md)). Decide on recall at the token-matched k, after the week-3 reranker, when k unfreezes. About $0.2 of embedding per config (Arun, 19 Oct).
+
+## From the spec 0007 review (2026-10-20)
+
+- **Prompt injection beyond retrieval, week 5:** the Principal guardrail is structural. Groups come only from the session, and the filter runs in SQL before ranking, so no prompt text can widen what is retrieved. Claimed-identity cases (AC-15) test exactly that. It does not stop a prompt from changing the answer model's behaviour over chunks it *is* allowed to see:
+  - ignoring the grounding rules
+  - leaking the system prompt
+  - indirect injection planted in corpus content
+  - in week 5, steering agent tools into calls the user didn't intend
+
+  Week 5 grows the claimed-identity cases into an injection suite. Agent tools take the session principal, never one from model output (spec 0007 AC-14). Model-based identity-claim detection is out of scope for spec 0007 (Arun, 20 Oct).

@@ -9,9 +9,15 @@ and what it changes in this project. Newest first within each date.
 
 ### Permission models in production RAG
 
-*LLM-drafted, Arun to edit.* All nine pages were fetched on 20 Oct; quotes are from the pages.
+*LLM-drafted at Arun's request (20 Oct), Arun reviews in the spec 0007 PR.* All nine pages were fetched on 20 Oct; the quotes are from the pages.
 
-Takeaway: index-time ACLs (early binding) are only as fresh as the sync; strong designs add a fetch-time check. I chose early binding for v1 and can state the staleness window.
+Takeaways:
+- **Index-time ACLs (early binding) are only as fresh as the sync; strong designs add a fetch-time check.** I chose early binding for v1 and can state the staleness window.
+- **The production pattern is the same everywhere:** an allow-list field on each indexed item, a filter on the caller's groups inside the search query, and membership kept outside the index (Elastic, Azure, Cerbos). That is our `allowed_groups && :groups`.
+- **Missing must fail closed.** Elastic treats a document with no access field as visible to everyone, a convenient default that is dangerous in a permissions system. Hence NOT NULL, non-empty, and an invariant test over every config.
+- **The search engine trusts whatever groups it is given.** Azure says the principal "is just a string", so the guarantee depends on the application resolving groups from the session, never from the request. That's why `Principal` has a single constructor.
+- **Filter before ranking, not after.** Post-retrieval checks are flexible, but they hand back fewer than k results, and Cerbos warns they leak through counts and ranking. Pre-filtering keeps both the k and the secret.
+- **Hierarchy is the cheap way to scale ACLs.** WorkOS tags by container instead of syncing per-document ACLs. Our path-prefix policy is the same idea resolved at ingestion, so a policy change rewrites arrays but a membership change costs nothing.
 
 | Source | Date | My takeaway | Decisions informed |
 |---|---|---|---|

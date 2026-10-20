@@ -4,14 +4,14 @@
 - **Recon at the pin** (`fixed-512-64`, 4,088 docs, 22,378 chunks):
   - pgvector is 0.8.7, so iterative index scans (≥ 0.8.0) are available for Part B.
   - `documents.acl_tags` already exists as a spec 0002 stub (`{public}` everywhere). `chunks` has no ACL column.
-  - The draft restricts 46 docs and 379 chunks (1.7%): compensation, employee-only (1 doc, 6 chunks); people-manager-only (19, 69); entity-specific (26, 304, across 16 entities and 3 PEOs).
+  - The draft restricts 46 docs and 379 chunks (1.7%): employee-only (2 docs, 13 chunks: compensation and underperformance); people-manager-only (18, 62); entity-specific (26, 304, across 16 entities and 3 PEOs). These are the figures after the PR review below.
   - Visible share per persona:
 
     | persona | groups | visible chunks |
     |---|---|---|
     | admin | staff, employee, people-ops, us-inc | 22,378 (100%, via `people-ops`) |
-    | US IC | staff, employee, us-inc | 21,999 open + 58 + 6 = 22,063 (98.59%) |
-    | manager | staff, employee, manager, uk-ltd | 21,999 + 19 + 6 + 69 = 22,093 (98.73%) |
+    | US IC | staff, employee, us-inc | 21,999 open + 58 + 13 = 22,070 (98.62%) |
+    | manager | staff, employee, manager, uk-ltd | 21,999 + 19 + 13 + 62 = 22,093 (98.73%) |
     | contractor | staff, contractor | 21,999 (98.31%) |
     | narrow | `new-contractor` | 257 (1.15%) |
 
@@ -35,7 +35,21 @@
   - **Authorized recall at 0/0** is `n/a`, excluded from the mean (AC-12).
   - **Fetch-by-id outside `evaluation/`** must take a principal too; the eval's scoring reads are an explicit exempt list (AC-8).
   - Not changed: the reading takeaways were drafted by Claude. CLAUDE.md wants them in Arun's words, and the entry is marked "LLM-drafted, Arun to edit" as the brief asked.
-- **Housekeeping:** removed the AC-8, AC-9 and limitation bullets that were duplicated in [2026-10-19-packed-build](2026-10-19-packed-build.md).
+- **PR review (Arun, 20 Oct):**
+  - **`leadership/underperformance.md` moved from manager-only to employee-only.** It has sections written for the team member: "Team Member: Discuss Circumstances Immediately With Your Manager" (L65), the compensation impact of a PIP (L117), and no transfers during remediation (L121).
+  - **`support/managers/` stays manager-only.**
+  - **Agreed:** the fail-closed `acl_tags` default, the eval's scoring exemption, the leak and authorized-recall definitions, and the staleness wording.
+  - **Part B scope** is revisited on Friday.
+  - **YAML stays:** `pyyaml` is approved, loaded with `safe_load`, and every value must be a string.
+  - **More cases (AC-15):** at least 26 denied, spread across cross-entity, manager, employee-only and narrow. Plus at least 5 same-question sets, at least 3 partial-entitlement cases, at least 6 claimed-identity cases, and entitled and denied controls on the 8 restricted v1.2 rows. The narrow persona supplies denied targets from the open corpus, which offsets the small restricted set (46 docs).
+  - **Narrow persona list checked and kept:**
+    - Temporary Service Provider onboarding goes through Procurement (`general-onboarding/_index.md`).
+    - Contractors are reimbursed via iiPay (`finance/expenses.md` L693, L729).
+    - Independent contractors must log time away (`time-away-philosophy.md` L187).
+    - `contingent-worker-policy.md` was not added, because it's written for the people hiring contractors.
+  - **Reading takeaways:** Claude writes them at Arun's request, an exception to CLAUDE.md's "in Arun's words" for this entry. Arun reviews them in the PR.
+  - **Prompt injection beyond retrieval** is noted as a week 5 [follow-up](../follow-ups.md#from-the-spec-0007-review-2026-10-20).
+- **Housekeeping:** removed the AC-8, AC-9 and limitation bullets duplicated in [2026-10-19-packed-build](2026-10-19-packed-build.md), and a duplicated "spec 0006 runs" section in follow-ups.
 
 ---
 
