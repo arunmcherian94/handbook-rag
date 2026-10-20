@@ -51,6 +51,45 @@
   - **Prompt injection beyond retrieval** is noted as a week 5 [follow-up](../follow-ups.md#from-the-spec-0007-review-2026-10-20).
 - **Housekeeping:** removed the AC-8, AC-9 and limitation bullets duplicated in [2026-10-19-packed-build](2026-10-19-packed-build.md), and a duplicated "spec 0006 runs" section in follow-ups.
 
+## Amendment: agency persona and Part B metric
+
+Spec 0007 was amended in place after PR #27: nothing is built and nothing has consumed `policy-v1`. Part A has not started.
+
+- **Why:** the persona shares cluster at ~98% (admin 100, US IC 98.62, manager 98.73, contractor 98.31), plus one point at 1.15% (narrow). Part B needs a point in between to show where HNSW recall degrades. Part B's primary metric also mustn't depend on eval facts: which v1.2 rows a persona is entitled to is a property of the eval set, not of the index, so fact recall can't isolate ANN recall loss. (The worry that narrow has no entitled rows turned out wrong: it has 17, see below.)
+- **Recon** (`fixed-512-64`, 22,378 chunks, 33 answerable rows): no second-level directory has both a 15–30% share and at least 5 v1.2 rows inside it. The eval set leans on HR pages: `people-group` holds 9 rows that fall entirely inside it, but only 2.42% of chunks.
+
+  | dept | chunks | share | rows with all expected docs inside | with the onboarding pages: share, rows with ≥ 1 required fact entitled |
+  |---|---|---|---|---|
+  | engineering | 7,006 | 31.31% | 0 | 32.46%, 18 (1 from engineering itself, row 38) |
+  | marketing | 2,558 | 11.43% | 1 | 12.58%, 18 |
+  | security | 1,429 | 6.39% | 0 | 7.52%, 19 |
+  | people-group | 542 | 2.42% | 9 | n/a |
+
+- **Chosen: engineering** (Arun, 20 Oct). It sits slightly above the band and gets its entitled rows almost entirely from the onboarding pages. That's acceptable, because fact recall is now the secondary metric.
+- **Persona `agency`:** `employment_type` agency with `function` engineering resolves to `new-contractor` (the onboarding and contractor pages) plus `agency:engineering`. A new `engineering/` rule allows `[staff, agency:engineering, people-ops]`. The persona isn't in `staff`, so the catch-all doesn't apply to it. The five redirect stubs under `engineering/` all target engineering pages. The sixth (`product/ux/_index.md` → `upstream-studios/`) stays outside, so the share doesn't change.
+- **Visible share and entitled v1.2 rows** (a row is entitled when at least one required cited fact's doc is visible: the AC-12 authorized-recall n):
+
+  | persona | groups | visible chunks | entitled rows |
+  |---|---|---|---|
+  | admin | staff, employee, people-ops, entity:us-inc | 22,378 (100%) | 32 |
+  | us-ic | staff, employee, entity:us-inc | 22,070 (98.62%) | 31 |
+  | manager | staff, employee, manager, entity:uk-ltd | 22,093 (98.73%) | 31 |
+  | contractor | staff, contractor | 21,999 (98.31%) | 31 |
+  | agency | new-contractor, agency:engineering | 7,263 (32.46%) | 18 |
+  | narrow | new-contractor | 257 (1.15%) | 17 |
+
+  Admin is at 32 rather than 33 because one row's required facts are all answer-only. The narrow persona does have entitled rows (17; 9 with every expected doc entitled), so fact recall is defined for it. It stays secondary anyway.
+- **Checks:** a throwaway resolver (`uv run --no-project --with pyyaml`) confirmed `people-ops` on every rule, every group in the vocabulary and no stale rule. No-orphan and one-parent-document scripts don't exist yet. They're AC-4 invariants, built in Part A.
+- **Code-review catches (fixed before the PR):**
+  - **An agency user with `function` people-ops would have resolved to `people-ops`** (all access) through the existing function row. AC-6 now says the agency row never yields `people-ops`, and `agency:X` must be in the vocabulary.
+  - **The catch-all comment** still said 4,042 docs resolve to it. It's 2,770 docs / 14,736 chunks now; 4,042 / 21,999 is what staff can see.
+  - **"Restricted" was ambiguous** once `engineering/` narrows non-staff personas. The 46 docs are "restricted from staff" in the policy header and the spec.
+  - **This entry's "why"** gave narrow's row count as the reason for the metric change, which contradicted its own table. Reworded.
+  - **ADR-0021 D3** didn't list the agency employment type.
+  - Lower priority, left for Arun: AC-18 divides by k, not min(k, |exact|). Every persona sees at least 257 chunks, so exact always fills k = 20 at the pin.
+  - No change: reading stubs and the Chroma deferral ride in this PR at Arun's request.
+- **Spec edits:** AC-6 (six personas, the agency resolution row), AC-15 (at least 4 agency cases, at least 2 in-department allowed and 2 out-of-department denied with twins), AC-18 (primary ANN recall@k against the exact filtered top k plus the results-returned count, at three selectivity points; fact recall secondary with n). Also the Problem section, References (pgvector 0.8.0, Weaviate filtering, Vespa HNSW) and a new History section. ADR-0021 D6 and D7 match.
+
 ---
 
 Prev: [2026-10-19: packed sections and prefix build, spec 0006](2026-10-19-packed-build.md)

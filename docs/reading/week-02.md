@@ -7,6 +7,18 @@ and what it changes in this project. Newest first within each date.
 
 ## Tue 20 Oct 2026
 
+### MTEB caveats
+
+For Wed 21 Oct's embedding-model comparison. Takeaways are Arun's, after reading.
+
+| Source | Date | My takeaway | Decisions informed |
+|---|---|---|---|
+| [MTEB maintainers, Maintaining MTEB (arXiv 2506.21182)](https://arxiv.org/abs/2506.21182), section 5.1 on the zero-shot score | 2025 | TODO (Arun, after reading) | How to read Wednesday's comparison against leaderboard rank |
+| [Hugging Face / lyon-nlp, MTEB Leaderboard: user guide and best practices](https://huggingface.co/blog/lyon-nlp-group/mteb-leaderboard-best-practices) | undated | TODO (Arun, after reading) | Treating top leaderboard models as statistically equivalent; leakage and overfitting caveats for Wednesday's comparison |
+| [ZeroEntropy, MTEB concept page](https://zeroentropy.dev/concepts/mteb/) | undated | TODO (Arun, after reading) | Contamination; "trust directionally, evaluate on your data" for Wednesday's comparison |
+
+Reference only: [Muennighoff et al., MTEB: Massive Text Embedding Benchmark (arXiv 2210.07316)](https://arxiv.org/abs/2210.07316) (2022) and the [MTEB leaderboard](https://huggingface.co/spaces/mteb/leaderboard).
+
 ### Permission models in production RAG
 
 *LLM-drafted at Arun's request, Arun-approved (20 Oct).* All nine pages were fetched on 20 Oct; the quotes are from the pages.

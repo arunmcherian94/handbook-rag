@@ -62,3 +62,7 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
   - in week 5, steering agent tools into calls the user didn't intend
 
   Week 5 grows the claimed-identity cases into an injection suite. Agent tools take the session principal, never one from model output (spec 0007 AC-14). Model-based identity-claim detection is out of scope for spec 0007 (Arun, 20 Oct).
+
+## Reading (deferred)
+
+- **Chroma, [Evaluating chunking strategies for retrieval](https://research.trychroma.com/evaluating-chunking):** dropped on 20 Oct because the chunking track is closed. Trigger: the week 4 size sweep.

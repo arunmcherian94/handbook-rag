@@ -5,7 +5,8 @@
 # Resolution: an exact path beats any prefix; among prefixes the longest wins. The catch-all ("") is explicit.
 # people-ops is listed on every rule, so the admin sees everything through the policy, never a bypass.
 # Redirect stubs ignore their own rule and inherit their target's allow-list (no stub targets a restricted path at the pin).
-# Chunk counts are fixed-512-64 at the pin. Restricted total: 46 docs, 379 chunks.
+# Chunk counts are fixed-512-64 at the pin. Restricted from staff: 46 docs, 379 chunks.
+# Open to staff: 4,042 docs / 21,999 chunks; engineering/ and the new-contractor rules narrow only the non-staff personas.
 
 version: policy-v1
 
@@ -13,7 +14,8 @@ groups:
   - staff            # employees and contractors (catch-all audience)
   - employee
   - contractor
-  - new-contractor   # temporary service providers: onboarding and contractor pages only
+  - new-contractor   # temporary service providers and agency contractors: onboarding and contractor pages
+  - agency:engineering  # agency contractors working in engineering: the engineering subtree
   - manager          # people managers
   - people-ops       # all-access admin function
   # entities (employees only): GitLab legal entities and PEOs named on general-and-entity-benefits/_index.md
@@ -39,9 +41,18 @@ groups:
 
 rules:
   # --- Catch-all ---------------------------------------------------------------------------------
-  # Public handbook: open to every employee and contractor. 4,042 docs / 21,999 chunks end up here.
+  # Public handbook: open to every employee and contractor. 2,770 docs / 14,736 chunks resolve to this rule
+  # itself; the engineering/ and new-contractor rules below also include staff.
   - path: ""
     allow: [staff, people-ops]
+
+  # --- Agency contractor, engineering: 1,252 docs / 7,006 chunks; persona sees 7,263 (32.46%) --------
+  # Synthetic department scope, not a content signal: the mid-selectivity point for Part B (spec 0007
+  # amendment, 20 Oct). An agency contractor sees its department's pages plus the new-contractor pages
+  # below, and is not in staff. Still open to staff. No other rule sits under engineering/, and the
+  # five redirect stubs under it all target engineering pages.
+  - path: engineering/
+    allow: [staff, agency:engineering, people-ops]
 
   # --- Employee-only: 2 docs / 13 chunks ----------------------------------------------------------
   # "Our standardized framework utilizes local labor market data ... compensation directly aligns with
@@ -145,7 +156,8 @@ rules:
     allow: [entity:peo-papaya, people-ops]
 
   # --- Narrow persona (new-contractor): 20 docs / 257 chunks visible, 1.15% ----------------------
-  # Onboarding and contractor pages a temporary service provider needs. "Temporary Service Provider
+  # Onboarding and contractor pages a temporary service provider needs. The agency contractor gets them
+  # through the same group. "Temporary Service Provider
   # (Contractor/Consultant) Onboarding" is a section of people-group/general-onboarding/_index.md.
   # These stay open to staff too.
   - path: people-group/general-onboarding/                                      # 4 docs / 24

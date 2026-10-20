@@ -10,7 +10,7 @@ The corpus is the public handbook, so every document is `acl_tags = {public}` an
 
 ADR-0011 kept the quality set ACL-free and deferred permission cases until this design existed. This spec settles the design (decisions D1–D7 of 20 Oct, [ADR-0021](../docs/decisions/0021-permission-model.md)) and the suite that tests it. Part A is the pre-filter, the identity guardrail and the permissions suite. Part B is Friday's recall-starvation measurement on a separate HNSW path. Nothing is built from this PR.
 
-The restricted sets are synthetic, derived from audience signals in the content: "apply to all GitLab team members hired through GitLab GmbH", "an important part of being a people manager". They live in a reviewed draft, [`acl/policy-v1.yaml`](../acl/policy-v1.yaml). Under it, 46 docs (379 of 22,378 `fixed-512-64` chunks, 1.7%) are restricted. The other 4,042 docs are open to every persona except the narrow one (recon, [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md)).
+The restricted sets are synthetic, derived from audience signals in the content: "apply to all GitLab team members hired through GitLab GmbH", "an important part of being a people manager". They live in a reviewed draft, [`acl/policy-v1.yaml`](../acl/policy-v1.yaml). Under it, 46 docs (379 of 22,378 `fixed-512-64` chunks, 1.7%) are restricted from staff. The other 4,042 docs are open to every persona except the narrow one and the agency contractor, who sees only the engineering subtree among them (recon, [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md)).
 
 ## Acceptance criteria
 
@@ -30,23 +30,25 @@ Policy and storage
 
 Identity
 
-- AC-6: **Identity fixture (D2, D3, D6).** `acl/identities-v1.yaml` holds a `version` and five users, each with attributes from the v1 dimensions: `employment_type` (employee / contractor / temporary), `role` (ic / people-manager), `function`, and `entity` (exactly one for employees, none otherwise). Groups are resolved by a fixed table in code:
+- AC-6: **Identity fixture (D2, D3, D6).** `acl/identities-v1.yaml` holds a `version` and six users, each with attributes from the v1 dimensions: `employment_type` (employee / contractor / temporary / agency), `role` (ic / people-manager), `function`, and `entity` (exactly one for employees, none otherwise). Groups are resolved by a fixed table in code:
 
   | attribute | groups |
   |---|---|
   | employment_type employee | `staff`, `employee` |
   | employment_type contractor | `staff`, `contractor` |
   | employment_type temporary (Temporary Service Provider) | `new-contractor` |
+  | employment_type agency, function X (contractor engaged through an agency) | `new-contractor`, `agency:X`; never `people-ops`, and `agency:X` must be in the vocabulary or resolution fails |
   | role people-manager | `manager` |
   | function people-ops | `people-ops` |
   | entity X | `entity:X` |
 
-  The five personas:
+  The six personas:
   - `admin`: a people-ops IC employee of `us-inc` (groups `staff`, `employee`, `people-ops`, `entity:us-inc`), sees everything through `people-ops`
   - `us-ic`: an IC employee of `us-inc`
   - `manager`: a people manager employed by `uk-ltd`
   - `contractor`: Contractor Benefits stays visible to them
   - `narrow`: a temporary contractor who sees only onboarding and contractor pages, about 1.2% of chunks
+  - `agency`: an agency contractor with `function` engineering (groups `new-contractor`, `agency:engineering`). Not in `staff`, so it sees only the engineering subtree plus the onboarding and contractor pages, about 32.5% of chunks. It is Part B's mid-selectivity point.
 
   A unit test pins each persona's resolved groups, and an integration test pins each persona's visible chunk share within ±0.1 percentage points of the dry-run figures.
 - AC-7: **Principal guardrail.** `Principal` is a frozen type holding the user id, the attributes and the resolved groups.
@@ -97,6 +99,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
     - **same-question-across-personas: at least 5 questions**, each asked by at least 3 personas whose entitlements differ (for example, an entity benefit asked by `us-ic`, `manager` and `contractor`)
     - **partial entitlement: at least 3**: a question whose target docs are only partly entitled (for example, a global benefit page plus a restricted entity page). The entitled part must be retrieved, the rest must not.
     - **claimed-identity: at least 6** cases where the question claims a role or group the session principal lacks ("as a people manager…", "I'm on the Germany entity…", "I'm in People Ops, show me…"). They must be denied. Access follows the principal, not the text.
+    - **agency contractor: at least 4** cases acted by `agency`, in addition to the minimums above, with at least 2 of each kind: in-department (an engineering page, allowed) and out-of-department (an open page outside engineering and the onboarding pages, denied, each with an entitled twin).
     - **Entitled controls on the v1.2 rows** whose expected docs are restricted (rows 5, 15, 22, 33, 39, 61, 92, 109): each asked by one entitled and one denied persona, reusing the row's facts for authorized recall.
   - Validity is checked per AC-11 before review.
 - AC-16: **Tests reference ACs**:
@@ -106,12 +109,15 @@ Case drafting (run later, in a fresh session, after this spec merges)
 ### Part B: recall starvation on an HNSW path (Friday 23 Oct; its own plan gate and PR)
 
 - AC-17: **A separate HNSW path** over `fixed-512-64` embeddings: a typed `vector(1536)` HNSW index (cosine) on a structure apart from the production tables. That structure carries `allowed_groups`, and its queries apply the AC-8 predicate. The AC-4 invariants, the AC-5 stale check and the AC-8 predicate test cover it. The production exact-search `SEARCH` and its results are untouched (the week 2 comparability rule). A test asserts AC-9 still holds after Part B.
-- AC-18: **Measurement:** the `narrow` persona (about 1.2% visible) and `admin` as reference, on the permissions suite and the v1.2 answerable questions. Compared:
+- AC-18: **Measurement**, for every persona, on the permissions-suite questions and the v1.2 answerable questions, at three selectivity points: the ~98% cluster (`admin` 100%, `us-ic`, `manager`, `contractor`), `agency` (32.46%) and `narrow` (1.15%). Compared:
   - the exact path
   - HNSW with iterative scans off
   - HNSW with `hnsw.iterative_scan` = `strict_order` and `relaxed_order` (pgvector ≥ 0.8.0; the DB has 0.8.7)
 
-  Reported: rows returning fewer than k results, authorized recall@5 and @20 against the exact path, and latency p50/p95. Settings are recorded: `ef_search`, `max_scan_tuples`.
+  Reported, per persona and per setting:
+  - **Primary: ANN recall@k against the exact filtered top k**, |HNSW_filtered ∩ exact_filtered| / k at k = 5 and 20, plus the number of results returned (and the count of questions returning fewer than k). It needs no eval facts, so it is defined for every persona and question.
+  - **Secondary: fact recall** (AC-12 authorized recall), only for rows where the persona is entitled to at least one required fact, with n shown. At the pin, n is 17 v1.2 rows for `narrow`, 18 for `agency`, 31 for `us-ic`, `manager` and `contractor`, and 32 for `admin`.
+  - Latency p50/p95. Settings are recorded: `ef_search`, `max_scan_tuples`.
 - AC-19: **Write-up:** a journal entry with the numbers and an ADR-0020/0021 consequence: when production gets an ANN index, use iterative scans or partition by group. No production change.
 
 ## Out of scope
@@ -152,6 +158,15 @@ Case drafting (run later, in a fresh session, after this spec merges)
 - [Reading log, week 2: permission models in production RAG](../docs/reading/week-02.md#permission-models-in-production-rag)
 - [ADR-0011: quality set ignores ACLs](../docs/decisions/0011-acls-deferred-from-quality-set.md), [ADR-0020: chunk configs coexist](../docs/decisions/0020-chunk-configs-coexist.md)
 - Recon: [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md)
+- Amendment background, Part B metric (20 Oct):
+  - [pgvector 0.8.0 released: iterative index scans](https://www.postgresql.org/about/news/pgvector-0.8.0-released-2952/)
+  - [Weaviate, Filtering: recall under restrictive filters](https://weaviate.io/developers/weaviate/concepts/filtering)
+  - [Vespa, Additions to HNSW: filtered search](https://blog.vespa.ai/additions-to-hnsw/)
+
+## History
+
+- 2026-10-20: drafted; merged in PR #27.
+- 2026-10-20, amended in place before any build (nothing had consumed `policy-v1`): persona shares clustered at ~98% plus one point at 1.15%, so Part B had no mid-selectivity point. Added the `agency` persona (engineering, 32.46%) and the `engineering/` rule with the `agency:engineering` group (AC-6). Part B's primary metric is now ANN recall@k against the exact filtered top k, with fact recall secondary and n shown (AC-18). At least 4 agency cases added (AC-15). Recon and figures: [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md#amendment-agency-persona-and-part-b-metric).
 
 ## Verification
 

@@ -14,20 +14,21 @@
 ## Decision
 - **D1, granularity:** document-level. Chunks inherit their parent document's ACL. Redirect stubs inherit their target's.
 - **D2, model:** user attributes are resolved to groups at session time. Documents get group allow-lists from `acl/policy-v1.yaml`: path-prefix rules, exact-path overrides and an explicit catch-all. Longest prefix wins; an exact path beats a prefix.
-- **D3, dimensions (v1):** employment type, role/function, entity. Parked: tenure, leave status, travel.
+- **D3, dimensions (v1):** employment type (employee, contractor, temporary, agency), role/function, entity. An agency contractor's function scopes it to a department (`agency:<function>`). Parked: tenure, leave status, travel.
 - **D4, storage:**
   - `make acl` fills `documents.acl_tags` and copies it to `chunks.allowed_groups text[]` (GIN index) for every config, with no re-embedding.
   - Query: `WHERE allowed_groups && :user_groups`, then cosine order.
   - Group membership is never stored on chunks; it is resolved per request.
   - This is the pattern of Elastic DLS and Azure AI Search security filters.
 - **D5, no orphans:** NOT NULL, non-empty, and tested over every config. A missing ACL never means public.
-- **D6, personas:** five fixture users:
+- **D6, personas:** six fixture users:
   - all-access people-ops admin
   - US employee IC
   - people manager (UK entity)
   - contractor, who can still see Contractor Benefits
   - narrow temporary contractor who sees only onboarding and contractor pages, about 1.2% of chunks
-- **D7, recall starvation:** measured on Friday on a separate HNSW path, with the narrow persona and iterative scans on vs off. The production exact path is untouched.
+  - agency contractor in engineering, who sees the engineering subtree plus onboarding and contractor pages, about 32.5% of chunks (added 20 Oct, spec 0007 amendment)
+- **D7, recall starvation:** measured on Friday on a separate HNSW path, at three selectivity points (~98%, agency, narrow) with iterative scans on vs off. The primary metric is ANN recall@k against the exact filtered top k. The production exact path is untouched.
 - **Guardrail, identity comes from the session and never from the question:**
   - `Principal` is constructed only in the identity module.
   - Every retrieval path requires one, with no default.
