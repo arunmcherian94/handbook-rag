@@ -88,6 +88,7 @@ Spec 0007 was amended in place after PR #27: nothing is built and nothing has co
   - **ADR-0021 D3** didn't list the agency employment type.
   - Lower priority, left for Arun: AC-18 divides by k, not min(k, |exact|). Every persona sees at least 257 chunks, so exact always fills k = 20 at the pin.
   - No change: reading stubs and the Chroma deferral ride in this PR at Arun's request.
+- **Statuses:** spec 0007 draft → approved, ADR-0021 proposed → accepted, and the "DRAFT" header dropped from `policy-v1.yaml`. Arun approved all three by merging #27.
 - **Spec edits:** AC-6 (six personas, the agency resolution row), AC-15 (at least 4 agency cases, at least 2 in-department allowed and 2 out-of-department denied with twins), AC-18 (primary ANN recall@k against the exact filtered top k plus the results-returned count, at three selectivity points; fact recall secondary with n). Also the Problem section, References (pgvector 0.8.0, Weaviate filtering, Vespa HNSW) and a new History section. ADR-0021 D6 and D7 match.
 
 ---

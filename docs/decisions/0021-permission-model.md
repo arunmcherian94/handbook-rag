@@ -1,6 +1,6 @@
 # 0021. Document-level group allow-lists on chunks, filtered in SQL; identity from the session
 
-- **Status:** proposed
+- **Status:** accepted (2026-10-20, Arun, spec 0007 PR #27)
 - **Date:** 2026-10-20
 - **Journal:** [2026-10-20 permissions spec](../journal/2026-10-20-permissions-spec.md)
 - **Spec:** [0007](../../specs/0007-permission-aware-retrieval.md)

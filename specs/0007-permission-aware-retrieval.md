@@ -1,6 +1,6 @@
 # 0007: Permission-aware retrieval (week 2: synthetic ACLs as a SQL pre-filter)
 
-- Status: draft
+- Status: approved
 - Date: 2026-10-20
 - Depends on: 0003–0006, ADR-0011, ADR-0020, eval set v1.2, run `2026-10-19-d2625d91` (depth-20 baseline)
 
@@ -165,7 +165,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
 
 ## History
 
-- 2026-10-20: drafted; merged in PR #27.
+- 2026-10-20: drafted; approved and merged in PR #27 (Arun). Status set to approved with the amendment.
 - 2026-10-20, amended in place before any build (nothing had consumed `policy-v1`): persona shares clustered at ~98% plus one point at 1.15%, so Part B had no mid-selectivity point. Added the `agency` persona (engineering, 32.46%) and the `engineering/` rule with the `agency:engineering` group (AC-6). Part B's primary metric is now ANN recall@k against the exact filtered top k, with fact recall secondary and n shown (AC-18). At least 4 agency cases added (AC-15). Recon and figures: [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md#amendment-agency-persona-and-part-b-metric).
 
 ## Verification
