@@ -18,9 +18,10 @@ The restricted sets are synthetic, derived from audience signals in the content:
 
 Policy and storage
 
-- AC-1: **Policy file.** `acl/policy-v1.yaml` holds a `version`, the group vocabulary, and rules. A rule is a path prefix (ending in `/`) or an exact path, relative to `content/handbook/`, with a non-empty group allow-list. There is exactly one explicit catch-all rule (prefix `""`). Resolution: an exact path beats any prefix, and among prefixes the longest wins. The loader fails on a missing or duplicate catch-all, a group outside the vocabulary, an empty allow-list, a duplicate path, or a rule that matches no document at the pin (a stale rule).
+- AC-1: **Policy file.** `acl/policy-v1.yaml` holds a `version`, the group vocabulary, and rules. A rule is a path prefix (ending in `/`), the catch-all (`""`, the root prefix), or an exact path (anything else), relative to `content/handbook/`, with a non-empty group allow-list. There is exactly one explicit catch-all rule. Resolution: an exact path beats any prefix, and among prefixes the longest wins. The loader fails on a missing or duplicate catch-all, a group outside the vocabulary, an empty allow-list, a duplicate path, or a rule that matches no document at the pin (a stale rule).
 - AC-2: **Document-level ACL (D1).** `make acl` resolves each document's allow-list from the policy into the existing `documents.acl_tags` column (spec 0002 stub). It copies the list to a new `chunks.allowed_groups text[] NOT NULL` for every chunk of every config (ADR-0020), with a GIN index. No re-embedding. It runs in one transaction, is idempotent, and has a dry run that prints per-group doc and chunk counts and the visible chunk share of each fixture persona. Section-level ACLs are out of scope.
-- AC-3: **Redirect stubs inherit their target's allow-list.** The target comes from the stub's `redirect_to:` front matter in the pinned file, normalized to a `url_path` (an absolute `handbook.gitlab.com` URL is reduced to its path). A target missing from the corpus fails `make acl`. A stub's own rule is ignored.
+  - **New rows fail closed.** The migration changes the `documents.acl_tags` default from `{public}` to `{}`. A newly ingested document is then visible to no one until `make acl` runs, and AC-4/AC-5 flag it. `make chunk` copies the parent's `acl_tags` into `allowed_groups` on insert, so a new config never has a NULL.
+- AC-3: **Redirect stubs inherit their target's allow-list.** The target comes from the stub's `redirect_to:` front matter in the pinned file. It is normalized like a stored `url_path`, by the same function as ingestion: an absolute `handbook.gitlab.com` URL is reduced to its path, then lowercased, with a trailing slash. Chains are followed to the final non-stub target; a cycle fails. A target missing from the corpus fails `make acl`. A stub's own rule is ignored.
 - AC-4: **Invariants (D5)**, each tested over every config in the DB:
   - every chunk has exactly one parent document (non-null `doc_id` with a foreign key), because inheritance depends on it
   - no chunk has a null or empty `allowed_groups` (a missing field must never mean "visible to all")
@@ -29,7 +30,7 @@ Policy and storage
 
 Identity
 
-- AC-6: **Identity fixture (D2, D3, D6).** `acl/identities-v1.yaml` holds a `version` and five users, each with attributes from the v1 dimensions: `employment_type` (employee / contractor / temporary), `role` (ic / people-manager), `function`, and `entity` (employees only). Groups are resolved by a fixed table in code:
+- AC-6: **Identity fixture (D2, D3, D6).** `acl/identities-v1.yaml` holds a `version` and five users, each with attributes from the v1 dimensions: `employment_type` (employee / contractor / temporary), `role` (ic / people-manager), `function`, and `entity` (exactly one for employees, none otherwise). Groups are resolved by a fixed table in code:
 
   | attribute | groups |
   |---|---|
@@ -41,7 +42,7 @@ Identity
   | entity X | `entity:X` |
 
   The five personas:
-  - `admin`: a people-ops employee, sees everything
+  - `admin`: a people-ops IC employee of `us-inc` (groups `staff`, `employee`, `people-ops`, `entity:us-inc`), sees everything through `people-ops`
   - `us-ic`: an IC employee of `us-inc`
   - `manager`: a people manager employed by `uk-ltd`
   - `contractor`: Contractor Benefits stays visible to them
@@ -53,7 +54,8 @@ Identity
   - The resolver's input is a user id, never question text. No code path derives groups from a query.
   - A principal with no groups is an error, never an unfiltered search.
 - AC-8: **Every retrieval path requires a Principal.** `ask.retrieve`, `ask.ask` and the eval runner take a required `principal` argument, with no default and no unfiltered overload. Tests may build principals through a test helper.
-  - The single `SEARCH` statement adds `AND c.allowed_groups && %(groups)s::text[]` before the cosine `ORDER BY`. A test asserts that every SQL statement in `src/` that reads `chunk_embeddings` for ranking includes this predicate.
+  - The single `SEARCH` statement adds `AND c.allowed_groups && %(groups)s::text[]` before the cosine `ORDER BY`. A test asserts that every SQL statement in `src/` that ranks embeddings (on `chunk_embeddings` or any Part B structure) includes this predicate.
+  - **Fetch by id:** any function outside `src/handbook_rag/evaluation/` that returns chunk content by id also takes a `principal` and applies the predicate. The eval's scoring reads (evidence, record) are exempt: they grade against the full corpus and never return content to a user. The test keeps an explicit exempt list.
   - A restricted user gets the standard `NOT_FOUND` string. No code path emits a permission message, because one would confirm that hidden content exists (ADR-0011).
 
 Quality set and regression
@@ -70,7 +72,7 @@ Permissions suite
 - AC-11: **Validity.** A case whose target docs don't all appear in `admin`'s top 20 tests nothing and is dropped from scoring. It is listed as `invalid` in the summary.
 - AC-12: **Metrics**, computed on retrieval only at k=5 (frozen) and k=20:
   - **Leak:** a retrieved chunk whose parent document's allow-list, recomputed from the policy file rather than read from the DB column, doesn't intersect the principal's groups. It is scored per document, so the same fact on a page the principal may see is not a leak. Reported: leaked chunks, and cases with at least one leak. **Target 0.**
-  - **Authorized recall:** recall against only what the principal is entitled to. For a case, it is the fraction of its entitled target docs found in the top k. For a case built on a v1.2 row, it is fact recall over the row's facts whose cited doc is entitled. It is always reported next to leak, because deny-all scores zero leaks.
+  - **Authorized recall:** recall against only what the principal is entitled to. For a case, it is the fraction of its entitled target docs found in the top k. For a case built on a v1.2 row, it is fact recall over the row's facts whose cited doc is entitled. A case with nothing entitled (a denied case) has no authorized recall: it is excluded from the mean and counted as `n/a`, never 0 or 1. It is always reported next to leak, because deny-all scores zero leaks.
   - **Over-block:** an entitled target doc that `admin` retrieves at k but the entitled principal doesn't. With a correct filter, hiding documents can only move entitled docs up, so this should be 0. A non-zero count points to a policy or fixture bug.
   - Per-category breakdown.
 - AC-13: **The run** is retrieval-only (no answer model calls, about $0.0001 of query embeddings) and has a dry run. Its metadata records:
@@ -97,7 +99,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
 
 ### Part B: recall starvation on an HNSW path (Friday 23 Oct; its own plan gate and PR)
 
-- AC-17: **A separate HNSW path** over `fixed-512-64` embeddings: a typed `vector(1536)` HNSW index (cosine) on a structure apart from the production tables. The production exact-search `SEARCH` and its results are untouched (the week 2 comparability rule). A test asserts AC-9 still holds after Part B.
+- AC-17: **A separate HNSW path** over `fixed-512-64` embeddings: a typed `vector(1536)` HNSW index (cosine) on a structure apart from the production tables. That structure carries `allowed_groups`, and its queries apply the AC-8 predicate. The AC-4 invariants, the AC-5 stale check and the AC-8 predicate test cover it. The production exact-search `SEARCH` and its results are untouched (the week 2 comparability rule). A test asserts AC-9 still holds after Part B.
 - AC-18: **Measurement:** the `narrow` persona (about 1.2% visible) and `admin` as reference, on the permissions suite and the v1.2 answerable questions. Compared:
   - the exact path
   - HNSW with iterative scans off

@@ -1,7 +1,7 @@
 # DRAFT, pending review (Arun approves the restricted paths in the spec 0007 PR).
 #
 # Synthetic ACL policy for the public handbook at pin 5273b21 (spec 0007, ADR-0021).
-# Paths are relative to content/handbook/. A path ending in "/" is a prefix; anything else is exact.
+# Paths are relative to content/handbook/. A path ending in "/" is a prefix; the catch-all "" is the root prefix; anything else is exact.
 # Resolution: an exact path beats any prefix; among prefixes the longest wins. The catch-all ("") is explicit.
 # people-ops is listed on every rule, so the admin sees everything through the policy, never a bypass.
 # Redirect stubs ignore their own rule and inherit their target's allow-list (no stub targets a restricted path at the pin).
@@ -51,7 +51,7 @@ rules:
   - path: total-rewards/compensation/
     allow: [employee, people-ops]
 
-  # --- People-manager-only: 22 docs / 69 chunks --------------------------------------------------
+  # --- People-manager-only: 19 docs / 69 chunks --------------------------------------------------
   # "The purpose of the Annual Compensation Review is to provide managers with the opportunity to reflect
   # on team members' accomplishments" (1 doc / 2 chunks; overrides the employee-only prefix above).
   - path: total-rewards/compensation/compensation-review-cycle/
@@ -65,7 +65,7 @@ rules:
   # "Your first few months as a manager at GitLab can be exhilarating." (1 doc / 4)
   - path: people-group/learning-and-development/manager-development/
     allow: [manager, people-ops]
-  # "As a Support Manager at GitLab, you will be focusing on the following things" (18 docs / 49)
+  # "As a Support Manager at GitLab, you will be focusing on the following things" (15 docs / 49)
   - path: support/managers/
     allow: [manager, people-ops]
 
