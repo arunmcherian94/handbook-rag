@@ -56,3 +56,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-19: structure-aware chunker build, spec 0005](docs/journal/2026-10-19-chunker-build.md)
 - [2026-10-19: packed sections and prefix build, spec 0006](docs/journal/2026-10-19-packed-build.md)
 - [2026-10-20: permissions design records, spec 0007](docs/journal/2026-10-20-permissions-spec.md)
+- [2026-10-20: embedding comparison prep, for spec 0008](docs/journal/2026-10-20-embedding-comparison-prep.md)

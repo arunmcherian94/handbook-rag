@@ -92,22 +92,7 @@ Spec 0007 was amended in place after PR #27: nothing is built and nothing has co
 - **Statuses:** spec 0007 draft → approved, ADR-0021 proposed → accepted, and the "DRAFT" header dropped from `policy-v1.yaml`. Arun approved all three by merging #27.
 - **ADR-0020 accepted** (Arun). Checked against the DB: `chunk_configs` exists, `chunks.config_id` has an FK to it, `heading_path` and the line range are on `chunks`, and five configs coexist. `chunk_embeddings.embed_input` was never built, because spec 0006 made the prefix a config param instead. The ADR now says so.
 - **Spec edits:** AC-6 (six personas, the agency resolution row), AC-15 (at least 4 agency cases, at least 2 in-department allowed and 2 out-of-department denied with twins), AC-18 (primary ANN recall@k against the exact filtered top k plus the results-returned count, at three selectivity points; fact recall secondary with n). Also the Problem section, References (pgvector 0.8.0, Weaviate filtering, Vespa HNSW) and a new History section. ADR-0021 D6 and D7 match.
-- **Embedding comparison planning (for Wed 21 Oct, spec 0008):**
-  - **Prefix arm only on a winner** (Arun): every candidate runs on `fixed-512-64`. Only a model that beats 3-small then gets a `fixed-512-64-prefixed` run. 3-small already has both arms (spec 0006: +0.036, within the SE, so it's a tie). Skipping the rest loses only a model-by-prefix interaction, which 33 rows couldn't detect. [Follow-ups](../follow-ups.md#from-the-spec-0006-runs-2026-10-19) updated.
-  - **Leaderboard snapshot, checked 20 Oct 2026 in the browser** (rankings drift, so it's dated). [MTEB(eng, v2)](https://mteb-leaderboard.hf.space/benchmark/MTEB(eng%2C%20v2)), 188 models:
-
-    | rank | model | zero-shot | mean (task) | retrieval |
-    |---|---|---|---|---|
-    | #1 | ingot-8b-r3 | 82% | 75.98 | 70.00 |
-    | #5 | Qwen3-Embedding-8B | 95% | 75.23 | 69.44 |
-    | #7 | Qwen3-Embedding-4B | 95% | 74.61 | 68.46 |
-    | #9 | gemini-embedding-001 | 95% | 73.30 | 64.35 |
-    | #25 | Qwen3-Embedding-0.6B | 95% | 70.47 | 61.83 |
-    | #88 | text-embedding-3-large | NA | — | 57.98 |
-    | #116 | text-embedding-3-small (ours) | NA | — | 53.48 |
-
-    Voyage-4 isn't on MTEB(eng, v2). On [RTEB(eng, beta)](https://mteb-leaderboard.hf.space/benchmark/RTEB(eng%2C%20beta)) (retrieval only, legal/finance/code/health, scores hidden, ranks shown): voyage-4-large #1, voyage-4 #12, gemini-embedding-001 #13, Qwen3-Embedding-8B #14, text-embedding-3-large #35.
-  - **Provider differences to handle in spec 0008:** chunks stay cl100k-sized, so chunk ids and scoring don't change. Each model's own tokenizer counts more tokens, so the adapter must fail rather than truncate silently. The cost estimate is approximate for non-OpenAI models. Query and document input types (Voyage `input_type`, Gemini `task_type`, the Qwen3 query instruction) must be set, or that model is handicapped. The answer model isn't affected: it sees chunk text only.
+- **Embedding comparison planning** moved to its own entry: [2026-10-20 embedding comparison prep](2026-10-20-embedding-comparison-prep.md).
 
 ---
 

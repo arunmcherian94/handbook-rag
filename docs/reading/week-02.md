@@ -15,7 +15,7 @@ Takeaways:
 - **A leaderboard rank needs its zero-shot score next to it.** Top models often get there by training on benchmark tasks.
 - **Small rank gaps mean little; large ones are worth trusting directionally.** On our 33 rows, only a large difference will show. So pick candidates well above text-embedding-3-small, then decide on our own data.
 - **Rank isn't the only criterion:** context window, language coverage and domain fit matter too.
-- **Rankings drift.** Record the date of any leaderboard check (snapshot in the [20 Oct journal](../journal/2026-10-20-permissions-spec.md)).
+- **Rankings drift.** Record the date of any leaderboard check (snapshot in [embedding comparison prep, 20 Oct](../journal/2026-10-20-embedding-comparison-prep.md)).
 
 | Source | Date | My takeaway | Decisions informed |
 |---|---|---|---|
