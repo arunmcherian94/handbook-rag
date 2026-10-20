@@ -13,7 +13,7 @@ For Wed 21 Oct's embedding-model comparison. Takeaways are Arun's, after reading
 
 | Source | Date | My takeaway | Decisions informed |
 |---|---|---|---|
-| [MTEB maintainers, Maintaining MTEB (arXiv 2506.21182)](https://arxiv.org/abs/2506.21182), section 5.1 on the zero-shot score | 2025 | TODO (Arun, after reading) | How to read Wednesday's comparison against leaderboard rank |
+| [MTEB maintainers, Maintaining MTEB (arXiv 2506.21182)](https://arxiv.org/abs/2506.21182), §5.1 "Case Study 1: Assessing zero-shot levels" in the [full text](https://arxiv.org/html/2506.21182) (the abstract page has no sections); Appendix C defines the score | 2025 | TODO (Arun, after reading) | How to read Wednesday's comparison against leaderboard rank |
 | [Hugging Face / lyon-nlp, MTEB Leaderboard: user guide and best practices](https://huggingface.co/blog/lyon-nlp-group/mteb-leaderboard-best-practices) | undated | TODO (Arun, after reading) | Treating top leaderboard models as statistically equivalent; leakage and overfitting caveats for Wednesday's comparison |
 | [ZeroEntropy, MTEB concept page](https://zeroentropy.dev/concepts/mteb/) | undated | TODO (Arun, after reading) | Contamination; "trust directionally, evaluate on your data" for Wednesday's comparison |
 
