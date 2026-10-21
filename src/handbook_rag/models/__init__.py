@@ -10,6 +10,7 @@ from handbook_rag.models.factory import (
     embed_usd_per_1m,
     make_answerer,
     make_embedder,
+    resolve_answer_spec,
     resolve_embed_spec,
 )
 
@@ -22,5 +23,6 @@ __all__ = [
     "embed_usd_per_1m",
     "make_answerer",
     "make_embedder",
+    "resolve_answer_spec",
     "resolve_embed_spec",
 ]

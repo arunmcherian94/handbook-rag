@@ -57,7 +57,7 @@ def test_factory_defaults_and_env(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-real")  # client construction only; no call
     monkeypatch.delenv("EMBED_MODEL", raising=False)
     monkeypatch.setenv("ANSWER_MODEL", "openai:gpt-5.4-nano")
-    assert make_embedder().name == "openai:text-embedding-3-small"
+    assert make_embedder().name == "openai:text-embedding-3-large@1536"  # ADR-0022
     assert make_answerer().name == "openai:gpt-5.4-nano"
     assert make_embedder().client.max_retries == 0
 
@@ -184,3 +184,10 @@ def test_factory_builds_deepinfra_embedder(monkeypatch):
     assert (emb.name, emb.kind, emb.dims) == (f"deepinfra:{QWEN}@1024", "query", 1024)
     assert str(emb.client.base_url).startswith("https://api.deepinfra.com/v1/openai")
     assert emb.client.max_retries == 0
+
+
+def test_factory_deepinfra_missing_key_names_it(monkeypatch):
+    """A missing DEEPINFRA_API_KEY fails with its name, not a bare KeyError (spec 0008 review)."""
+    monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
+    with pytest.raises(SystemExit, match="DEEPINFRA_API_KEY is not set"):
+        make_embedder(f"deepinfra:{QWEN}@1536")

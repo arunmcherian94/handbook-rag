@@ -28,6 +28,14 @@ def _openai_client(**kwargs):
     return OpenAI(**kwargs)
 
 
+def _require_env(name: str) -> str:
+    """A missing key fails with its name, not a bare KeyError."""
+    value = os.environ.get(name)
+    if not value:
+        raise SystemExit(f"{name} is not set; add it to .env")
+    return value
+
+
 # embed.run owns retries (capped, logged); SDK retries would stack on top, so they are off.
 # Builders take (model, dims, kind).
 EMBEDDERS: dict[str, Callable[[str, int | None, str], Embedder]] = {
@@ -36,7 +44,7 @@ EMBEDDERS: dict[str, Callable[[str, int | None, str], Embedder]] = {
     ),
     "deepinfra": lambda model, dims, kind: OpenAIEmbedder(
         _openai_client(
-            base_url=DEEPINFRA_BASE_URL, api_key=os.environ["DEEPINFRA_API_KEY"], max_retries=0
+            base_url=DEEPINFRA_BASE_URL, api_key=_require_env("DEEPINFRA_API_KEY"), max_retries=0
         ),
         "deepinfra",
         model,
@@ -112,7 +120,10 @@ def make_embedder(spec: str | None = None, kind: str = "document") -> Embedder:
     return EMBEDDERS[provider](model, dims, kind)
 
 
+def resolve_answer_spec(spec: str | None = None) -> str:
+    """The answer model in use: the argument, then ANSWER_MODEL, then the default."""
+    return spec or os.environ.get("ANSWER_MODEL") or DEFAULT_ANSWER_MODEL
+
+
 def make_answerer(spec: str | None = None) -> Answerer:
-    return _build(
-        ANSWERERS, "answer", spec or os.environ.get("ANSWER_MODEL") or DEFAULT_ANSWER_MODEL
-    )
+    return _build(ANSWERERS, "answer", resolve_answer_spec(spec))

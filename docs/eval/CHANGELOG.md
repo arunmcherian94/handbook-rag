@@ -9,6 +9,7 @@ A separate suite from eval set v1.2 ([permissions-v1.md](permissions-v1.md), spe
 - **Drafted:** 102 cases by Claude in a fresh session, from the pin and policy-v1 only (spec 0007 AC-15).
 - **Validity (AC-11):** 92 of 102 had every target doc in admin's top 20. The 10 invalid cases are all controls, for rows 15, 22, 39, 92 and 109: 3-small misses at least one expected doc of each at depth 20.
 - **Cut to 52** (Arun, 21 Oct, AC-15 amended): lower minimums. Twins entitled through a non-admin persona were preferred; same-question set S-3 (admin) and S-4 were dropped. The 50 dropped cases are in the branch history (commits 3bd9300..d1a8634).
+- **Re-validated under text-embedding-3-large@1536** (2026-10-21, after [ADR-0022](../decisions/0022-adopt-text-embedding-3-large-1536.md)): 50 of 52 valid. P-097 and P-098, the two row-61 controls, lose `time-off-types.md` (rank 14 under 3-small) and `global-expansion.md` (rank 2) from admin's top 20, so they are marked invalid and dropped from scoring per AC-11. Targets were not trimmed to keep them: that would fit the suite to the model. Re-running under 3-small reproduced 52 of 52.
 - **Review:** a fresh agent reviewed the 52 (48 accept, 4 edit, 0 reject). Arun accepted the 4 edits: P-027/028 and P-029/030 were reworded because their questions implied a manager role the persona lacks, which is the claimed-identity category. The new questions are valid.
 
 ## v1.2 (2026-10-16)

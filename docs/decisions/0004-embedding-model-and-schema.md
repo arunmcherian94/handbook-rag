@@ -1,6 +1,6 @@
 # 0004. text-embedding-3-small; embeddings keyed (chunk_id, model)
 
-- **Status:** accepted
+- **Status:** accepted; the model choice is superseded by [ADR-0022](0022-adopt-text-embedding-3-large-1536.md) (text-embedding-3-large@1536, 2026-10-21). The schema decision stands.
 - **Date:** 2026-10-12
 - **Journal:** [2026-10-12 baseline decisions](../journal/2026-10-12-baseline-decisions.md)
 

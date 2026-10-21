@@ -51,6 +51,7 @@ from handbook_rag.models import (
     embed_usd_per_1m,
     make_answerer,
     make_embedder,
+    resolve_answer_spec,
     resolve_embed_spec,
 )
 from handbook_rag.prompts import SYSTEM_PROMPT
@@ -493,6 +494,22 @@ def main(argv=None) -> int:
             f"estimated cost: ${cost['total_usd']:.4f} (embed ~{cost['embed_tokens']} tokens "
             f"${cost['embed_usd']:.6f}, answers ${cost['answer_usd']:.4f})"
         )
+        meta = metadata(
+            eval_set.version,
+            eval_bytes,
+            corpus_sha,
+            chunk_params,
+            spec,
+            None if args.retrieval_only else resolve_answer_spec(),
+            len(todo),
+            args.limit,
+        )
+        # AC-6: a baseline that differs in more than one change fails the dry run.
+        if baseline and (diff := baseline_mismatch(baseline[1]["meta"], meta)):
+            raise SystemExit(
+                f"baseline {baseline[0]} differs in more than one change (chunk config or "
+                "embed model; spec 0008 AC-6):\n  " + "\n  ".join(diff)
+            )
         if not args.confirm:
             print("Dry run: add CONFIRM=1 to spend.")
             return 0
@@ -510,21 +527,6 @@ def main(argv=None) -> int:
                 f"run `make embed CONFIG={args.config}`"
             )
         answerer = None if args.retrieval_only else make_answerer()
-        meta = metadata(
-            eval_set.version,
-            eval_bytes,
-            corpus_sha,
-            chunk_params,
-            embedder.name,
-            answerer.name if answerer else None,
-            len(todo),
-            args.limit,
-        )
-        if baseline and (diff := baseline_mismatch(baseline[1]["meta"], meta)):
-            raise SystemExit(
-                f"baseline {baseline[0]} differs in more than one change (chunk config or "
-                "embed model; spec 0008 AC-6):\n  " + "\n  ".join(diff)
-            )
         out = run(
             conn, rows, ev, embedder, answerer, meta=meta, config_id=args.config, baseline=baseline
         )
