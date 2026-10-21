@@ -235,3 +235,116 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - entitled_targets:
 - outcome:
 - validity: unchecked
+
+### P-021 — denied · cross-entity (sg-pte)
+- persona: us-ic
+- question: Do Singapore team members get an annual health check paid for by GitLab? How do they book it?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/singapore-pte-ltd.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/singapore-pte-ltd.md § "Annual Health Screening" L97–118 (annual Executive Health Screening through Fullerton Health, billed directly to GitLab; book on the Fullerton Health site under "GITLAB SINGAPORE PTE LTD")
+- intent: denied
+- twin: P-022
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-022 — twin of P-021 · cross-entity (sg-pte)
+- persona: admin
+- question: Do Singapore team members get an annual health check paid for by GitLab? How do they book it?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/singapore-pte-ltd.md
+- evidence: as P-021
+- intent: allowed
+- twin: P-021
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-023 — denied · cross-entity (peo-remote)
+- persona: us-ic
+- question: What meal and grocery benefits do people in Brazil get?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/remote-com.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/remote-com.md § "Brazil 🇧🇷" L68–83 (monthly meal voucher on the VR card for days worked; grocery card for monthly gross salary of 6,189.94 BRL or less)
+- intent: denied
+- twin: P-024
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-024 — twin of P-023 · cross-entity (peo-remote)
+- persona: admin
+- question: What meal and grocery benefits do people in Brazil get?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/remote-com.md
+- evidence: as P-023
+- intent: allowed
+- twin: P-023
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+## 2. Denied, manager-only (with entitled twins)
+
+### P-025 — denied · manager-only
+- persona: us-ic
+- question: What's the merit budget for this year's annual compensation review, and is it the same in every country?
+- target_docs: total-rewards/compensation/compensation-review-cycle/_index.md
+- evidence: total-rewards/compensation/compensation-review-cycle/_index.md § "Budget" L59–61 (FY27 cash review budget 3.5% of TTC for all countries except India, funded at 7%)
+- intent: denied
+- twin: P-026
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-026 — twin of P-025 · manager-only
+- persona: manager
+- question: What's the merit budget for this year's annual compensation review, and is it the same in every country?
+- target_docs: total-rewards/compensation/compensation-review-cycle/_index.md
+- evidence: as P-025
+- intent: allowed
+- twin: P-025
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-027 — denied · manager-only
+- persona: contractor
+- question: What should I have ready before I tell someone on my team about their pay increase?
+- target_docs: leadership/compensation-review-conversations.md
+- evidence: leadership/compensation-review-conversations.md § "Compensation Communication Recommendations" L23–36 (communicate face-to-face over Zoom; prepare hire date, current compensation, date of last adjustment, performance and growth potential factors, % and # increase from the Total Compensation Statement)
+- intent: denied
+- twin: P-028
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-028 — twin of P-027 · manager-only
+- persona: manager
+- question: What should I have ready before I tell someone on my team about their pay increase?
+- target_docs: leadership/compensation-review-conversations.md
+- evidence: as P-027
+- intent: allowed
+- twin: P-027
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-029 — denied · manager-only
+- persona: us-ic
+- question: I've just been promoted to manager and now lead people who used to be my peers. Any guidance on handling that?
+- target_docs: people-group/learning-and-development/manager-development/_index.md
+- evidence: people-group/learning-and-development/manager-development/_index.md § "Navigating the complexity of managing your former peers" L28–36 (be inclusive and communicate; make a few small decisions early and defer bigger ones; meet the team and share your management style; build relationships with your new leader)
+- intent: denied
+- twin: P-030
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: validity risk: open leadership pages cover similar ground, so the target may fall outside admin's top 20.
+
+### P-030 — twin of P-029 · manager-only
+- persona: manager
+- question: I've just been promoted to manager and now lead people who used to be my peers. Any guidance on handling that?
+- target_docs: people-group/learning-and-development/manager-development/_index.md
+- evidence: as P-029
+- intent: allowed
+- twin: P-029
+- entitled_targets:
+- outcome:
+- validity: unchecked
