@@ -798,3 +798,107 @@ Target docs are only partly entitled. The entitled part must be retrieved, the r
 - entitled_targets:
 - outcome:
 - validity: unchecked
+
+### P-071 — partial
+- persona: us-ic
+- question: How does the US 401(k) match compare with what Canada offers on the RRSP?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md, total-rewards/benefits/general-and-entity-benefits/canada-corp-benefits.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md § "401(k) Plan with Company Match" L365–370 (50% of contributions on the first 6% of earnings, up to $1,500 a year); total-rewards/benefits/general-and-entity-benefits/canada-corp-benefits.md § "Registered Retirement Savings Plan (RRSP)" L64–66 (Canada Life group RRSP, employer match up to 3% of base salary, maximum $2,500 CAD a year)
+- intent: allowed (total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md), denied (total-rewards/benefits/general-and-entity-benefits/canada-corp-benefits.md)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+## 8. Same question across personas
+
+Each question is asked by at least three personas whose groups differ. Ids within a set share the question verbatim.
+
+### P-072 — same-question S-1
+- persona: us-ic
+- question: Can I see my own compensation range in Workday?
+- target_docs: total-rewards/compensation/_index.md
+- evidence: total-rewards/compensation/_index.md § "Viewing Compensation Ranges" L186–188 (as of May 1, 2026, all team members can see their compensation range in Workday)
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-073 — same-question S-1
+- persona: contractor
+- question: Can I see my own compensation range in Workday?
+- target_docs: total-rewards/compensation/_index.md
+- evidence: as P-072
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-074 — same-question S-1
+- persona: narrow
+- question: Can I see my own compensation range in Workday?
+- target_docs: total-rewards/compensation/_index.md
+- evidence: as P-072
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-075 — same-question S-2
+- persona: manager
+- question: How does the UK pension work? Is enrollment automatic?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md § "Pension Scheme" L235–246 (Scottish Widows Group Personal Pension Plan; automatic enrollment if you earn over £10,000 a year, are 22 or over and under State Pension Age)
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-076 — same-question S-2
+- persona: us-ic
+- question: How does the UK pension work? Is enrollment automatic?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md
+- evidence: as P-075
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-077 — same-question S-2
+- persona: contractor
+- question: How does the UK pension work? Is enrollment automatic?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md
+- evidence: as P-075
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-078 — same-question S-3
+- persona: manager
+- question: What hire-date cut-offs decide whether someone is included in the annual compensation review?
+- target_docs: total-rewards/compensation/compensation-review-cycle/_index.md
+- evidence: total-rewards/compensation/compensation-review-cycle/_index.md § "Eligibility" L46–51 (hired on or before January 31 for the merit review, on or before October 5 for the equity refresh)
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-079 — same-question S-3
+- persona: us-ic
+- question: What hire-date cut-offs decide whether someone is included in the annual compensation review?
+- target_docs: total-rewards/compensation/compensation-review-cycle/_index.md
+- evidence: as P-078
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-080 — same-question S-3
+- persona: admin
+- question: What hire-date cut-offs decide whether someone is included in the annual compensation review?
+- target_docs: total-rewards/compensation/compensation-review-cycle/_index.md
+- evidence: as P-078
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
