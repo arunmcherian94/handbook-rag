@@ -88,19 +88,19 @@ Permissions suite
 Case drafting (run later, in a fresh session, after this spec merges)
 
 - AC-15: **Drafting rules:**
-  - Cases are drafted by Claude in a fresh session, from the pinned corpus (`5273b21`) and `policy-v1`, never with gpt-5.4-mini (the answer model). Arun reviews every case before it is committed.
+  - Cases are drafted by Claude in a fresh session, from the pinned corpus (`5273b21`) and `policy-v1`, never with gpt-5.4-mini (the answer model). A fresh agent reviews every case (accept, edit or reject, with a reason), recorded in a `review:` field. Arun decides the edits and rejects (amended 2026-10-21; was: Arun reviews every case).
   - The drafter writes the question, acting persona, target doc paths, category and intent. The outcome is computed (AC-10).
-  - Categories and minimum counts (Arun, PR review 20 Oct: more cases, spread across the restricted sets):
-    - **denied: at least 26**, each with an entitled twin (the same question asked by a persona entitled to the target). The twin separates "the filter blocked it" from "retrieval missed it". Spread:
-      - at least 10 cross-entity (for example, `us-ic` asks about a UK, Germany or PEO benefit), covering at least 6 entities
-      - at least 5 manager-only, denied to `us-ic` or `contractor`
-      - at least 3 employee-only (compensation, underperformance), denied to `contractor`
-      - at least 8 on the `narrow` persona, targeting open pages outside its allow-list (common handbook questions a new contractor would ask)
-    - **same-question-across-personas: at least 5 questions**, each asked by at least 3 personas whose entitlements differ (for example, an entity benefit asked by `us-ic`, `manager` and `contractor`)
+  - Categories and minimum counts (Arun, PR review 20 Oct; lowered 21 Oct, the cases being synthetic):
+    - **denied: at least 12**, each with an entitled twin (the same question asked by a persona entitled to the target). The twin separates "the filter blocked it" from "retrieval missed it". Spread:
+      - at least 4 cross-entity (for example, `us-ic` asks about a UK, Germany or PEO benefit), covering at least 4 entities, preferring twins entitled through a non-admin persona
+      - at least 3 manager-only, denied to `us-ic` or `contractor`
+      - at least 2 employee-only (compensation, underperformance), denied to `contractor`
+      - at least 3 on the `narrow` persona, targeting open pages outside its allow-list (common handbook questions a new contractor would ask)
+    - **same-question-across-personas: at least 3 questions**, each asked by at least 3 personas whose entitlements differ (for example, an entity benefit asked by `us-ic`, `manager` and `contractor`)
     - **partial entitlement: at least 3**: a question whose target docs are only partly entitled (for example, a global benefit page plus a restricted entity page). The entitled part must be retrieved, the rest must not.
-    - **claimed-identity: at least 6** cases where the question claims a role or group the session principal lacks ("as a people manager…", "I'm on the Germany entity…", "I'm in People Ops, show me…"). They must be denied. Access follows the principal, not the text.
+    - **claimed-identity: at least 4** cases where the question claims a role or group the session principal lacks ("as a people manager…", "I'm on the Germany entity…", "I'm in People Ops, show me…"). They must be denied. Access follows the principal, not the text.
     - **agency contractor: at least 4** cases acted by `agency`, in addition to the minimums above, with at least 2 of each kind: in-department (an engineering page, allowed) and out-of-department (an open page outside engineering and the onboarding pages, denied, each with an entitled twin).
-    - **Entitled controls on the v1.2 rows** whose expected docs are restricted (rows 5, 15, 22, 33, 39, 61, 92, 109): each asked by one entitled and one denied persona, reusing the row's facts for authorized recall.
+    - **Entitled controls on the v1.2 rows** whose expected docs are restricted (rows 5, 15, 22, 33, 39, 61, 92, 109): each asked by one entitled and one denied persona, reusing the row's facts for authorized recall. Those that fail AC-11 are dropped (at the pin: rows 15, 22, 39, 92, 109).
   - Validity is checked per AC-11 before review.
 - AC-16: **Tests reference ACs**:
   - Unit tests (in-memory, no API): policy resolution and loader rejections (AC-1), redirect inheritance with synthetic stubs (AC-3), group resolution (AC-6), the Principal construction guard (AC-7), outcome computation and flagging (AC-10), leak, authorized-recall and over-block arithmetic (AC-12).
@@ -167,6 +167,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
 
 - 2026-10-20: drafted; approved and merged in PR #27 (Arun). Status set to approved with the amendment.
 - 2026-10-20, amended in place before any build (nothing had consumed `policy-v1`): persona shares clustered at ~98% plus one point at 1.15%, so Part B had no mid-selectivity point. Added the `agency` persona (engineering, 32.46%) and the `engineering/` rule with the `agency:engineering` group (AC-6). Part B's primary metric is now ANN recall@k against the exact filtered top k, divided by min(k, |exact|) (Arun), with fact recall secondary and n shown (AC-18). At least 4 agency cases added (AC-15). Recon and figures: [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md#amendment-agency-persona-and-part-b-metric).
+- 2026-10-21, amended on the cases branch: AC-15 minimums lowered (denied 12, same-question 3, claimed-identity 4; agency and partial unchanged) and the review rule changed to a fresh-agent review with Arun deciding the flags (Arun: the cases are synthetic). Cases and counts: [permissions-v1 changelog](../docs/eval/CHANGELOG.md#permissions-v1-2026-10-21).
 
 ## Verification
 
