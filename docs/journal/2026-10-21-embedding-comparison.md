@@ -18,6 +18,15 @@ Build and runs for [spec 0008](../../specs/0008-embedding-model-comparison.md). 
 
 ## Qwen3-Embedding-8B@1536 (DeepInfra)
 - Probe, `LIMIT=10`: 10 vectors, 1,536 dims, unit norm. DeepInfra honours `dimensions`.
+- Embed: 22,368 more chunks (10 from the probe skipped), estimated $0.10, 0 failed, 0 HTTP 429s. It took 43 minutes (14:00–14:43), about 4× slower than 3-large. Every vector is 1,536 dims.
+- Eval: run `2026-10-21-c5d62f36`, retrieval-only, clean tree (`harness_sha` 7a8c798). Arun approved this eval before lunch. Matched k = 5 (2,308 tokens@5).
+  - chunk_fact_recall@5 0.586 ± 0.082 (+0.091). chunk_all_required@5 0.500 (+0.094), chunk_ndcg@5 0.456 (+0.161).
+  - **Paired delta +0.091, paired SE 0.076, mean/SE 1.20.** No difference under AC-9.
+  - Rows: 7 won (8, 10, 99 at +1.0; 32, 58, 11, 34), 2 lost (44 and 49, each −1.0), 23 tied.
+
+## Decision
+- Neither candidate passes, so 3-small stays ([ADR-0022](../decisions/0022-keep-text-embedding-3-small.md)). No prefix arm.
+- Both models lose rows 44 and 49, where 3-small scored 1.0. On row 49 both rank `general-onboarding/tanewki-tips.md` first. Not investigated further today.
 
 ---
 
