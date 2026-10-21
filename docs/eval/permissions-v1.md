@@ -902,3 +902,110 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - entitled_targets:
 - outcome:
 - validity: unchecked
+
+### P-081 — same-question S-4
+- persona: us-ic
+- question: Is there a pre-tax commuter benefit in the US for parking or transit, and how much is it?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md § "Commuter Benefits" L618–624 (through WEX: up to $340 a month for parking and up to $340 a month for transit; funds roll over month to month)
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-082 — same-question S-4
+- persona: manager
+- question: Is there a pre-tax commuter benefit in the US for parking or transit, and how much is it?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md
+- evidence: as P-081
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-083 — same-question S-4
+- persona: contractor
+- question: Is there a pre-tax commuter benefit in the US for parking or transit, and how much is it?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md
+- evidence: as P-081
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-084 — same-question S-5
+- persona: agency
+- question: How do I become a maintainer on a GitLab project?
+- target_docs: engineering/workflow/code-review.md
+- evidence: engineering/workflow/code-review.md § "How to become a project maintainer" L67–71 (be a contributor first, then a reviewer in the trainee maintainer process); engineering/workflow/code-review.md § "Pre-requisites for Maintainership" L87–92 (the nominating author reviews recent justifications and asks at least two maintainers privately for feedback)
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-085 — same-question S-5
+- persona: narrow
+- question: How do I become a maintainer on a GitLab project?
+- target_docs: engineering/workflow/code-review.md
+- evidence: as P-084
+- intent: denied
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-086 — same-question S-5
+- persona: contractor
+- question: How do I become a maintainer on a GitLab project?
+- target_docs: engineering/workflow/code-review.md
+- evidence: as P-084
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+## 9. Controls on v1.2 rows with restricted expected docs
+
+Each row's question verbatim, its `expected_docs` as targets, and its facts (eval-set-v1.md, v1.2) for authorized recall. One entitled and one denied persona per row; intent is per target doc because most rows mix open and restricted docs. Rows 15, 33, 39, 61 and 109 are cut from v1.2 but keep their facts.
+
+### P-087 — control (row 5)
+- persona: admin
+- question: I'm in Germany and off sick — how many days can I take before I need a doctor's note, and is it different in other countries?
+- target_docs: entity/gmbh-germany.md, people-group/time-off-and-absence/time-off-types.md
+- evidence: row 5 facts F1–F9
+- intent: allowed (both)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: `admin` is the only fixture persona entitled to `entity:de-gmbh`.
+
+### P-088 — control (row 5)
+- persona: us-ic
+- question: I'm in Germany and off sick — how many days can I take before I need a doctor's note, and is it different in other countries?
+- target_docs: entity/gmbh-germany.md, people-group/time-off-and-absence/time-off-types.md
+- evidence: row 5 facts F1–F9
+- intent: denied (entity/gmbh-germany.md), allowed (people-group/time-off-and-absence/time-off-types.md)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: the question claims Germany; `us-ic` is on `us-inc`, so the claim must not widen access.
+
+### P-089 — control (row 15)
+- persona: us-ic
+- question: do we get a cost of living stipend in brazil?
+- target_docs: total-rewards/compensation/_index.md, total-rewards/benefits/general-and-entity-benefits/remote-com.md
+- evidence: row 15 facts F1–F3
+- intent: allowed (total-rewards/compensation/_index.md), denied (total-rewards/benefits/general-and-entity-benefits/remote-com.md)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: no fixture persona except `admin` is entitled to `entity:peo-remote`; `us-ic` is entitled to the core fact F1.
+
+### P-090 — control (row 15)
+- persona: contractor
+- question: do we get a cost of living stipend in brazil?
+- target_docs: total-rewards/compensation/_index.md, total-rewards/benefits/general-and-entity-benefits/remote-com.md
+- evidence: row 15 facts F1–F3
+- intent: denied (both)
+- entitled_targets:
+- outcome:
+- validity: unchecked
