@@ -574,3 +574,116 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - entitled_targets:
 - outcome:
 - validity: unchecked
+
+### P-051 — denied · narrow
+- persona: narrow
+- question: How often should I be having 1:1s with my manager?
+- target_docs: leadership/1-1/_index.md
+- evidence: leadership/1-1/_index.md § "Conducting a 1-1" L13–15 (schedule 1-1s at least once a week; synchronous or asynchronous by agreement between manager and report)
+- intent: denied
+- twin: P-052
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-052 — twin of P-051 · narrow
+- persona: us-ic
+- question: How often should I be having 1:1s with my manager?
+- target_docs: leadership/1-1/_index.md
+- evidence: as P-051
+- intent: allowed
+- twin: P-051
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-053 — denied · narrow
+- persona: narrow
+- question: If I don't use my learning and development budget this year, does it carry over?
+- target_docs: people-group/learning-and-development/growth-and-development/_index.md
+- evidence: people-group/learning-and-development/growth-and-development/_index.md § "Does budget rollover?" L218–220 (no: unspent G&D budgets do not roll over)
+- intent: denied
+- twin: P-054
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: the page limits the fund to full-time employees (§ "Eligibility" L24–26), so a correct answer for any contractor differs from the twin's; the case tests visibility of the page, not eligibility.
+
+### P-054 — twin of P-053 · narrow
+- persona: us-ic
+- question: If I don't use my learning and development budget this year, does it carry over?
+- target_docs: people-group/learning-and-development/growth-and-development/_index.md
+- evidence: as P-053
+- intent: allowed
+- twin: P-053
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-055 — denied · narrow
+- persona: narrow
+- question: Who do I report harassment to?
+- target_docs: people-group/anti-harassment.md
+- evidence: people-group/anti-harassment.md § "Reporting Alleged Harassment" L95–98 (address the harasser directly if comfortable; otherwise report to the Chief People Officer, Team Member Relations or a People Business Partner)
+- intent: denied
+- twin: P-056
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-056 — twin of P-055 · narrow
+- persona: us-ic
+- question: Who do I report harassment to?
+- target_docs: people-group/anti-harassment.md
+- evidence: as P-055
+- intent: allowed
+- twin: P-055
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+## 5. Agency contractor
+
+`agency` (groups `new-contractor`, `agency:engineering`) sees the engineering subtree plus the onboarding and contractor pages. In-department cases target engineering pages (allowed, no twin). Out-of-department cases target open pages outside engineering and the onboarding pages (denied, twinned with `us-ic`).
+
+### P-057 — agency · in-department
+- persona: agency
+- question: What should I do with merge requests I'm reviewing before I go on PTO?
+- target_docs: engineering/workflow/code-review.md
+- evidence: engineering/workflow/code-review.md § "Managing Review Assignments Before PTO" L26–36 (check assigned reviews on your last day; leave your PTO dates on the MR or reassign it; tell the author if you can't finish)
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-058 — agency · in-department
+- persona: agency
+- question: How big is the GitLab.com error budget, and over what period is it measured?
+- target_docs: engineering/error-budgets/_index.md
+- evidence: engineering/error-budgets/_index.md § "Budget allocation" L118–124 (99.95% availability target, 20 minutes of allowed unavailability per 28-day period)
+- intent: allowed
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-059 — denied · agency out-of-department
+- persona: agency
+- question: How long do I need to have been here before I can ask for 360 feedback?
+- target_docs: people-group/360-feedback.md
+- evidence: people-group/360-feedback.md § "Eligibility and Timing" L96–98 (team members with at least 6 months of tenure; typically timed before mid-year and end-of-year check-ins)
+- intent: denied
+- twin: P-060
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-060 — twin of P-059 · agency out-of-department
+- persona: us-ic
+- question: How long do I need to have been here before I can ask for 360 feedback?
+- target_docs: people-group/360-feedback.md
+- evidence: as P-059
+- intent: allowed
+- twin: P-059
+- entitled_targets:
+- outcome:
+- validity: unchecked
