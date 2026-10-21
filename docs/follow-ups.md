@@ -56,7 +56,7 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
 
 ## From the spec 0006 runs (2026-10-19)
 
-- **Heading-path prefix, on the winner only:** every candidate in the embedding-model comparison runs on `fixed-512-64`. Only a model that beats text-embedding-3-small then gets a `fixed-512-64-prefixed` run (about $1). Adopt the prefix only if it wins there. On 3-small it was +0.036 at k=5, 3 rows won and 1 lost, within the SE (Arun, 19 Oct). Changed from both arms for every candidate (Arun, 20 Oct): 33 rows can't detect a model-by-prefix interaction.
+- **Heading-path prefix, re-test after the week-3 reranker:** on 3-small it was +0.036 at k=5 (Arun, 19 Oct). On the adopted 3-large@1536 (run `2026-10-21-586b1635` vs `d83f3edc`) it was +0.031 ± 0.059 (0.51 SE): page_hit@1 +0.156 (2.40 SE) but chunk_fact_recall@10 −0.062 (−1.68 SE), from same-page crowding (rows 10, 48, 34). Not adopted (Arun, 21 Oct). Retrieve-50-rerank-to-5 needs depth and gives its own top ordering, so re-test prefixed vs unprefixed with the reranker in place. The 3-large prefixed vectors are stored: one eval. If revisited, a title-only prefix separates the title (always correct) from the heading path (only the window's start; 85% of windows cross a heading).
 - **Fixed size and overlap sweep, week 4 with context assembly:** 256/32 and 1024/128, then overlap 0 and 128 at 512 ([ADR-0003](decisions/0003-baseline-chunking-512-64.md)). Decide on recall at the token-matched k, after the week-3 reranker, when k unfreezes. About $0.2 of embedding per config (Arun, 19 Oct).
 
 ## From the spec 0007 review (2026-10-20)

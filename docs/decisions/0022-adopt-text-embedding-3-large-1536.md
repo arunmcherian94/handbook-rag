@@ -44,7 +44,7 @@ Full answer runs (52 rows, same harness `26808da`, vs `2026-10-21-18f10293`):
 - `DEFAULT_EMBED_MODEL` changed in the follow-up PR.
 - permissions-v1 AC-11 re-checked under 3-large: 50 of 52 valid; P-097 and P-098 dropped ([changelog](../eval/CHANGELOG.md)).
 - The 3-large@3072 follow-up becomes a dims-only test against the new default.
-- Next step, not done: the prefix arm (AC-8 step 4) for 3-large on `fixed-512-64-prefixed` (about $1.4).
+- Prefix arm (AC-8 step 4) run on 21 Oct, `2026-10-21-586b1635`: +0.031 ± 0.059 (0.51 SE) at k=5, deeper recall down. **Not adopted (Arun): the default stays unprefixed `fixed-512-64`.** Re-test after the week-3 reranker.
 - Most false abstention is generator behaviour (rows 49, 100, 58 abstain with full or high recall), so the answer model is the bigger lever (follow-ups: "False abstention", answer-model check).
 
 ## Alternatives considered
