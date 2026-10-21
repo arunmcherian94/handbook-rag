@@ -63,6 +63,17 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
 
   Week 5 grows the claimed-identity cases into an injection suite. Agent tools take the session principal, never one from model output (spec 0007 AC-14). Model-based identity-claim detection is out of scope for spec 0007 (Arun, 20 Oct).
 
+## From the spec 0008 review (2026-10-21)
+
+- **`make ask` query mode, before adopting a non-OpenAI embedder:** spec 0008 gives eval a query-mode embedder without touching the frozen `ask.py`. `make ask` still builds a document-mode one. With Qwen3 or Gemini as the default, every live question would be embedded as a document: no query instruction, wrong `task_type`. Fix it in the PR that changes `DEFAULT_EMBED_MODEL` (spec 0008 AC-3, AC-9). Not needed for OpenAI models, which have no input types.
+- **Indexing vectors over 2,000 dims, week 6 (ANN):** spec 0008 runs every candidate at 1,536, so only the model changes against 3-small, and HNSW on `vector` stays possible. Options if native dims are wanted later, from the [pgvector README](https://github.com/pgvector/pgvector) (checked 21 Oct):
+  - HNSW on `halfvec` (up to 4,000 dims) covers 3-large's 3,072.
+  - An expression index on `subvector(embedding, 1, n)`, then re-rank the shortlist on the full vector.
+  - Binary quantization (`binary_quantize`, HNSW on `bit`, up to 64,000 dims), then re-rank on the full vector.
+  - Dedicated vector databases, which have higher limits and usually quantize.
+
+  Trigger: a 1,536-dim candidate that wins or loses narrowly. Then run 3-large@3072 (one change: dims) before week 6.
+
 ## Reading (deferred)
 
 - **Chroma, [Evaluating chunking strategies for retrieval](https://research.trychroma.com/evaluating-chunking):** dropped on 20 Oct because the chunking track is closed. Trigger: the week 4 size sweep.
