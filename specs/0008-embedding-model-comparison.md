@@ -143,4 +143,4 @@ Before the implementation PR:
 - [x] `make test` and `make lint` pass
 - [x] `/code-review` run, findings ranked: must-fix items fixed; lower-priority items listed in the journal, awaiting Arun
 - [x] Clean-room verified (fresh clone under `$HOME`, own DB, pinned corpus linked: 311 unit + 36 integration passed, lint clean)
-- [x] docs updated: journal entry, ADR-0022
+- [x] docs updated: journal entry, ADR-0022, decision runs in docs/eval/results

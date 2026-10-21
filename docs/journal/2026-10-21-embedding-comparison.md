@@ -24,9 +24,30 @@ Build and runs for [spec 0008](../../specs/0008-embedding-model-comparison.md). 
   - **Paired delta +0.091, paired SE 0.076, mean/SE 1.20.** No difference under AC-9.
   - Rows: 7 won (8, 10, 99 at +1.0; 32, 58, 11, 34), 2 lost (44 and 49, each −1.0), 23 tied.
 
+## Full answer runs
+- Why: the retrieval-only runs never called the answer model, so they say nothing about answers. Arun overrode the 15:55 stop to finish today and decide on answer quality too.
+- 3-small was re-run the same day as the noise floor and the baseline for this comparison, because `3748df5b` lacks `eval_depth`. Retrieval is identical to `2026-10-19-d2625d91` (recall@5 0.495).
+- 52 rows, gpt-5.4-mini, k = 5, harness `26808da`, clean tree, about $0.21 each, approved by Arun. Retrieval reproduces the morning runs exactly (exact search, deterministic).
+
+| model | run | recall@5 | mrr | false abstention (n = 33) | correct ooc abstention (n = 19) |
+|---|---|---|---|---|---|
+| 3-small | `2026-10-21-18f10293` | 0.495 | 0.380 | 11, 0.333 ± 0.082 | 17 |
+| 3-large@1536 | `2026-10-21-e602bd95` | 0.583 | 0.504 | 10, 0.303 ± 0.080 | 17 |
+| Qwen3-8B@1536 | `2026-10-21-9719cae6` | 0.586 | 0.553 | 10, 0.303 ± 0.080 | 15 |
+
+- Flips vs 3-small, paired: 3-large −0.030 ± 0.053 (rows 99, 5 now answer; 53 now abstains). Qwen −0.030 ± 0.081 (rows 8, 55, 100, 92 now answer; 53, 44, 35 now abstain).
+- Code checks pass on every non-abstaining row for all three. They say nothing about content.
+- ooc: Qwen row 47 (France statutory PTO) asserts "20 statutory vacation days". That phrase is in the corpus only on `bv-benefits-belgium.md`: a wrong-entity hallucination (verified). Qwen row 112 answers "Yes" from a distractor page. 3-large row 47 says the excerpt states no minimum, a de facto abstention in non-standard wording. 3-small answered no ooc row.
+- Judged by reading answers against the reference facts (Claude's judgment, not yet reviewed by Arun; directional, one run per model, no generator-variance estimate; on the 16 rows where abstention or recall differs, plus 44 and 49): 3-large vs 3-small 5 better / 2 worse / 9 tie; Qwen vs 3-small 6 / 4 / 6; 3-large vs Qwen 5 / 4 / 7.
+- Row 49: all three abstain, and 3-small had recall@5 1.0, so that is generator over-abstention, not retrieval. Row 44: 3-small and 3-large are about equal, and Qwen abstains (recall 0).
+- Most false abstention is generator behaviour (rows 49, 100, 58 abstain with full or high recall), so better retrieval barely moves it.
+
 ## Decision
-- Neither candidate passes, so 3-small stays ([ADR-0022](../decisions/0022-keep-text-embedding-3-small.md)). No prefix arm.
-- Both models lose rows 44 and 49, where 3-small scored 1.0. On row 49 both rank `general-onboarding/tanewki-tips.md` first. Not investigated further today.
+- Proposed: adopt `openai:text-embedding-3-large@1536` as `DEFAULT_EMBED_MODEL` ([ADR-0022](../decisions/0022-adopt-text-embedding-3-large-1536.md)); Arun to accept or reject in PR #31. The prefix arm (about $1.4) is the next step, not done.
+- Departs from AC-9: 1.97 SE is under 2. The rule was a pre-commitment against moving the bar after seeing numbers, and this moves it. Keeping 3-small is the choice that keeps the rule.
+- For: every retrieval metric up (recall@5 bootstrap 95% CI [+0.004, +0.178]; recall@10 2.42 SE and MRR 2.51 SE, post-hoc), no measured answer harm, same provider and key, vectors already stored, reversible by a constant change.
+- Against Qwen: same mean gain, double the variance, an ooc hallucination, a second provider, 4× slower embedding, and `make ask` would need query mode.
+- At n = 32 the eval can't reliably detect about +0.09: "probably better, cheap, reversible", not "proven better".
 
 ## Review (`/code-review`, 21 Oct)
 Fixed (correctness or AC-breaking), commit `3e5dc67`, with tests:
