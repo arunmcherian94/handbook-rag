@@ -125,3 +125,113 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - entitled_targets:
 - outcome:
 - validity: unchecked
+
+### P-011 — denied · cross-entity (fr-sas)
+- persona: manager
+- question: Do team members in France get a holiday bonus, and how is it calculated?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/france-sas.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/france-sas.md § "Holiday Bonus" L101–127 (all GitLab France S.A.S. team members employed in June; 1% of total gross compensation over the prior 12 months, paid in June payroll)
+- intent: denied
+- twin: P-012
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-012 — twin of P-011 · cross-entity (fr-sas)
+- persona: admin
+- question: Do team members in France get a holiday bonus, and how is it calculated?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/france-sas.md
+- evidence: as P-011
+- intent: allowed
+- twin: P-011
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-013 — denied · cross-entity (us-inc)
+- persona: manager
+- question: What is the company match on the US 401(k)?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md § "401(k) Plan with Company Match" L365–370 (50% of contributions on the first 6% of earnings, up to $1,500 a year; immediate eligibility and vesting)
+- intent: denied
+- twin: P-014
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-014 — twin of P-013 · cross-entity (us-inc)
+- persona: us-ic
+- question: What is the company match on the US 401(k)?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md
+- evidence: as P-013
+- intent: allowed
+- twin: P-013
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-015 — denied · cross-entity (au-pty)
+- persona: us-ic
+- question: Is long service leave a thing for Australian team members, and how do they record it?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/pty-benefits-australia.md
+- evidence: total-rewards/benefits/general-and-entity-benefits/pty-benefits-australia.md § "Long Service Leave" L357–367 (eligibility per state/territory legislation; runs concurrently with GitLab PTO; select "AUS Long Service" in Workday)
+- intent: denied
+- twin: P-016
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-016 — twin of P-015 · cross-entity (au-pty)
+- persona: admin
+- question: Is long service leave a thing for Australian team members, and how do they record it?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/pty-benefits-australia.md
+- evidence: as P-015
+- intent: allowed
+- twin: P-015
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-017 — denied · cross-entity (il-ltd)
+- persona: us-ic
+- question: How much do GitLab and the employee each put into the study fund in Israel?
+- target_docs: entity/israel-ltd.md
+- evidence: entity/israel-ltd.md § "Study Fund" L85–91 (team member 2.5% of determined salary, GitLab 7.5%; contributions continue on leave except unpaid leave)
+- intent: denied
+- twin: P-018
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-018 — twin of P-017 · cross-entity (il-ltd)
+- persona: admin
+- question: How much do GitLab and the employee each put into the study fund in Israel?
+- target_docs: entity/israel-ltd.md
+- evidence: as P-017
+- intent: allowed
+- twin: P-017
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-019 — denied · cross-entity (es-srl)
+- persona: manager
+- question: Are 13th and 14th month salaries paid in Spain, and when?
+- target_docs: entity/iberia-srl-spain.md
+- evidence: entity/iberia-srl-spain.md § "13th & 14th Salaries" L268–285 (all GitLab Iberia s.r.l. team members; paid within the standard 12-month payroll as part of total compensation)
+- intent: denied
+- twin: P-020
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-020 — twin of P-019 · cross-entity (es-srl)
+- persona: admin
+- question: Are 13th and 14th month salaries paid in Spain, and when?
+- target_docs: entity/iberia-srl-spain.md
+- evidence: as P-019
+- intent: allowed
+- twin: P-019
+- entitled_targets:
+- outcome:
+- validity: unchecked
