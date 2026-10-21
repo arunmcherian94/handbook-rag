@@ -28,6 +28,21 @@ Build and runs for [spec 0008](../../specs/0008-embedding-model-comparison.md). 
 - Neither candidate passes, so 3-small stays ([ADR-0022](../decisions/0022-keep-text-embedding-3-small.md)). No prefix arm.
 - Both models lose rows 44 and 49, where 3-small scored 1.0. On row 49 both rank `general-onboarding/tanewki-tips.md` first. Not investigated further today.
 
+## Review (`/code-review`, 21 Oct)
+Fixed (correctness or AC-breaking), commit `3e5dc67`, with tests:
+- **Adapter over-length aborted the whole embed (AC-4).** The adapter counts the exact text sent. The embed pre-check sums stored counts (content plus a prefix counted on its own), and the two can differ by a token at a boundary. A chunk passing one check and failing the other raised a bare `ValueError` that stopped the run and named a batch index. Now it raises `InputTooLong` with the index, and embed records it as a local failure naming the chunk_id, then sends the rest.
+- **Dry runs priced the raw spec string, not the stored name (AC-1, AC-5).** `@01536` counted pending chunks under a name run() never stores, and an out-of-range `@4000` passed the dry run, failing only after `CONFIRM=1`. Both dry runs now build a client-less embedder to get the canonical name and check dims.
+- **The eval estimate left out the query instruction (AC-5).** For Qwen it counted 868 tokens. Counted as sent, it is 2,242 ($0.000022, not $0.000009), so run `c5d62f36` was quoted low; the amount is negligible either way.
+- **An over-length query would fail mid-eval, after earlier rows were paid for (AC-4).** Every query as sent is now checked before `CONFIRM`.
+
+Not fixed, waiting for Arun (lower priority):
+- The AC-6 both-changed check runs after `CONFIRM`, though still before any spend. It could move to the dry run.
+- The mean/SE cell shows "—" when SE = 0. That can't happen at n = 32 with mixed deltas.
+- A missing `DEEPINFRA_API_KEY` raises a bare `KeyError` after `CONFIRM`.
+- The adapter re-tokenizes inputs that embed already counted, wasting CPU (about 10M tokens per full embed).
+- The adapter doesn't validate `kind` itself; only the factory does.
+- The model-table lookup is repeated in the factory and the adapter.
+
 ---
 
 Prev: [2026-10-20: embedding comparison prep, for spec 0008](2026-10-20-embedding-comparison-prep.md)
