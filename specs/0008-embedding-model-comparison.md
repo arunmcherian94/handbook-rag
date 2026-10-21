@@ -1,6 +1,6 @@
 # 0008: Embedding model comparison (week 2)
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-21
 - Depends on: 0006, eval set v1.2, baseline run `2026-10-19-d2625d91`, [prep journal, 20 Oct](../docs/journal/2026-10-20-embedding-comparison-prep.md)
 
@@ -140,7 +140,7 @@ Candidates, in order (Arun, 21 Oct):
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass
+- [x] `/code-review` run, findings ranked: must-fix items fixed; lower-priority items listed in the journal, awaiting Arun
+- [x] Clean-room verified (fresh clone under `$HOME`, own DB, pinned corpus linked: 311 unit + 36 integration passed, lint clean)
+- [x] docs updated: journal entry, ADR-0022
