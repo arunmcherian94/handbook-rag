@@ -45,7 +45,7 @@ Candidates, in order (Arun, 21 Oct):
     | gemini-embedding-001 | `task_type=RETRIEVAL_DOCUMENT` | `task_type=RETRIEVAL_QUERY` |
 
   - The kind changes only what goes into the embedding call. The stored name, the stored content and the search SQL don't change.
-  - `ask.py` is not changed (it is frozen). Eval passes retrieval an embedder built in `query` mode. Using a non-OpenAI model from `make ask` would need a query-mode embedder there too; that goes in follow-ups, for an adopted model only.
+  - `ask.py` is not changed (it is frozen). Eval passes retrieval an embedder built in `query` mode. Using a non-OpenAI model from `make ask` would need a query-mode embedder there too; it is in [follow-ups](../docs/follow-ups.md#from-the-spec-0008-review-2026-10-21), for an adopted model only.
   - Tests check the exact query string and task types sent for each model.
 
 **Over-length input**
@@ -118,7 +118,7 @@ Candidates, in order (Arun, 21 Oct):
 
 | Decision | Chosen | Rejected alternatives and why |
 |---|---|---|
-| Dimensions | 1,536 for every candidate | **Native dims:** 3-large would change the model and the size at once, and 3,072 or 4,096 can't take an HNSW index later (2,000-dim limit, ADR-0004). |
+| Dimensions | 1,536 for every candidate: the same size as 3-small, so only the model changes. 3-large, Qwen3 and Gemini all support shortened outputs (AC-2). | **Native dims:** 3-large would change the model and the size at once. A plain `vector` HNSW index also stops at 2,000 dims (ADR-0004). Larger vectors can still be indexed (`halfvec` up to 4,000, subvector or binary-quantized indexes with re-ranking; [pgvector README](https://github.com/pgvector/pgvector)). Those options and a 3-large@3072 run are in [follow-ups](../docs/follow-ups.md#from-the-spec-0008-review-2026-10-21), for week 6. |
 | Name carries dims | `provider:model@dims` | **A dims column:** a schema change and a new PK for the same separation. |
 | Query mode without touching `ask.py` | Eval builds a query-mode embedder and passes it to `ask.retrieve` | **`ask.py` calls an `embed_query` method:** edits a frozen file. |
 | Over-length for other tokenizers | cl100k count against half the model's limit, plus truncation off at the API | **Each model's own tokenizer:** a new dependency per model (transformers, google-genai) for a check that has 4× headroom today. |
