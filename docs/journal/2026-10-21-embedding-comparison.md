@@ -49,6 +49,12 @@ Build and runs for [spec 0008](../../specs/0008-embedding-model-comparison.md). 
 - Against Qwen: same mean gain, double the variance, an ooc hallucination, a second provider, 4× slower embedding, and `make ask` would need query mode.
 - At n = 32 the eval can't reliably detect about +0.09: "probably better, cheap, reversible", not "proven better".
 
+## Lessons (Arun)
+- **The eval set is too small for model choices.** At n = 32 a gain of about +0.09 sits on the 2-SE bar, and both candidates landed there. From today's per-row spread (paired sd 0.25 for 3-large, 0.43 for Qwen), detecting +0.05 needs about 105–300 rows to reach the bar half the time and about 210–600 for 80%. Model comparisons need a few hundred rows: the synthetic retrieval set ([follow-ups](../follow-ups.md)), reported apart from the human-authored v1.
+- **Models will keep changing, so switching must be cheap.** Ports and adapters, the factory on the name string, the name as storage key, the untyped vector column and coexisting configs already carry most of it ([ADR-0008](../decisions/0008-design-patterns.md), [ADR-0020](../decisions/0020-chunk-configs-coexist.md)). This comparison still needed query/document kinds, dims in the name and a price table. The target: adding or switching a model is one adapter file, one table entry and one constant, plus a re-embed and an eval run, with no schema change. Gaps are in [follow-ups](../follow-ups.md#model-switching).
+- **An LLM gateway may make sense** for answer models (one API, fallbacks, routing, central keys and spend). It does not remove the main cost of an embedding switch, the re-embed. Decide in week 7.
+- **We measured retrieval closely and answers barely.** The harness scores abstention and citation form, not correctness or grounding. Answer evaluation is scheduled for week 3, before hybrid search ([follow-ups](../follow-ups.md)).
+
 ## Review (`/code-review`, 21 Oct)
 Fixed (correctness or AC-breaking), commit `3e5dc67`, with tests:
 - **Adapter over-length aborted the whole embed (AC-4).** The adapter counts the exact text sent. The embed pre-check sums stored counts (content plus a prefix counted on its own), and the two can differ by a token at a boundary. A chunk passing one check and failing the other raised a bare `ValueError` that stopped the run and named a batch index. Now it raises `InputTooLong` with the index, and embed records it as a local failure naming the chunk_id, then sends the rest.
