@@ -460,3 +460,117 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - entitled_targets:
 - outcome:
 - validity: unchecked
+
+## 4. Denied, narrow persona on open pages (with entitled twins)
+
+`narrow` (a temporary service provider, group `new-contractor`) sees only the onboarding and contractor pages. These are common new-contractor questions answered on open pages outside that list. Twins are asked by `us-ic`.
+
+### P-041 — denied · narrow
+- persona: narrow
+- question: Can I plug a USB stick into my work laptop?
+- target_docs: people-group/acceptable-use-policy.md
+- evidence: people-group/acceptable-use-policy.md § "Use of External Media on Company Assets" L149–151 (removable and external storage on company-managed devices is not allowed and blocked by default; an exception request can be opened for a business need)
+- intent: denied
+- twin: P-042
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-042 — twin of P-041 · narrow
+- persona: us-ic
+- question: Can I plug a USB stick into my work laptop?
+- target_docs: people-group/acceptable-use-policy.md
+- evidence: as P-041
+- intent: allowed
+- twin: P-041
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-043 — denied · narrow
+- persona: narrow
+- question: I got an email that looks like phishing. How do I report it?
+- target_docs: security/security-assurance/governance/phishing.md
+- evidence: security/security-assurance/governance/phishing.md § "What to do if you suspect an email is a phishing attack" L181–188 (use the PhishArm button in Gmail; from other clients forward it to `phishing@gitlab.com`)
+- intent: denied
+- twin: P-044
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-044 — twin of P-043 · narrow
+- persona: us-ic
+- question: I got an email that looks like phishing. How do I report it?
+- target_docs: security/security-assurance/governance/phishing.md
+- evidence: as P-043
+- intent: allowed
+- twin: P-043
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-045 — denied · narrow
+- persona: narrow
+- question: What are the password rules here? Minimum length, and do passwords expire?
+- target_docs: security/policies_and_standards/password-standard.md
+- evidence: security/policies_and_standards/password-standard.md § "Password Requirements" L34–42 (minimum 12 characters, no special characters required, no reuse, no expiration, MFA whenever possible; generate and store in 1Password)
+- intent: denied
+- twin: P-046
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-046 — twin of P-045 · narrow
+- persona: us-ic
+- question: What are the password rules here? Minimum length, and do passwords expire?
+- target_docs: security/policies_and_standards/password-standard.md
+- evidence: as P-045
+- intent: allowed
+- twin: P-045
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-047 — denied · narrow
+- persona: narrow
+- question: I'd like to work from another country for a few months. Do I need to update my address or tell anyone?
+- target_docs: people-group/relocation.md
+- evidence: people-group/relocation.md § "Short-Term Stay Definition" L34–42 (under 6 months in a new location needs no Workday address change; more than 6 months in a calendar year becomes your residence and needs the long-term relocation process)
+- intent: denied
+- twin: P-048
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-048 — twin of P-047 · narrow
+- persona: us-ic
+- question: I'd like to work from another country for a few months. Do I need to update my address or tell anyone?
+- target_docs: people-group/relocation.md
+- evidence: as P-047
+- intent: allowed
+- twin: P-047
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-049 — denied · narrow
+- persona: narrow
+- question: Do new starters get a welcome swag pack, and how do I claim it?
+- target_docs: people-group/celebrations.md
+- evidence: people-group/celebrations.md § "New Hire Swag" L6–8 (a customized welcome package; an email on your date of hire carries the redemption link)
+- intent: denied
+- twin: P-050
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-050 — twin of P-049 · narrow
+- persona: us-ic
+- question: Do new starters get a welcome swag pack, and how do I claim it?
+- target_docs: people-group/celebrations.md
+- evidence: as P-049
+- intent: allowed
+- twin: P-049
+- entitled_targets:
+- outcome:
+- validity: unchecked
