@@ -10,6 +10,8 @@ Status: **draft**. Drafted by Claude on 2026-10-21 in a fresh session (spec 0007
 - **Twins:** a denied case and its entitled twin share the question verbatim and point at each other.
 - **Controls** (v1.2 rows 5, 15, 22, 33, 39, 61, 92, 109) reuse the row's question verbatim, its `expected_docs` as targets and its facts for authorized recall; their evidence is the row's citations in [eval-set-v1.md](eval-set-v1.md).
 
+**Counts (102 cases):** denied 28, each with an entitled twin (cross-entity 12 over 12 entities: uk-ltd, de-gmbh, ie-ltd, nl-bv, be-bv, fr-sas, us-inc, au-pty, il-ltd, es-srl, sg-pte, peo-remote; manager-only 5; employee-only 3; narrow 8); same-question 5 sets × 3 personas; partial 3; claimed-identity 6; agency 2 in-department + 2 out-of-department with twins; controls 8 rows × 2 personas.
+
 Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` (denied cases and their twins), `entitled_targets` and `outcome` (computed, empty here), `validity`.
 
 ## 1. Denied, cross-entity (with entitled twins)
@@ -1006,6 +1008,133 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - target_docs: total-rewards/compensation/_index.md, total-rewards/benefits/general-and-entity-benefits/remote-com.md
 - evidence: row 15 facts F1–F3
 - intent: denied (both)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-091 — control (row 22)
+- persona: manager
+- question: How do I enroll in the pension plan at our European entity?
+- target_docs: entity/gmbh-germany.md, total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md, total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md, total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md, total-rewards/benefits/general-and-entity-benefits/france-sas.md, total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md
+- evidence: row 22 facts F1–F8
+- intent: allowed (total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md), denied (the other five)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: `manager` (uk-ltd) is entitled to one of six targets (F4, UK). F1 is a framing fact with no cited doc.
+
+### P-092 — control (row 22)
+- persona: us-ic
+- question: How do I enroll in the pension plan at our European entity?
+- target_docs: entity/gmbh-germany.md, total-rewards/benefits/general-and-entity-benefits/bv-benefits-netherlands.md, total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md, total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md, total-rewards/benefits/general-and-entity-benefits/france-sas.md, total-rewards/benefits/general-and-entity-benefits/bv-benefits-belgium.md
+- evidence: row 22 facts F1–F8
+- intent: denied (all six)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-093 — control (row 33)
+- persona: manager
+- question: Does the comp review process differ between job families? Asking as a manager prepping for it.
+- target_docs: total-rewards/compensation/compensation-review-cycle/_index.md, total-rewards/compensation/_index.md
+- evidence: row 33 facts F1–F5
+- intent: allowed (both)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: the question states the manager role; here the principal really is a manager.
+
+### P-094 — control (row 33)
+- persona: contractor
+- question: Does the comp review process differ between job families? Asking as a manager prepping for it.
+- target_docs: total-rewards/compensation/compensation-review-cycle/_index.md, total-rewards/compensation/_index.md
+- evidence: row 33 facts F1–F5
+- intent: denied (both)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: the question claims the manager role; `contractor` is not in `manager` or `employee`.
+
+### P-095 — control (row 39)
+- persona: manager
+- question: Are there entity-specific differences in the expense policy for team members employed through the UK entity?
+- target_docs: finance/expenses.md, total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md
+- evidence: row 39 facts F1–F6
+- intent: allowed (both)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-096 — control (row 39)
+- persona: us-ic
+- question: Are there entity-specific differences in the expense policy for team members employed through the UK entity?
+- target_docs: finance/expenses.md, total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md
+- evidence: row 39 facts F1–F6
+- intent: allowed (finance/expenses.md), denied (total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: F1–F5 cite the open expenses page, so most of this row stays entitled; only F6 (UK vision claims) is hidden.
+
+### P-097 — control (row 61)
+- persona: us-ic
+- question: What are the eligibility criteria for a sabbatical or leave of absence?
+- target_docs: people-policies/leave-of-absence/_index.md, people-policies/leave-of-absence/us.md, people-group/time-off-and-absence/leave-types.md, people-group/time-off-and-absence/time-off-types.md, total-rewards/benefits/general-and-entity-benefits/global-expansion.md
+- evidence: row 61 facts F1–F6
+- intent: allowed (all except total-rewards/benefits/general-and-entity-benefits/global-expansion.md), denied (total-rewards/benefits/general-and-entity-benefits/global-expansion.md)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: entitled to the US FMLA/CFRA facts (F3, F4); F1 (UAE sabbatical) is on a PEO page no non-admin persona sees.
+
+### P-098 — control (row 61)
+- persona: manager
+- question: What are the eligibility criteria for a sabbatical or leave of absence?
+- target_docs: people-policies/leave-of-absence/_index.md, people-policies/leave-of-absence/us.md, people-group/time-off-and-absence/leave-types.md, people-group/time-off-and-absence/time-off-types.md, total-rewards/benefits/general-and-entity-benefits/global-expansion.md
+- evidence: row 61 facts F1–F6
+- intent: denied (people-policies/leave-of-absence/us.md, total-rewards/benefits/general-and-entity-benefits/global-expansion.md), allowed (the other three)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-099 — control (row 92)
+- persona: admin
+- question: Whats our POSH policy
+- target_docs: people-policies/india-ltd/india-sexual-harassment-policy.md, people-group/anti-harassment.md
+- evidence: row 92 facts F1–F6
+- intent: allowed (both)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: `admin` is the only fixture persona entitled to `entity:in-pvt`.
+
+### P-100 — control (row 92)
+- persona: us-ic
+- question: Whats our POSH policy
+- target_docs: people-policies/india-ltd/india-sexual-harassment-policy.md, people-group/anti-harassment.md
+- evidence: row 92 facts F1–F6
+- intent: denied (people-policies/india-ltd/india-sexual-harassment-policy.md), allowed (people-group/anti-harassment.md)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+- note: both required facts (F1, F4) cite the India policy, so `us-ic` has no required fact entitled.
+
+### P-101 — control (row 109)
+- persona: us-ic
+- question: What employee discounts do we get, like on phone plans or buying a laptop for personal use?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md, total-rewards/benefits/general-and-entity-benefits/_index.md, total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md
+- evidence: row 109 facts F1–F5
+- intent: allowed (total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md, total-rewards/benefits/general-and-entity-benefits/_index.md), denied (total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md)
+- entitled_targets:
+- outcome:
+- validity: unchecked
+
+### P-102 — control (row 109)
+- persona: contractor
+- question: What employee discounts do we get, like on phone plans or buying a laptop for personal use?
+- target_docs: total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md, total-rewards/benefits/general-and-entity-benefits/_index.md, total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md
+- evidence: row 109 facts F1–F5
+- intent: allowed (total-rewards/benefits/general-and-entity-benefits/_index.md), denied (total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md, total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md)
 - entitled_targets:
 - outcome:
 - validity: unchecked
