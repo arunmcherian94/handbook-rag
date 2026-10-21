@@ -90,6 +90,17 @@ def embed_usd_per_1m(spec: str) -> float:
     return entry["usd_per_1m"]
 
 
+def describe_embedder(spec: str, kind: str = "document") -> OpenAIEmbedder:
+    """An embedder with no client, for dry runs: its name is the canonical one run() stores, and
+    building it checks the model and @dims (AC-1); prepare() gives the texts as sent. It can't
+    embed."""
+    provider, model, dims = parse_embed_spec(spec)
+    if provider not in EMBEDDERS:
+        known = ", ".join(sorted(EMBEDDERS))
+        raise ValueError(f"unknown embedding provider {provider!r} (registered: {known})")
+    return OpenAIEmbedder(None, provider, model, dims, kind)
+
+
 def make_embedder(spec: str | None = None, kind: str = "document") -> Embedder:
     spec = resolve_embed_spec(spec)
     provider, model, dims = parse_embed_spec(spec)

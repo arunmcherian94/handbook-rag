@@ -17,6 +17,15 @@ class Embedder(Protocol):
     def embed(self, texts: list[str]) -> list[list[float]]: ...
 
 
+class InputTooLong(ValueError):
+    """An input over the model's limit, raised before any call (spec 0008, AC-4); index is its
+    position in the batch, so the caller can name the chunk or query."""
+
+    def __init__(self, index: int, message: str):
+        super().__init__(message)
+        self.index = index
+
+
 @dataclass(frozen=True)
 class Completion:
     """Provider-neutral answer result, so traces look the same for every provider."""

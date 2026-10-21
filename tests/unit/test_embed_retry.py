@@ -17,6 +17,7 @@ from handbook_rag.embed import (
     embed_text,
     embed_with_retry,
 )
+from handbook_rag.models import InputTooLong
 
 
 def rand():
@@ -165,6 +166,7 @@ def test_main_without_confirm_never_embeds(monkeypatch, capsys):
 
     monkeypatch.setenv("EMBED_MODEL", "fake:embed-test")
     monkeypatch.setattr(embed, "resolve_embed_spec", lambda: "fake:embed-test")
+    monkeypatch.setattr(embed, "describe_embedder", lambda spec: FakeEmbedder(name=spec))
     monkeypatch.setattr(embed, "embed_usd_per_1m", lambda spec: 0.0)
     monkeypatch.setattr(embed, "make_embedder", _no_embedder)
     monkeypatch.setattr(embed, "connect", lambda: Conn())
@@ -276,3 +278,63 @@ def test_prefix_tokens_count_toward_limits():
     e = FakeEmbedder()
     embed_batch(e, items, lambda s: None, rand, lambda *a: None)
     assert len(e.calls) > 1
+
+
+def test_adapter_over_length_is_isolated_and_names_the_chunk(caplog):
+    """Spec 0008 AC-4: an over-length input the adapter catches (its exact count can exceed the
+    stored estimate) becomes a local failure naming that chunk; the rest of the batch is sent."""
+
+    class Strict(FakeEmbedder):
+        def embed(self, texts):
+            for i, t in enumerate(texts):
+                if "long" in t:
+                    raise InputTooLong(i, f"input {i} of the batch is too long")
+            return super().embed(texts)
+
+    emb, done = Strict(), []
+    items = [item("a"), item("long"), item("b")]
+    failures = embed.embed_batch(emb, items, sleep=lambda s: None, rand=rand,
+                                 on_success=lambda its, v: done.extend(its))  # fmt: skip
+    assert [f[0] for f in failures] == [items[1].chunk_id]
+    assert failures[0][2] == "local"
+    assert [i.content for i in done] == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [("openai:text-embedding-3-large@4000", "dims must be"), ("openai:nope", "unknown")],
+)
+def test_bad_dims_or_model_fail_the_dry_run(monkeypatch, spec, message):
+    """Spec 0008 AC-1, AC-5: an out-of-range @dims or unknown model fails before connect."""
+    monkeypatch.setenv("EMBED_MODEL", spec)
+    monkeypatch.setattr(embed, "connect", lambda: pytest.fail("connected"))
+    with pytest.raises(SystemExit, match=message):
+        embed.main([])
+
+
+def test_dry_run_prices_the_canonical_name(monkeypatch, capsys):
+    """Spec 0008 AC-1: the dry run counts pending chunks under the name run() stores, so
+    `@01536` is priced as `@1536`."""
+    seen = []
+
+    class Conn:
+        def execute(self, sql, params):
+            seen.append(params[0])
+            return self
+
+        def fetchone(self):
+            return (1, 10)
+
+        def commit(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setenv("EMBED_MODEL", "openai:text-embedding-3-large@01536")
+    monkeypatch.setattr(embed, "connect", lambda: Conn())
+    assert embed.main([]) == 0
+    assert seen == ["openai:text-embedding-3-large@1536"]

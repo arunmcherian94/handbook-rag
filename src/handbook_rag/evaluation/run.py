@@ -12,6 +12,7 @@ import json
 import subprocess
 import sys
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -45,6 +46,8 @@ from handbook_rag.ingest import derive_title, split_front_matter
 from handbook_rag.models import (
     Answerer,
     Embedder,
+    InputTooLong,
+    describe_embedder,
     embed_usd_per_1m,
     make_answerer,
     make_embedder,
@@ -60,13 +63,15 @@ def to_run(rows: list[Row], retrieval_only: bool) -> list[Row]:
     return [r for r in rows if r.answerable or not retrieval_only]
 
 
-def estimate(rows: list[Row], retrieval_only: bool, usd_per_1m: float) -> dict:
-    """AC-8, spec 0006 AC-10, spec 0008 AC-5: question tokens for the embedding cost at the given
-    price (twice for an answerable row: the k=5 and the depth-20 query); a flat per-row answer
-    cost."""
+def estimate(
+    rows: list[Row], retrieval_only: bool, usd_per_1m: float, sent: Callable[[str], str] = str
+) -> dict:
+    """AC-8, spec 0006 AC-10, spec 0008 AC-5: tokens of each question as sent (sent(), e.g. with a
+    query instruction) for the embedding cost at the given price (twice for an answerable row:
+    the k=5 and the depth-20 query); a flat per-row answer cost."""
     enc = tiktoken.get_encoding(TOKENIZER)
     tokens = sum(
-        len(enc.encode(r.question, disallowed_special=())) * (2 if r.answerable else 1)
+        len(enc.encode(sent(r.question), disallowed_special=())) * (2 if r.answerable else 1)
         for r in rows
     )
     embed_usd = tokens * usd_per_1m / 1_000_000
@@ -454,8 +459,9 @@ def main(argv=None) -> int:
     eval_set = parse(eval_bytes.decode("utf-8"))
     rows = list(eval_set.rows[: args.limit] if args.limit is not None else eval_set.rows)
 
-    spec = resolve_embed_spec()
-    try:
+    try:  # AC-1, AC-5: unknown model or bad @dims fails the dry run
+        query_embedder = describe_embedder(resolve_embed_spec(), kind="query")
+        spec = query_embedder.name
         usd_per_1m = embed_usd_per_1m(spec)
     except ValueError as e:
         raise SystemExit(str(e)) from None
@@ -472,7 +478,13 @@ def main(argv=None) -> int:
         todo = to_run(rows, args.retrieval_only)
         n_ans = sum(r.answerable for r in todo)
         mode = "retrieval-only" if args.retrieval_only else "full"
-        cost = estimate(todo, args.retrieval_only, usd_per_1m)
+        try:  # AC-4: every query as sent is within the limit before anything is spent
+            query_embedder.prepare([r.question for r in todo])
+        except InputTooLong as e:
+            raise SystemExit(str(e)) from None
+        cost = estimate(
+            todo, args.retrieval_only, usd_per_1m, lambda q: query_embedder.prepare([q])[0]
+        )
         print(
             f"eval {eval_set.version}, config {args.config}: {len(todo)} rows ({n_ans} answerable, "
             f"{len(todo) - n_ans} ooc), mode {mode}"

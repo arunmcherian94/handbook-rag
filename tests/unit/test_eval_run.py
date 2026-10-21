@@ -18,6 +18,7 @@ from handbook_rag.evaluation.run import (
     stored_chunk_params,
     to_run,
 )
+from handbook_rag.models import InputTooLong, describe_embedder
 
 ROWS = [
     Row(1, "lookup", "hello world", ("a.md",), (Fact("F1", True, {"a.md": (1,)}),)),
@@ -39,6 +40,17 @@ def test_estimate_uses_the_price_passed():
     """Spec 0008 AC-5: embed cost is tokens x the given USD per 1M, not a constant."""
     assert estimate(ROWS, True, 0.13)["embed_usd"] == pytest.approx(5 * 0.13 / 1_000_000)
     assert estimate(ROWS, True, 0.0)["total_usd"] == 0.0
+
+
+def test_estimate_counts_queries_as_sent():
+    """Spec 0008 AC-3, AC-5: the estimate counts each question as sent, with Qwen's query
+    instruction, and a query over the limit fails before anything is spent (AC-4)."""
+    qwen = describe_embedder("deepinfra:Qwen/Qwen3-Embedding-8B@1536", kind="query")
+    plain = estimate(ROWS, True, 0.01)["embed_tokens"]
+    sent = estimate(ROWS, True, 0.01, lambda q: qwen.prepare([q])[0])["embed_tokens"]
+    assert sent > plain + 2 * 15  # the instruction is ~20 tokens, twice for the answerable row
+    with pytest.raises(InputTooLong, match="query 'word word"):
+        qwen.prepare(["fine", "word " * 20_000])
 
 
 def test_estimate_counts_two_query_embeds_per_answerable_row():

@@ -3,6 +3,7 @@
 import tiktoken
 
 from handbook_rag.constants import EMBED_MODELS, TOKENIZER
+from handbook_rag.models.base import InputTooLong
 
 
 class OpenAIEmbedder:
@@ -30,7 +31,9 @@ class OpenAIEmbedder:
         self.max_input_tokens = limit if entry["exact_tokenizer"] else limit // 2
         self._enc = tiktoken.get_encoding(TOKENIZER)
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def prepare(self, texts: list[str]) -> list[str]:
+        """The texts as sent (AC-3), each checked against the limit (AC-4). No API call, so dry
+        runs use it too."""
         query = self.kind == "query"
         sent = [
             self.query_template.format(q=t) if query and self.query_template else t for t in texts
@@ -39,9 +42,13 @@ class OpenAIEmbedder:
             n = len(self._enc.encode(text, disallowed_special=()))
             if n > self.max_input_tokens:
                 what = f"query {texts[i][:80]!r}" if query else f"input {i} of the batch"
-                raise ValueError(
-                    f"{self.name}: {what} is {n} tokens, over the {self.max_input_tokens} limit"
+                raise InputTooLong(
+                    i, f"{self.name}: {what} is {n} tokens, over the {self.max_input_tokens} limit"
                 )
+        return sent
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        sent = self.prepare(texts)
         request = {"model": self.model, "input": sent}
         if self.requested_dims:
             request["dimensions"] = self.requested_dims
