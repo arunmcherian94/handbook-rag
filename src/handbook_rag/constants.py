@@ -38,7 +38,7 @@ CHUNK_CONFIGS = {
 }
 
 # Embedding (spec 0003, AC-3)
-DEFAULT_EMBED_MODEL = "openai:text-embedding-3-small"
+DEFAULT_EMBED_MODEL = "openai:text-embedding-3-large@1536"
 # Per-model facts, keyed by `provider:model` without `@dims` (spec 0008, AC-1 to AC-5).
 #   native_dims: output size without `@dims`; every response is checked against the size in use.
 #   min_dims: smallest `@dims` the model accepts; None means the size can't be changed.

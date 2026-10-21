@@ -1,6 +1,6 @@
 # 0022. Adopt text-embedding-3-large@1536 as the default embedding model (departs from the AC-9 rule)
 
-- **Status:** proposed (2026-10-21; Arun to accept in PR #31)
+- **Status:** accepted (2026-10-21, PR #31; `DEFAULT_EMBED_MODEL` switched in the follow-up PR). Supersedes the model choice in [ADR-0004](0004-embedding-model-and-schema.md).
 - **Date:** 2026-10-21
 - **Journal:** [2026-10-21 embedding comparison](../journal/2026-10-21-embedding-comparison.md)
 - **Spec:** [0008](../../specs/0008-embedding-model-comparison.md), AC-9
@@ -41,10 +41,10 @@ Full answer runs (52 rows, same harness `26808da`, vs `2026-10-21-18f10293`):
 - 3-small vectors stay in `chunk_embeddings`, so switching back is a constant change.
 
 ## Consequences
-- Change `DEFAULT_EMBED_MODEL` in `constants.py` in a follow-up commit, not in this PR.
-- Re-check that spec 0007 / permissions-v1 AC-11 still holds under the new model.
+- `DEFAULT_EMBED_MODEL` changed in the follow-up PR.
+- permissions-v1 AC-11 re-checked under 3-large: 50 of 52 valid; P-097 and P-098 dropped ([changelog](../eval/CHANGELOG.md)).
 - The 3-large@3072 follow-up becomes a dims-only test against the new default.
-- Next step, not done: the prefix arm (AC-8 step 4) for 3-large on `fixed-512-64-prefixed` (about $1.4).
+- Prefix arm (AC-8 step 4) run on 21 Oct, `2026-10-21-586b1635`: +0.031 ± 0.059 (0.51 SE) at k=5, deeper recall down. **Not adopted (Arun): the default stays unprefixed `fixed-512-64`.** Re-test after the week-3 reranker.
 - Most false abstention is generator behaviour (rows 49, 100, 58 abstain with full or high recall), so the answer model is the bigger lever (follow-ups: "False abstention", answer-model check).
 
 ## Alternatives considered

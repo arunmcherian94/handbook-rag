@@ -62,13 +62,22 @@ Fixed (correctness or AC-breaking), commit `3e5dc67`, with tests:
 - **The eval estimate left out the query instruction (AC-5).** For Qwen it counted 868 tokens. Counted as sent, it is 2,242 ($0.000022, not $0.000009), so run `c5d62f36` was quoted low; the amount is negligible either way.
 - **An over-length query would fail mid-eval, after earlier rows were paid for (AC-4).** Every query as sent is now checked before `CONFIRM`.
 
-Not fixed, waiting for Arun (lower priority):
-- The AC-6 both-changed check runs after `CONFIRM`, though still before any spend. It could move to the dry run.
-- The mean/SE cell shows "—" when SE = 0. That can't happen at n = 32 with mixed deltas.
-- A missing `DEEPINFRA_API_KEY` raises a bare `KeyError` after `CONFIRM`.
-- The adapter re-tokenizes inputs that embed already counted, wasting CPU (about 10M tokens per full embed).
-- The adapter doesn't validate `kind` itself; only the factory does.
-- The model-table lookup is repeated in the factory and the adapter.
+Lower priority, decided after PR #31 (Arun delegated the call, 21 Oct):
+- **Fixed:** the AC-6 both-changed check now runs in the dry run, before `CONFIRM`. Checked against a two-change baseline: the dry run fails with the AC-6 message.
+- **Fixed:** a missing `DEEPINFRA_API_KEY` fails with its name, not a bare `KeyError` (unit test).
+- **Skipped:** the "—" for mean/SE at SE = 0 (can't happen with mixed deltas); the adapter re-tokenizing (seconds of CPU, no money); the adapter validating `kind` (the factory already does); the repeated model-table lookup (style).
+
+## After PR #31: adoption (branch `adopt-3-large`)
+Decisions, all Arun's, 21 Oct:
+1. **3-large@1536 adopted** (ADR-0022 accepted by merging PR #31). `DEFAULT_EMBED_MODEL` is now `openai:text-embedding-3-large@1536`. ADR-0004's model choice is superseded; its schema stands.
+2. **Heading-path prefix not adopted.** The default config stays unprefixed `fixed-512-64`. Run `2026-10-21-586b1635` vs `d83f3edc`: +0.031 ± 0.059 (0.51 SE); page_hit@1 +0.156 (2.40 SE) but recall@10 −0.062 (−1.68 SE), from same-page crowding (rows 10, 48, 34). Decided on the evidence, not a pre-set threshold (Arun chose that before the run). Re-test after the week-3 reranker ([follow-ups](../follow-ups.md)).
+3. **P-097 and P-098 marked invalid** in permissions-v1 under AC-11, not re-targeted. Re-check under 3-large: 50 of 52 valid; the row-61 controls lose `time-off-types.md` and `global-expansion.md` from admin's top 20. 3-small reproduced 52 of 52. Cost about $0.00008. Whether the dropped controls (rows 15, 22, 39, 92, 109) would now be valid was not reported: my target selection didn't reproduce the original drop list.
+4. **Contextual retrieval** moved off the week-2 roadmap to an optional end-of-plan item, for cost ([follow-ups](../follow-ups.md)).
+
+Notes:
+- **Comparison baselines from now on:** `2026-10-21-d83f3edc` (retrieval-only) and `2026-10-21-e602bd95` (full), both 3-large@1536 on `fixed-512-64`.
+- **Stale title on main:** PR #31 was squash-merged as "Spec 0008 build and runs: keep text-embedding-3-small (ADR-0022)". The title predates the revision; the merged files adopt 3-large. Main's history isn't rewritten, so this note is the record.
+- Prefix embed: 22,378 chunks, 10,814,466 tokens, estimated $1.41, 0 failed.
 
 ---
 

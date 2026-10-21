@@ -6,7 +6,7 @@ Status: **reviewed, 52 cases**. Drafted by Claude on 2026-10-21 in a fresh sessi
 - **Evidence:** each case cites the pinned text that answers the question as `path § "heading" L<a>–<b>`, machine-checked against the pin (file exists, range in file, heading is the nearest heading above the range).
 - **Not written by the drafter (AC-10):** `entitled_targets` and `outcome` are left empty. Code computes them from the policy and `acl/identities-v1.yaml`. Where `intent` and the computed outcome disagree, the case is flagged for review.
 - **`intent`** is the drafter's intent about the case's **restricted** target docs (`allowed` = the persona should see them, `denied` = it should not). Open docs in a target list are noted on the case. Partial-entitlement cases give the intent per target doc.
-- **Validity (AC-11):** every case here has all its target docs in `admin`'s top 20 (`fixed-512-64`, text-embedding-3-small, checked 2026-10-21). Admin sees every doc, so this is unfiltered retrieval.
+- **Validity (AC-11):** a case is valid when all its target docs are in `admin`'s top 20 (`fixed-512-64`). Admin sees every doc, so this is unfiltered retrieval. Re-checked 2026-10-21 under text-embedding-3-large@1536 ([ADR-0022](../decisions/0022-adopt-text-embedding-3-large-1536.md)): 50 of 52 valid. P-097 and P-098 (row 61) are invalid and dropped from scoring. Under 3-small all 52 were valid.
 - **Review:** `review:` records the agent's verdict. Arun decided the edits.
 - **Twins:** a denied case and its entitled twin share the question verbatim and point at each other.
 - **Controls** (v1.2 rows 5, 33, 61) reuse the row's question verbatim, its `expected_docs` as targets and its facts for authorized recall; their evidence is the row's citations in [eval-set-v1.md](eval-set-v1.md).
@@ -26,7 +26,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-002
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-002 — twin of P-001 · cross-entity (uk-ltd)
@@ -38,7 +38,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-001
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-003 — denied · cross-entity (de-gmbh)
@@ -50,7 +50,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-004
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 - note: the pin stores the euro sign at L59 as mojibake (`‚Ç¨150`).
 
@@ -63,7 +63,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-003
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 - note: `admin` is the only fixture persona entitled to `entity:de-gmbh`.
 
@@ -76,7 +76,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-014
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-014 — twin of P-013 · cross-entity (us-inc)
@@ -88,7 +88,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-013
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-023 — denied · cross-entity (peo-remote)
@@ -100,7 +100,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-024
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-024 — twin of P-023 · cross-entity (peo-remote)
@@ -112,7 +112,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-023
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ## 2. Denied, manager-only (with entitled twins)
@@ -126,7 +126,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-026
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-026 — twin of P-025 · manager-only
@@ -138,7 +138,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-025
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-027 — denied · manager-only
@@ -150,7 +150,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-028
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, edited (question reworded: it implied a manager role the persona lacks), 2026-10-21
 
 ### P-028 — twin of P-027 · manager-only
@@ -162,7 +162,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-027
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, edited (question reworded: it implied a manager role the persona lacks), 2026-10-21
 
 ### P-029 — denied · manager-only
@@ -174,7 +174,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-030
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, edited (question reworded: it implied a manager role the persona lacks), 2026-10-21
 - note: validity risk: open leadership pages cover similar ground, so the target may fall outside admin's top 20.
 
@@ -187,7 +187,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-029
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, edited (question reworded: it implied a manager role the persona lacks), 2026-10-21
 
 ## 3. Denied, employee-only (with entitled twins)
@@ -201,7 +201,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-036
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-036 — twin of P-035 · employee-only
@@ -213,7 +213,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-035
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-037 — denied · employee-only
@@ -225,7 +225,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-038
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-038 — twin of P-037 · employee-only
@@ -237,7 +237,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-037
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ## 4. Denied, narrow persona on open pages (with entitled twins)
@@ -253,7 +253,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-042
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-042 — twin of P-041 · narrow
@@ -265,7 +265,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-041
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-043 — denied · narrow
@@ -277,7 +277,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-044
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-044 — twin of P-043 · narrow
@@ -289,7 +289,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-043
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-045 — denied · narrow
@@ -301,7 +301,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-046
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-046 — twin of P-045 · narrow
@@ -313,7 +313,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-045
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ## 5. Agency contractor
@@ -328,7 +328,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - intent: allowed
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-058 — agency · in-department
@@ -339,7 +339,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - intent: allowed
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-059 — denied · agency out-of-department
@@ -351,7 +351,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-060
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-060 — twin of P-059 · agency out-of-department
@@ -363,7 +363,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-059
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-061 — denied · agency out-of-department
@@ -375,7 +375,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-062
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 - note: engineering pages may also name `#git-help`; seeing them is not a leak, since leak is scored per document.
 
@@ -388,7 +388,7 @@ Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` 
 - twin: P-061
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ## 6. Claimed identity
@@ -403,7 +403,7 @@ The question claims a role, entity or group the session principal lacks. Access 
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-064 — claimed-identity (claims entity:de-gmbh)
@@ -414,7 +414,7 @@ The question claims a role, entity or group the session principal lacks. Access 
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-065 — claimed-identity (claims people-ops)
@@ -425,7 +425,7 @@ The question claims a role, entity or group the session principal lacks. Access 
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-067 — claimed-identity (claims employee, entity:us-inc)
@@ -436,7 +436,7 @@ The question claims a role, entity or group the session principal lacks. Access 
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ## 7. Partial entitlement
@@ -451,7 +451,7 @@ Target docs are only partly entitled. The entitled part must be retrieved, the r
 - intent: allowed (people-group/anti-harassment.md), denied (people-policies/india-ltd/india-sexual-harassment-policy.md)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-070 — partial
@@ -462,7 +462,7 @@ Target docs are only partly entitled. The entitled part must be retrieved, the r
 - intent: allowed (total-rewards/benefits/general-and-entity-benefits/ltd-benefits-uk.md), denied (total-rewards/benefits/general-and-entity-benefits/gitlab-ireland-ltd.md)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-071 — partial
@@ -473,7 +473,7 @@ Target docs are only partly entitled. The entitled part must be retrieved, the r
 - intent: allowed (total-rewards/benefits/general-and-entity-benefits/inc-benefits-us/_index.md), denied (total-rewards/benefits/general-and-entity-benefits/canada-corp-benefits.md)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ## 8. Same question across personas
@@ -488,7 +488,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: allowed
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-073 — same-question S-1
@@ -499,7 +499,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-074 — same-question S-1
@@ -510,7 +510,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-075 — same-question S-2
@@ -521,7 +521,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: allowed
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-076 — same-question S-2
@@ -532,7 +532,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-077 — same-question S-2
@@ -543,7 +543,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-084 — same-question S-5
@@ -554,7 +554,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: allowed
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-085 — same-question S-5
@@ -565,7 +565,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: denied
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ### P-086 — same-question S-5
@@ -576,7 +576,7 @@ Each question is asked by at least three personas whose groups differ. Ids withi
 - intent: allowed
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 
 ## 9. Controls on v1.2 rows with restricted expected docs
@@ -591,7 +591,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - intent: allowed (both)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 - note: `admin` is the only fixture persona entitled to `entity:de-gmbh`.
 
@@ -603,7 +603,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - intent: denied (entity/gmbh-germany.md), allowed (people-group/time-off-and-absence/time-off-types.md)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 - note: the question claims Germany; `us-ic` is on `us-inc`, so the claim must not widen access.
 
@@ -615,7 +615,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - intent: allowed (both)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 - note: the question states the manager role; here the principal really is a manager.
 
@@ -627,7 +627,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - intent: denied (both)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: valid (all targets in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21)
 - review: agent, accept, 2026-10-21
 - note: the question claims the manager role; `contractor` is not in `manager` or `employee`.
 
@@ -639,7 +639,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - intent: allowed (all except total-rewards/benefits/general-and-entity-benefits/global-expansion.md), denied (total-rewards/benefits/general-and-entity-benefits/global-expansion.md)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: invalid (time-off-types.md and global-expansion.md not in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21; valid under 3-small)
 - review: agent, accept, 2026-10-21
 - note: entitled to the US FMLA/CFRA facts (F3, F4); F1 (UAE sabbatical) is on a PEO page no non-admin persona sees.
 
@@ -651,6 +651,6 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - intent: denied (people-policies/leave-of-absence/us.md, total-rewards/benefits/general-and-entity-benefits/global-expansion.md), allowed (the other three)
 - entitled_targets:
 - outcome:
-- validity: valid (all targets in admin's top 20, fixed-512-64, 3-small, 2026-10-21)
+- validity: invalid (time-off-types.md and global-expansion.md not in admin's top 20, fixed-512-64, 3-large@1536, 2026-10-21; valid under 3-small)
 - review: agent, accept, 2026-10-21
 
