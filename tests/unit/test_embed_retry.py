@@ -139,12 +139,12 @@ def test_other_4xx_isolated_like_bad_input():
     assert [(f[0], f[2]) for f in failures] == [(lone.chunk_id, 413)]
 
 
+def _no_embedder(*a, **k):
+    pytest.fail("make_embedder called on a dry run")
+
+
 def test_main_without_confirm_never_embeds(monkeypatch, capsys):
     """AC-13: no --confirm -> prints the estimate and a dry-run notice; the API is never called."""
-
-    class Boom(FakeEmbedder):
-        def embed(self, texts):
-            raise AssertionError("embed called on a dry run")
 
     class Conn:
         def execute(self, sql, params):
@@ -163,13 +163,64 @@ def test_main_without_confirm_never_embeds(monkeypatch, capsys):
         def __exit__(self, *a):
             return False
 
-    monkeypatch.setattr(embed, "make_embedder", lambda: Boom(name="fake:embed-test"))
+    monkeypatch.setenv("EMBED_MODEL", "fake:embed-test")
+    monkeypatch.setattr(embed, "resolve_embed_spec", lambda: "fake:embed-test")
+    monkeypatch.setattr(embed, "embed_usd_per_1m", lambda spec: 0.0)
+    monkeypatch.setattr(embed, "make_embedder", _no_embedder)
     monkeypatch.setattr(embed, "connect", lambda: Conn())
     monkeypatch.setattr(embed, "run", lambda *a, **k: pytest.fail("run called on a dry run"))
     assert embed.main(["--config", "structural-v1"]) == 0
     out = capsys.readouterr().out
     assert "embed structural-v1: 3 pending chunks for fake:embed-test, ~1500 tokens" in out
     assert "$0.0000" in out and "Dry run: add CONFIRM=1 to spend." in out
+
+
+def test_per_model_input_limit_is_local():
+    """AC-4: the over-length check uses the embedder's limit; one chunk fails alone, naming it."""
+    over, at = item("a", tokens=101), item("b", tokens=100)
+    e = FakeEmbedder(max_input_tokens=100)
+    got = []
+    failures = embed_batch(e, [over, at], lambda s: None, rand, lambda i, v: got.extend(i))
+    assert [(f[0], f[2], f[3]) for f in failures] == [(over.chunk_id, "local", "101 tokens > 100")]
+    assert got == [at] and e.calls == [["b"]]
+
+
+def test_dry_run_prices_the_selected_model(monkeypatch, capsys):
+    """AC-5: the dry run prints the selected model's price and never builds an embedder."""
+    spec = "openai:text-embedding-3-large@1536"
+
+    class Conn:
+        def execute(self, sql, params):
+            assert params[0] == spec
+            return self
+
+        def fetchone(self):
+            return (10, 1_000_000)
+
+        def commit(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setenv("EMBED_MODEL", spec)
+    monkeypatch.setattr(embed, "make_embedder", _no_embedder)
+    monkeypatch.setattr(embed, "connect", lambda: Conn())
+    assert embed.main(["--config", "structural-v1"]) == 0
+    out = capsys.readouterr().out
+    assert f"10 pending chunks for {spec}, ~1000000 tokens, estimated $0.1300" in out
+
+
+def test_unknown_model_exits_before_connect(monkeypatch):
+    """AC-5: an unknown EMBED_MODEL exits naming the problem, before any DB connection."""
+    monkeypatch.setenv("EMBED_MODEL", "openai:nope")
+    monkeypatch.setattr(embed, "connect", lambda: pytest.fail("connect called"))
+    monkeypatch.setattr(embed, "make_embedder", _no_embedder)
+    with pytest.raises(SystemExit):
+        embed.main(["--config", "structural-v1"])
 
 
 def test_unknown_config_lists_known_ids():
@@ -211,9 +262,9 @@ def test_embed_sends_prefixed_text_but_guard_is_on_content():
 
 def test_prefix_tokens_count_toward_limits():
     """spec 0006 AC-5: token_count + prefix_tokens is what the input and request limits see."""
-    big = item("x", tokens=embed.MAX_INPUT_TOKENS)
-    big.prefix_tokens = 1
     e = FakeEmbedder()
+    big = item("x", tokens=e.max_input_tokens)
+    big.prefix_tokens = 1
     assert len(embed_batch(e, [big], lambda s: None, rand, lambda *a: None)) == 1
     assert e.calls == []
     items = [item(f"t{n}", tokens=8100) for n in range(37)]  # 299_700: under the request cap

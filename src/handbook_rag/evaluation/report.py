@@ -23,7 +23,7 @@ import re
 from collections import Counter
 
 from handbook_rag.constants import TOP_K
-from handbook_rag.evaluation.metrics import matched_k, mean_se
+from handbook_rag.evaluation.metrics import matched_k, mean_se, paired
 
 CHECK_FIELDS = ("has_citation", "citations_in_range", "headings_exist", "no_url")
 # The SE formula follows the metric's kind, never its values (a continuous metric can be all
@@ -223,10 +223,23 @@ def _cell(record: dict | None, name: str) -> str:
     return "—" if value is None else f"{value:.3f}"
 
 
-def _matched_cell(record: dict | None, k: int | None) -> str:
+def _matched_recall(record: dict | None, k: int | None) -> float | None:
     if not record or k is None or not record.get("deep") or not record.get("required_facts"):
-        return "—"
-    return f"{_at_k(record, k)['chunk_fact_recall']:.3f}"
+        return None
+    return _at_k(record, k)["chunk_fact_recall"]
+
+
+def _matched_cell(record: dict | None, k: int | None) -> str:
+    value = _matched_recall(record, k)
+    return "—" if value is None else f"{value:.3f}"
+
+
+def _paired_rows(label: str, deltas: list[float]) -> str:
+    s = paired(deltas)
+    if s is None:
+        return f"| {label} | — | — | — | 0 |"
+    ratio = f"{s.mean / s.se:.2f}" if s.se else "—"
+    return f"| {label} | {s.mean:+.3f} | {s.se:.3f} | {ratio} | {s.n} |"
 
 
 def render_compare(
@@ -245,7 +258,11 @@ def render_compare(
     names = {n for n in (*base_all, *new_all) if n != "labels"}
     head = [n for n in ("chunk_fact_recall@5", "retrieved_tokens@5") if n in names]
     ordered = head + sorted(names - set(head))
-    out = [f"## Comparison with baseline {base_id}", ""]
+    change = (summary.get("meta") or {}).get("baseline_change")
+    out = [
+        f"## Comparison with baseline {base_id}" + (f" (change: {change})" if change else ""),
+        "",
+    ]
     out += [
         "| metric | baseline mean ± SE (n) | this run mean ± SE (n) | delta |",
         "|---|---|---|---|",
@@ -269,6 +286,23 @@ def render_compare(
         )
     base_by = {r["row"]: r for r in base_records}
     new_by = {r["row"]: r for r in records}
+    if "matched" in summary:
+        k = summary["matched"]["k"]
+        at_matched: list[float] = []
+        at_5: list[float] = []
+        for row, t in new_by.items():
+            b5 = ((base_by.get(row) or {}).get("metrics") or {}).get("chunk_fact_recall@5")
+            t5 = (t.get("metrics") or {}).get("chunk_fact_recall@5")
+            tk = _matched_recall(t, k)
+            if b5 is None or t5 is None or tk is None:
+                continue
+            at_matched.append(tk - b5)
+            at_5.append(t5 - b5)
+        out += ["", "### Paired delta (spec 0008 AC-7)", ""]
+        out += ["| comparison | mean delta | paired SE | mean / SE | n |", "|---|---|---|---|---|"]
+        out.append(_paired_rows("chunk_fact_recall @matched k vs baseline @5", at_matched))
+        out.append(_paired_rows("chunk_fact_recall@5 vs @5", at_5))
+        out += ["", "Adopt only if mean / SE > 2 on the matched-k row (spec 0008 AC-9)."]
     synthesis = sorted(
         {r["row"] for r in (*base_records, *records) if r.get("type") == "synthesis"}
     )

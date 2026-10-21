@@ -144,6 +144,18 @@ def mean_se(values: Sequence[float], binary: bool) -> Stat | None:
     return Stat(mean, se, n)
 
 
+def paired(deltas: Sequence[float]) -> Stat | None:
+    """Mean per-row delta, paired SE (sample sd (ddof=1) / sqrt(n)) and n; None for no values;
+    se 0.0 for one value (spec 0008 AC-7)."""
+    n = len(deltas)
+    if n == 0:
+        return None
+    mean = statistics.fmean(deltas)
+    if n == 1:
+        return Stat(mean, 0.0, 1)
+    return Stat(mean, statistics.stdev(deltas) / math.sqrt(n), n)
+
+
 def _covered(chunk_facts: Sequence[set[str]], required: set[str], k: int) -> set[str]:
     hit: set[str] = set()
     for facts in chunk_facts[:k]:

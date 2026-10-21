@@ -57,8 +57,19 @@ class FakeEmbedder:
     fail_after: raise RuntimeError on the call after this many successful calls (a crash).
     """
 
-    def __init__(self, name="fake:bow", dims=256, errors=(), poison=None, fail_after=None):
+    def __init__(
+        self,
+        name="fake:bow",
+        dims=256,
+        errors=(),
+        poison=None,
+        fail_after=None,
+        kind="document",
+        max_input_tokens=8192,
+    ):
         self.name = name
+        self.kind = kind
+        self.max_input_tokens = max_input_tokens
         self.dims = dims
         self.errors = list(errors)
         self.poison = poison

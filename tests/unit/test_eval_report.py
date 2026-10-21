@@ -309,3 +309,28 @@ def test_render_compare_matched_block_and_row():
     assert "| 2 | chunk_fact_recall@matched | — | — |" in md
     old = render_compare(summarize(base, META, NOTES), base, base_sum, base, "B", [1])
     assert "Token-matched" not in old and "@matched" not in old
+
+
+def test_render_compare_paired_delta_and_header_change():
+    """AC-6, AC-7, AC-9: header names the change; paired delta over rows scored in both runs;
+    rows missing from one run are skipped."""
+    base = [_rec(1, "lookup", 0.5, 1.0, []), _rec(2, "lookup", 0.0, 0.0, []),
+            _rec(3, "lookup", 1.0, 1.0, [])]  # fmt: skip
+    new = [_deep_rec(1), _deep_rec(2), _deep_rec(4)]  # row 3 only in base, row 4 only in new
+    new[1]["metrics"]["chunk_fact_recall@5"] = 1.0
+    base_sum = summarize(base, META, NOTES)
+    new_sum = summarize(new, {**META, "baseline_change": "embed model"}, NOTES, target_tokens=200)
+    md = render_compare(new_sum, new, base_sum, base, "B", [1])
+    assert "## Comparison with baseline B (change: embed model)" in md
+    assert "### Paired delta (spec 0008 AC-7)" in md
+    # matched k=2 recall is 0.5 on both rows: deltas 0.0 (row 1), +0.5 (row 2)
+    assert "| chunk_fact_recall @matched k vs baseline @5 | +0.250 | 0.250 | 1.00 | 2 |" in md
+    # @5 deltas: 0.5 - 0.5 = 0.0 (row 1), 1.0 - 0.0 = +1.0 (row 2)
+    assert "| chunk_fact_recall@5 vs @5 | +0.500 | 0.500 | 1.00 | 2 |" in md
+    assert "Adopt only if mean / SE > 2 on the matched-k row (spec 0008 AC-9)." in md
+    plain = render_compare(new_sum, new, base_sum, base, "B", [1])
+    no_change = {**new_sum, "meta": META}
+    assert "## Comparison with baseline B\n" in render_compare(
+        no_change, new, base_sum, base, "B", [1]
+    )
+    assert plain.count("(change:") == 1

@@ -10,7 +10,9 @@ from typing import Protocol
 
 
 class Embedder(Protocol):
-    name: str  # "provider:model"; stored in chunk_embeddings.model
+    name: str  # "provider:model[@dims]"; stored in chunk_embeddings.model (spec 0008, AC-1)
+    kind: str  # "document" (embed) or "query" (eval retrieval); changes only what is sent (AC-3)
+    max_input_tokens: int  # effective cl100k limit per input, already halved where AC-4 says so
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
 
