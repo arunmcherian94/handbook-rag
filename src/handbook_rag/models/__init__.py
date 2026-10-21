@@ -4,7 +4,23 @@ Pipeline code imports only from here: the ports (Embedder, Answerer, Completion)
 factories. Adapters live in embedders/ and answerers/, one file per provider.
 """
 
-from handbook_rag.models.base import Answerer, Completion, Embedder
-from handbook_rag.models.factory import make_answerer, make_embedder
+from handbook_rag.models.base import Answerer, Completion, Embedder, InputTooLong
+from handbook_rag.models.factory import (
+    describe_embedder,
+    embed_usd_per_1m,
+    make_answerer,
+    make_embedder,
+    resolve_embed_spec,
+)
 
-__all__ = ["Answerer", "Completion", "Embedder", "make_answerer", "make_embedder"]
+__all__ = [
+    "Answerer",
+    "Completion",
+    "Embedder",
+    "InputTooLong",
+    "describe_embedder",
+    "embed_usd_per_1m",
+    "make_answerer",
+    "make_embedder",
+    "resolve_embed_spec",
+]

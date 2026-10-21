@@ -25,16 +25,21 @@ from handbook_rag.constants import (
     BASELINE_CONFIG,
     CHUNK_CONFIGS,
     EMBED_BATCH,
-    EST_EMBED_USD_PER_1M,
     MAX_ATTEMPTS,
-    MAX_INPUT_TOKENS,
     MAX_REQUEST_TOKENS,
     PROGRESS_EVERY,
     RETRY_4XX,
     TOKENIZER,
 )
 from handbook_rag.db import connect, vector_literal
-from handbook_rag.models import Embedder, make_embedder
+from handbook_rag.models import (
+    Embedder,
+    InputTooLong,
+    describe_embedder,
+    embed_usd_per_1m,
+    make_embedder,
+    resolve_embed_spec,
+)
 
 log = logging.getLogger(__name__)
 
@@ -130,8 +135,9 @@ def embed_batch(embedder, items: list[Pending], sleep, rand, on_success) -> list
     for it in items:
         if not it.content.strip():
             failures.append(_fail(it, "local", "empty or whitespace-only content"))
-        elif it.tokens > MAX_INPUT_TOKENS:
-            failures.append(_fail(it, "local", f"{it.tokens} tokens > {MAX_INPUT_TOKENS}"))
+        elif it.tokens > embedder.max_input_tokens:
+            msg = f"{it.tokens} tokens > {embedder.max_input_tokens}"
+            failures.append(_fail(it, "local", msg))
         else:
             ok.append(it)
     _send(embedder, ok, sleep, rand, on_success, failures)
@@ -147,6 +153,10 @@ def _send(embedder, items, sleep, rand, on_success, failures) -> None:
         vectors = embed_with_retry(
             embedder, [i.content if i.text is None else i.text for i in items], sleep, rand
         )
+    except InputTooLong as e:  # AC-4: the adapter's exact count can exceed the stored estimate
+        failures.append(_fail(items[e.index], "local", str(e)))
+        return _send(embedder, items[: e.index] + items[e.index + 1 :], sleep, rand, on_success,
+                     failures)  # fmt: skip
     except openai.APIStatusError as e:  # 400/422 and other non-fatal 4xx (e.g. 413)
         if len(items) > 1:
             return _split(embedder, items, sleep, rand, on_success, failures)
@@ -305,19 +315,24 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     if args.config not in CHUNK_CONFIGS:
         raise SystemExit(f"unknown config {args.config!r}; known: {', '.join(CHUNK_CONFIGS)}")
-    embedder = make_embedder()
+    try:  # AC-1, AC-5: unknown model or bad @dims fails the dry run, before any DB connection
+        spec = describe_embedder(resolve_embed_spec()).name  # the name run() stores and skips by
+        price = embed_usd_per_1m(spec)
+    except ValueError as e:
+        raise SystemExit(str(e)) from e
     try:
         with connect() as conn:
-            n, tokens = pending_cost(conn, embedder.name, args.config, args.limit)
+            n, tokens = pending_cost(conn, spec, args.config, args.limit)
             conn.commit()
-            usd = tokens / 1e6 * EST_EMBED_USD_PER_1M
+            usd = tokens / 1e6 * price
             print(
-                f"embed {args.config}: {n} pending chunks for {embedder.name}, "
+                f"embed {args.config}: {n} pending chunks for {spec}, "
                 f"~{tokens} tokens, estimated ${usd:.4f}"
             )
             if not args.confirm:
                 print("Dry run: add CONFIRM=1 to spend.")
                 return 0
+            embedder = make_embedder(spec)  # only after --confirm: a dry run needs no API key
             s = run(conn, embedder, limit=args.limit, config_id=args.config)
     except (RetriesExhausted, FatalEmbedError) as e:
         log.error("embedding stopped: %s", e)

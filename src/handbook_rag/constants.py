@@ -39,11 +39,48 @@ CHUNK_CONFIGS = {
 
 # Embedding (spec 0003, AC-3)
 DEFAULT_EMBED_MODEL = "openai:text-embedding-3-small"
-# Known output dimensions, checked on every response so a mismatch fails before insert.
-EMBED_DIMS = {"text-embedding-3-small": 1536, "text-embedding-3-large": 3072}
+# Per-model facts, keyed by `provider:model` without `@dims` (spec 0008, AC-1 to AC-5).
+#   native_dims: output size without `@dims`; every response is checked against the size in use.
+#   min_dims: smallest `@dims` the model accepts; None means the size can't be changed.
+#   max_input_tokens: the provider's limit in the model's own tokens. Inputs are counted with
+#     cl100k: exactly against it when exact_tokenizer, else against half of it (AC-4).
+#   query_template: how a query-mode input is sent (AC-3); None sends the text as-is.
+EMBED_MODELS = {
+    "openai:text-embedding-3-small": {
+        "native_dims": 1536,
+        "min_dims": 1,
+        "max_input_tokens": 8192,
+        "exact_tokenizer": True,
+        "usd_per_1m": 0.02,
+        "price_source": "developers.openai.com/api/docs/pricing, 2026-10-21",
+        "query_template": None,
+    },
+    "openai:text-embedding-3-large": {
+        "native_dims": 3072,
+        "min_dims": 1,
+        "max_input_tokens": 8192,
+        "exact_tokenizer": True,
+        "usd_per_1m": 0.13,
+        "price_source": "developers.openai.com/api/docs/pricing, 2026-10-21",
+        "query_template": None,
+    },
+    "deepinfra:Qwen/Qwen3-Embedding-8B": {
+        "native_dims": 4096,
+        "min_dims": 32,
+        "max_input_tokens": 32768,
+        "exact_tokenizer": False,
+        "usd_per_1m": 0.010,
+        "price_source": "deepinfra.com/Qwen/Qwen3-Embedding-8B, 2026-10-21",
+        # Model card format: no space after "Query:"; documents carry no instruction.
+        "query_template": (
+            "Instruct: Given a question about the GitLab handbook, retrieve the passages "
+            "that answer it\nQuery:{q}"
+        ),
+    },
+}
+DEEPINFRA_BASE_URL = "https://api.deepinfra.com/v1/openai"
 EMBED_BATCH = 128  # chunks per request
 MAX_ATTEMPTS = 6
-MAX_INPUT_TOKENS = 8192
 MAX_REQUEST_TOKENS = 300_000
 BACKOFF_BASE = 1.0
 BACKOFF_CAP = 60.0
@@ -69,7 +106,6 @@ MIN_PIECE = 40
 CORPUS_PREFIX = "content/handbook/"  # eval-set paths are relative to this; documents.path isn't
 # Estimates for the cost guard (AC-8): ~3.1k in + 250 out per answer (NOTES answer-cost table).
 EST_ANSWER_USD_PER_ROW = 0.004
-EST_EMBED_USD_PER_1M = 0.02  # text-embedding-3-small
 # Baseline comparison (spec 0005, AC-14): the right-page-wrong-chunk rows of run 3748df5b,
 # shown per row next to every synthesis row.
 COMPARE_ROWS = (52, 53, 8, 10, 99, 38, 89)

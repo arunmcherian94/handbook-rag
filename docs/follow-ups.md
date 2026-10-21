@@ -1,9 +1,14 @@
 # Follow-ups (not built)
 
 - **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts.
-- **Synthetic retrieval set (week 2):** questions generated from sections (not chunks), labelled synthetic, scored for retrieval only and always reported apart from v1. Gives chunking and embedding comparisons more statistical power than 33 rows.
+- **Synthetic retrieval set (week 2):** questions generated from sections (not chunks), labelled synthetic, scored for retrieval only and always reported apart from v1. Gives chunking and embedding comparisons more statistical power than 33 rows. Size from spec 0008's paired spread (sd 0.25 for 3-large, 0.43 for Qwen): to clear 2 paired SEs on a true +0.05, about 105–300 rows for even odds and 210–600 for 80%; on +0.09, about 30–90 and 65–190. Aim for a few hundred (Arun, 21 Oct).
 - **Graded nDCG:** gains 2/1/0 from required/alternate page tiers, after the tiers are reviewed as relevance labels.
-- **Answer judges:** faithfulness to context and answer relevance, built only for coded failures; validated per (c).
+- **Answer evaluation, week 3 before hybrid search (spec 0009; Arun, 21 Oct):** the harness scores abstention and citation form, not correctness or grounding ([ADR-0016](decisions/0016-code-checks-before-judges.md) deferred judges; its binary fact checks were never built). Week 3's retrieval changes should be judged on answers too, and it must exist before the answer model unfreezes in week 4. Fallback: first day of week 4. In cost order:
+  1. Generator abstention, code only: rows whose top 5 hold the required facts but the answer abstains (49, 100, 58 on 21 Oct). Splits false abstention into retrieval misses and generator refusals.
+  2. Answer fact recall, binary judge per `[required]` fact ("does the answer state this?"). Against chunk_fact_recall it measures what generation loses. Claude judge, cross-family from gpt-5.4-mini.
+  3. Groundedness, binary: every claim supported by the chunk it cites (would catch Qwen's row 47, Belgium's figure given for France).
+  4. Validation per ADR-0016 (c): Arun labels answers, a held-out test portion, each judge reported as "checked against N labels, TPR x, TNR y".
+  5. Answer-model comparison on identical retrieved chunks (the answer-model check below).
 - **False-premise rows:** add 2–3 out-of-corpus false-premise questions in a later eval version.
 - **Incremental sync:**
   1. `git fetch`.
@@ -73,6 +78,15 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
   - Dedicated vector databases, which have higher limits and usually quantize.
 
   Trigger: a 1,536-dim candidate that wins or loses narrowly. Then run 3-large@3072 (one change: dims) before week 6.
+
+## Model switching (2026-10-21)
+
+Arun, after spec 0008: embedding and answer models will keep changing, so the folder layout, design, code and schema should make a switch cheap. Target: adding or switching a model is one adapter file, one table entry and one constant, plus a re-embed and an eval run, with no schema change. Gaps spec 0008 exposed:
+- `make ask` has no query-mode embedder (entry above).
+- An ANN index needs typed, fixed-dims vectors: partition by model (entry under the general list).
+- Every model re-embeds the whole corpus (3-large: $1.36; Qwen: 43 minutes). The content-hash cache helps only across configs, not across models.
+- Prompts and reasoning settings may be model-specific on the answer side; `prompts.py` holds one prompt.
+- **LLM gateway, decide in week 7** with the FastAPI service (graceful degradation, cost per query): LiteLLM, Portkey or OpenRouter give one API, fallbacks, routing, central keys and spend for answer models. It doesn't remove an embedding switch's main cost, the re-embed, and it is a new dependency. Week 6 instead if it should sit with observability.
 
 ## Reading (deferred)
 

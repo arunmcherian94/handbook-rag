@@ -12,6 +12,7 @@ import json
 import subprocess
 import sys
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,7 +26,6 @@ from handbook_rag.constants import (
     COMPARE_ROWS,
     CORPUS_PREFIX,
     EST_ANSWER_USD_PER_ROW,
-    EST_EMBED_USD_PER_1M,
     EVAL_DEPTH,
     EVAL_KS,
     EVAL_RUNS,
@@ -43,7 +43,16 @@ from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import row_metrics
 from handbook_rag.evaluation.report import render_compare, render_md, summarize
 from handbook_rag.ingest import derive_title, split_front_matter
-from handbook_rag.models import Answerer, Embedder, make_answerer, make_embedder
+from handbook_rag.models import (
+    Answerer,
+    Embedder,
+    InputTooLong,
+    describe_embedder,
+    embed_usd_per_1m,
+    make_answerer,
+    make_embedder,
+    resolve_embed_spec,
+)
 from handbook_rag.prompts import SYSTEM_PROMPT
 
 HEADLINE = ("chunk_fact_recall@5", "chunk_all_required@5", "chunk_mrr", "retrieved_tokens@5")
@@ -54,15 +63,18 @@ def to_run(rows: list[Row], retrieval_only: bool) -> list[Row]:
     return [r for r in rows if r.answerable or not retrieval_only]
 
 
-def estimate(rows: list[Row], retrieval_only: bool) -> dict:
-    """AC-8, spec 0006 AC-10: question tokens for the embedding cost (twice for an answerable
-    row: the k=5 and the depth-20 query); a flat per-row answer cost."""
+def estimate(
+    rows: list[Row], retrieval_only: bool, usd_per_1m: float, sent: Callable[[str], str] = str
+) -> dict:
+    """AC-8, spec 0006 AC-10, spec 0008 AC-5: tokens of each question as sent (sent(), e.g. with a
+    query instruction) for the embedding cost at the given price (twice for an answerable row:
+    the k=5 and the depth-20 query); a flat per-row answer cost."""
     enc = tiktoken.get_encoding(TOKENIZER)
     tokens = sum(
-        len(enc.encode(r.question, disallowed_special=())) * (2 if r.answerable else 1)
+        len(enc.encode(sent(r.question), disallowed_special=())) * (2 if r.answerable else 1)
         for r in rows
     )
-    embed_usd = tokens * EST_EMBED_USD_PER_1M / 1_000_000
+    embed_usd = tokens * usd_per_1m / 1_000_000
     answer_usd = 0.0 if retrieval_only else len(rows) * EST_ANSWER_USD_PER_ROW
     return {
         "embed_tokens": tokens,
@@ -144,8 +156,9 @@ def metadata(
     }
 
 
-# A baseline comparison holds everything but the chunk config fixed (spec 0005 AC-11, 0006 AC-6).
-SAME_AS_BASELINE = ("eval_sha256", "corpus_sha", "embed_model", "k", "eval_depth", "limit")
+# A baseline comparison holds everything fixed except ONE of the chunk config or the embed model
+# (spec 0005 AC-11, 0006 AC-6, 0008 AC-6); changing both at once is reported separately.
+SAME_AS_BASELINE = ("eval_sha256", "corpus_sha", "k", "eval_depth", "limit")
 SAME_IF_BOTH_ANSWERED = ("answer_model", "system_prompt_sha256")
 
 
@@ -154,11 +167,35 @@ def baseline_mismatch(base_meta: dict, meta: dict) -> list[str]:
     keys = list(SAME_AS_BASELINE)
     if base_meta.get("answer_model") and meta.get("answer_model"):
         keys += SAME_IF_BOTH_ANSWERED
-    return [
+    diff = [
         f"{k}: baseline {base_meta.get(k)!r}, this run {meta.get(k)!r}"
         for k in keys
         if base_meta.get(k) != meta.get(k)
     ]
+    if _config_differs(base_meta, meta) and _model_differs(base_meta, meta):
+        diff.append(
+            "config_id and embed_model both changed: "
+            f"baseline ({base_meta.get('config_id')}, {base_meta.get('embed_model')}), "
+            f"this run ({meta.get('config_id')}, {meta.get('embed_model')}); "
+            "change one at a time (spec 0008 AC-6)"
+        )
+    return diff
+
+
+def _config_differs(base_meta: dict, meta: dict) -> bool:
+    return base_meta.get("config_id") != meta.get("config_id")
+
+
+def _model_differs(base_meta: dict, meta: dict) -> bool:
+    return base_meta.get("embed_model") != meta.get("embed_model")
+
+
+def baseline_change(base_meta: dict, meta: dict) -> str | None:
+    """The one thing that changed against the baseline (spec 0008 AC-6); None if neither or both."""
+    config, model = _config_differs(base_meta, meta), _model_differs(base_meta, meta)
+    if config == model:
+        return None
+    return "chunk config" if config else "embed model"
 
 
 def _lookup(
@@ -360,7 +397,10 @@ def run(
         "evidence_warnings": ev.warnings,
     }
     if baseline:
-        meta = meta | {"baseline": baseline[0]}
+        meta = meta | {
+            "baseline": baseline[0],
+            "baseline_change": baseline_change(baseline[1]["meta"], meta),
+        }
     target = None
     if baseline:
         target = baseline[1]["groups"]["overall"][f"retrieved_tokens@{TOP_K}"]["mean"]
@@ -419,6 +459,13 @@ def main(argv=None) -> int:
     eval_set = parse(eval_bytes.decode("utf-8"))
     rows = list(eval_set.rows[: args.limit] if args.limit is not None else eval_set.rows)
 
+    try:  # AC-1, AC-5: unknown model or bad @dims fails the dry run
+        query_embedder = describe_embedder(resolve_embed_spec(), kind="query")
+        spec = query_embedder.name
+        usd_per_1m = embed_usd_per_1m(spec)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+
     with connect() as conn:
         chunk_params, corpus_sha = stored_chunk_params(conn, m.sha, args.config)
         try:
@@ -431,7 +478,13 @@ def main(argv=None) -> int:
         todo = to_run(rows, args.retrieval_only)
         n_ans = sum(r.answerable for r in todo)
         mode = "retrieval-only" if args.retrieval_only else "full"
-        cost = estimate(todo, args.retrieval_only)
+        try:  # AC-4: every query as sent is within the limit before anything is spent
+            query_embedder.prepare([r.question for r in todo])
+        except InputTooLong as e:
+            raise SystemExit(str(e)) from None
+        cost = estimate(
+            todo, args.retrieval_only, usd_per_1m, lambda q: query_embedder.prepare([q])[0]
+        )
         print(
             f"eval {eval_set.version}, config {args.config}: {len(todo)} rows ({n_ans} answerable, "
             f"{len(todo) - n_ans} ooc), mode {mode}"
@@ -445,7 +498,7 @@ def main(argv=None) -> int:
             return 0
 
         # Built only after confirm, so a dry run needs no API key.
-        embedder = make_embedder()
+        embedder = make_embedder(spec, kind="query")
         (has_embeddings,) = conn.execute(
             "SELECT EXISTS (SELECT 1 FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
             "WHERE c.config_id = %s AND e.model = %s)",
@@ -469,8 +522,8 @@ def main(argv=None) -> int:
         )
         if baseline and (diff := baseline_mismatch(baseline[1]["meta"], meta)):
             raise SystemExit(
-                f"baseline {baseline[0]} differs in more than the chunk config (AC-11):\n  "
-                + "\n  ".join(diff)
+                f"baseline {baseline[0]} differs in more than one change (chunk config or "
+                "embed model; spec 0008 AC-6):\n  " + "\n  ".join(diff)
             )
         out = run(
             conn, rows, ev, embedder, answerer, meta=meta, config_id=args.config, baseline=baseline

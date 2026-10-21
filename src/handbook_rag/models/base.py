@@ -10,9 +10,20 @@ from typing import Protocol
 
 
 class Embedder(Protocol):
-    name: str  # "provider:model"; stored in chunk_embeddings.model
+    name: str  # "provider:model[@dims]"; stored in chunk_embeddings.model (spec 0008, AC-1)
+    kind: str  # "document" (embed) or "query" (eval retrieval); changes only what is sent (AC-3)
+    max_input_tokens: int  # effective cl100k limit per input, already halved where AC-4 says so
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+
+class InputTooLong(ValueError):
+    """An input over the model's limit, raised before any call (spec 0008, AC-4); index is its
+    position in the batch, so the caller can name the chunk or query."""
+
+    def __init__(self, index: int, message: str):
+        super().__init__(message)
+        self.index = index
 
 
 @dataclass(frozen=True)

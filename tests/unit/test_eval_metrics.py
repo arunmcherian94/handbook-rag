@@ -252,3 +252,22 @@ def test_matched_k_tie_goes_to_smaller_k():
     from handbook_rag.evaluation.metrics import matched_k
 
     assert matched_k([[100, 100, 100]], 150, depth=3) == 1
+
+
+def test_paired_mean_and_paired_se():
+    """AC-7: mean delta and sample sd (ddof=1) / sqrt(n)."""
+    from handbook_rag.evaluation.metrics import paired
+
+    s = paired([0.5, 0.0, 0.25, -0.25])
+    # deviations 0.375, -0.125, 0.125, -0.375: sum sq 0.3125, var = 0.3125 / 3, se = sd / 2
+    assert s.mean == pytest.approx(0.125) and s.n == 4
+    assert s.se == pytest.approx(math.sqrt(0.3125 / 3) / 2)
+
+
+def test_paired_empty_and_single():
+    """AC-7: no values -> None; one value -> se 0.0."""
+    from handbook_rag.evaluation.metrics import paired
+
+    assert paired([]) is None
+    s = paired([0.3])
+    assert s.mean == 0.3 and s.se == 0.0 and s.n == 1

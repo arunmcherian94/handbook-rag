@@ -10,6 +10,7 @@ from handbook_rag.constants import EST_ANSWER_USD_PER_ROW, EVAL_DEPTH
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evidence import Evidence
 from handbook_rag.evaluation.run import (
+    baseline_change,
     baseline_mismatch,
     estimate,
     metadata,
@@ -17,6 +18,7 @@ from handbook_rag.evaluation.run import (
     stored_chunk_params,
     to_run,
 )
+from handbook_rag.models import InputTooLong, describe_embedder
 
 ROWS = [
     Row(1, "lookup", "hello world", ("a.md",), (Fact("F1", True, {"a.md": (1,)}),)),
@@ -26,18 +28,35 @@ ROWS = [
 
 def test_estimate_full_and_retrieval_only():
     """AC-8: answers cost per row in full mode, nothing in retrieval-only mode."""
-    full = estimate(ROWS, retrieval_only=False)
+    full = estimate(ROWS, retrieval_only=False, usd_per_1m=0.02)
     # Answerable "hello world" (2 tokens) is embedded twice, ooc "hello" (1) once.
     assert full["embed_tokens"] == 5
     assert full["answer_usd"] == pytest.approx(2 * EST_ANSWER_USD_PER_ROW)
     assert full["total_usd"] == pytest.approx(full["embed_usd"] + full["answer_usd"])
-    assert estimate(ROWS, retrieval_only=True)["answer_usd"] == 0.0
+    assert estimate(ROWS, retrieval_only=True, usd_per_1m=0.02)["answer_usd"] == 0.0
+
+
+def test_estimate_uses_the_price_passed():
+    """Spec 0008 AC-5: embed cost is tokens x the given USD per 1M, not a constant."""
+    assert estimate(ROWS, True, 0.13)["embed_usd"] == pytest.approx(5 * 0.13 / 1_000_000)
+    assert estimate(ROWS, True, 0.0)["total_usd"] == 0.0
+
+
+def test_estimate_counts_queries_as_sent():
+    """Spec 0008 AC-3, AC-5: the estimate counts each question as sent, with Qwen's query
+    instruction, and a query over the limit fails before anything is spent (AC-4)."""
+    qwen = describe_embedder("deepinfra:Qwen/Qwen3-Embedding-8B@1536", kind="query")
+    plain = estimate(ROWS, True, 0.01)["embed_tokens"]
+    sent = estimate(ROWS, True, 0.01, lambda q: qwen.prepare([q])[0])["embed_tokens"]
+    assert sent > plain + 2 * 15  # the instruction is ~20 tokens, twice for the answerable row
+    with pytest.raises(InputTooLong, match="query 'word word"):
+        qwen.prepare(["fine", "word " * 20_000])
 
 
 def test_estimate_counts_two_query_embeds_per_answerable_row():
     """Spec 0006 AC-10: k=5 and depth-20 queries for answerable rows, one for ooc rows."""
-    assert estimate(ROWS[:1], True)["embed_tokens"] == 4
-    assert estimate(ROWS[1:], False)["embed_tokens"] == 1
+    assert estimate(ROWS[:1], True, 0.02)["embed_tokens"] == 4
+    assert estimate(ROWS[1:], False, 0.02)["embed_tokens"] == 1
 
 
 def test_retrieval_only_skips_ooc_rows():
@@ -106,15 +125,30 @@ def test_metadata_records_config():
     assert meta["chunk_params"] == {"strategy": "s", "a": 1, "tokenizer": "t"}
 
 
-def test_baseline_mismatch_allows_only_the_chunk_config():
-    """AC-11: a baseline that differs in more than the chunk config is reported; answer keys
-    count only when both runs answered."""
+def test_baseline_mismatch_allows_one_change():
+    """Spec 0008 AC-6: the chunk config OR the embed model may change, not both; other keys
+    must match, and answer keys count only when both runs answered."""
     base = {"eval_sha256": "e", "corpus_sha": "c", "embed_model": "m", "k": 5, "limit": None,
             "answer_model": "a", "system_prompt_sha256": "p", "config_id": "x"}  # fmt: skip
     assert baseline_mismatch(base, base | {"config_id": "y", "chunk_params": {}}) == []
+    assert baseline_mismatch(base, base | {"embed_model": "n"}) == []
     assert baseline_mismatch(base, base | {"limit": 10}) == ["limit: baseline None, this run 10"]
     assert baseline_mismatch(base, base | {"answer_model": None, "system_prompt_sha256": "q"}) == []
     assert len(baseline_mismatch(base, base | {"system_prompt_sha256": "q"})) == 1
+    both = baseline_mismatch(base, base | {"config_id": "y", "embed_model": "n"})
+    assert both == [
+        "config_id and embed_model both changed: baseline (x, m), this run (y, n); "
+        "change one at a time (spec 0008 AC-6)"
+    ]
+
+
+def test_baseline_change_names_the_one_change():
+    """Spec 0008 AC-6: baseline_change reports chunk config, embed model, or None."""
+    base = {"config_id": "x", "embed_model": "m"}
+    assert baseline_change(base, base | {"config_id": "y"}) == "chunk config"
+    assert baseline_change(base, base | {"embed_model": "n"}) == "embed model"
+    assert baseline_change(base, base) is None
+    assert baseline_change(base, {"config_id": "y", "embed_model": "n"}) is None
 
 
 def test_baseline_mismatch_on_eval_depth():
