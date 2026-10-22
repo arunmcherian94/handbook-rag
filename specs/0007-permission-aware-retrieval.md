@@ -185,7 +185,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass (Part A: 414 unit, 62 integration)
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items decided (Arun delegated the call; journal 22 Oct)
+- [x] Clean-room verified (fresh clone under `$HOME`, own DB, pinned corpus linked, ingest, five configs chunked, `make acl`; same results)
+- [x] docs updated: journal entry, follow-ups (no new ADR: the decisions are ADR-0021's)

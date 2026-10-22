@@ -32,6 +32,11 @@ Fixed, each with a test:
 
 Skipped or deferred (Arun delegated the call): the corpus files are read twice per run (about 1 s); the identity YAML is re-read per persona (6 personas); a `#` in a redirect target is a URL fragment, which is correct. Deferred to [follow-ups](../follow-ups.md#from-the-spec-0007-part-a-build-2026-10-22): store `redirect_to:` at ingest, detect duplicate url_paths at ingest, `make ask` stale-check latency, the retrieval-only empty-result message.
 
+## Clean room
+- Fresh clone under `$HOME`, its own DB, pinned corpus linked: ingest, chunk all five configs, `make acl`. On the fresh DB, ingest wrote `acl_tags = {}` and the chunks copied it (fail-closed), until `make acl` filled all 146,715 rows with the same figures.
+- **Catch:** two retrieval tests used stored 3-large vectors, which a fresh DB doesn't have without a paid embed. They failed loudly (not vacuously), but an integration test shouldn't depend on a paid artifact. They now seed their own vectors on the real chunks and ACLs inside a rolled-back transaction, with one exact duplicate so the `chunk_id` tiebreak is tested directly.
+- Result: 414 unit and 62 integration passed, lint clean, same as the working copy.
+
 ## Accidental paid call
 - **What:** during the review fixes, Claude appended `make ask AS=narrow Q="test"` to a `make test` command, with its output hidden. It made one query embedding and one gpt-5.4-mini answer (2,019 input, 13 output tokens, about $0.001). The answer was NOT_FOUND. Arun had not approved it.
 - **Why it happened:**
