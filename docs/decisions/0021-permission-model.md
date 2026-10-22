@@ -48,7 +48,7 @@
 - **Early binding only.** Index-time ACLs are only as fresh as the sync. Strong designs add a fetch-time check (Slack AI reuses the user's ACLs when fetching). That is out of scope for v1 because there is no live source system.
 - **The filter must follow every new path:** hybrid search applies the same predicate (week 3), cache keys include the resolved groups (week 7), and agent tools take the session principal (week 5).
 - **With an ANN index,** a selective filter starves recall: HNSW finds k neighbours, then the filter discards most of them. That's why D7 measures it, and ADR-0020's partitioning note applies.
-- **The quality set stays comparable:** it runs as admin, so with exact search its top 5 is identical to run `2026-10-19-d2625d91`.
+- **The quality set stays comparable:** it runs as admin, so with exact search its top 5 is identical to run `2026-10-21-d83f3edc`, the retrieval-only baseline of the default model (ADR-0022; was `2026-10-19-d2625d91` before the model change, spec 0007 amended 22 Oct).
 
 ## Informed by
 - [Reading log, week 2: permission models in production RAG](../reading/week-02.md#permission-models-in-production-rag)

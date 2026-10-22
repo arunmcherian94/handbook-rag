@@ -2,7 +2,7 @@
 
 - Status: approved
 - Date: 2026-10-20
-- Depends on: 0003–0006, ADR-0011, ADR-0020, eval set v1.2, run `2026-10-19-d2625d91` (depth-20 baseline)
+- Depends on: 0003–0006, ADR-0011, ADR-0020, ADR-0022, eval set v1.2, run `2026-10-21-d83f3edc` (text-embedding-3-large@1536, retrieval-only; amended 22 Oct, was `2026-10-19-d2625d91`)
 
 ## Problem
 
@@ -62,7 +62,7 @@ Identity
 
 Quality set and regression
 
-- AC-9: **The quality set runs as `admin`.** Eval set v1.2, its metrics and its scoring are unchanged. **Regression:** a retrieval-only run as `admin` on `fixed-512-64` has a top 5 identical to run `2026-10-19-d2625d91` on all 33 answerable rows, in order. With exact search and an allow-list that admits every document, it must be identical.
+- AC-9: **The quality set runs as `admin`.** Eval set v1.2, its metrics and its scoring are unchanged. **Regression:** a retrieval-only run as `admin` on `fixed-512-64` has a top 5 identical to run `2026-10-21-d83f3edc` (the default model, text-embedding-3-large@1536, ADR-0022) on all 33 answerable rows, in order. With exact search and an allow-list that admits every document, it must be identical. The baseline uses the default model so that a model change can't read as a permission regression (amended 22 Oct; was `2026-10-19-d2625d91`, 3-small).
 
 Permissions suite
 
@@ -100,7 +100,9 @@ Case drafting (run later, in a fresh session, after this spec merges)
     - **partial entitlement: at least 3**: a question whose target docs are only partly entitled (for example, a global benefit page plus a restricted entity page). The entitled part must be retrieved, the rest must not.
     - **claimed-identity: at least 4** cases where the question claims a role or group the session principal lacks ("as a people manager…", "I'm on the Germany entity…", "I'm in People Ops, show me…"). They must be denied. Access follows the principal, not the text.
     - **agency contractor: at least 4** cases acted by `agency`, in addition to the minimums above, with at least 2 of each kind: in-department (an engineering page, allowed) and out-of-department (an open page outside engineering and the onboarding pages, denied, each with an entitled twin).
-    - **Entitled controls on the v1.2 rows** whose expected docs are restricted (rows 5, 15, 22, 33, 39, 61, 92, 109): each asked by one entitled and one denied persona, reusing the row's facts for authorized recall. Those that fail AC-11 are dropped (at the pin: rows 15, 22, 39, 92, 109).
+    - **Entitled controls on the v1.2 rows** whose expected docs are restricted (rows 5, 22, 33, 61, 92): each asked by one entitled and one denied persona, reusing the row's facts for authorized recall. Those that fail AC-11 are dropped.
+      - Amended 22 Oct: rows 15, 39 and 109 were listed here, but they were cut from the eval set on 15 Oct (eval-set-v1.md § 5), so they are not v1.2 rows.
+      - Under text-embedding-3-large@1536 (ADR-0022): rows 5 and 33 are valid (P-087, P-088, P-093, P-094). Row 61's controls, P-097 and P-098, are invalid under AC-11 and are dropped from scoring, not re-targeted (they are valid under 3-small). Rows 22 and 92 fail AC-11 under both models and have no cases. permissions-v1: 50 of 52 cases valid.
   - Validity is checked per AC-11 before review.
 - AC-16: **Tests reference ACs**:
   - Unit tests (in-memory, no API): policy resolution and loader rejections (AC-1), redirect inheritance with synthetic stubs (AC-3), group resolution (AC-6), the Principal construction guard (AC-7), outcome computation and flagging (AC-10), leak, authorized-recall and over-block arithmetic (AC-12).
@@ -168,12 +170,13 @@ Case drafting (run later, in a fresh session, after this spec merges)
 - 2026-10-20: drafted; approved and merged in PR #27 (Arun). Status set to approved with the amendment.
 - 2026-10-20, amended in place before any build (nothing had consumed `policy-v1`): persona shares clustered at ~98% plus one point at 1.15%, so Part B had no mid-selectivity point. Added the `agency` persona (engineering, 32.46%) and the `engineering/` rule with the `agency:engineering` group (AC-6). Part B's primary metric is now ANN recall@k against the exact filtered top k, divided by min(k, |exact|) (Arun), with fact recall secondary and n shown (AC-18). At least 4 agency cases added (AC-15). Recon and figures: [journal 20 Oct](../docs/journal/2026-10-20-permissions-spec.md#amendment-agency-persona-and-part-b-metric).
 - 2026-10-21, amended on the cases branch: AC-15 minimums lowered (denied 12, same-question 3, claimed-identity 4; agency and partial unchanged) and the review rule changed to a fresh-agent review with Arun deciding the flags (Arun: the cases are synthetic). Cases and counts: [permissions-v1 changelog](../docs/eval/CHANGELOG.md#permissions-v1-2026-10-21).
+- 2026-10-22, amended before the Part A build, after ADR-0022 made text-embedding-3-large@1536 the default: the AC-9 baseline is `2026-10-21-d83f3edc` (was `d2625d91`, 3-small). AC-15's control rows are corrected (15, 39 and 109 are cut rows) and the 3-large validity is recorded: 50 of 52 cases. [Journal 22 Oct](../docs/journal/2026-10-22-spec-0007-amendment.md).
 
 ## Verification
 
 - `make acl` dry run: per-group counts and persona shares match the journal's recon figures.
 - `make acl`, then the invariant tests over all five configs.
-- The admin regression against `d2625d91` (AC-9).
+- The admin regression against `d83f3edc` (AC-9).
 - After the cases merge: a permissions-suite run with leak 0, over-block 0 and authorized recall reported.
 - `make test` and `make lint` pass.
 
