@@ -5,7 +5,13 @@ from pathlib import Path
 import pytest
 
 from handbook_rag.evaluation.metrics import row_metrics
-from handbook_rag.evaluation.report import is_binary, render_compare, render_md, summarize
+from handbook_rag.evaluation.report import (
+    is_binary,
+    render_compare,
+    render_md,
+    summarize,
+    top_k_diff,
+)
 
 META = {"eval_set": "v1.2", "k": 5, "mode": "full"}
 NOTES = {"answer_only_facts": ["row 5 F2"], "evidence_warnings": ["row 23 F3 (optional): x"]}
@@ -214,7 +220,7 @@ def _rec(row, type_, recall, hit, retrieved):
 
 
 def _hit(rank, facts, heading, heading_path=None):
-    h = {"rank": rank, "facts": facts, "heading": heading}
+    h = {"rank": rank, "chunk_id": f"c{rank}", "facts": facts, "heading": heading}
     if heading_path is not None:
         h["heading_path"] = heading_path
     return h
@@ -334,3 +340,53 @@ def test_render_compare_paired_delta_and_header_change():
         no_change, new, base_sum, base, "B", [1]
     )
     assert plain.count("(change:") == 1
+
+
+def _ranked(row, chunk_ids):
+    return {"row": row, "type": "lookup", "retrieved": [{"chunk_id": c} for c in chunk_ids]}
+
+
+def test_top_k_diff_identical_lists():
+    """Spec 0007, AC-9: identical top-5 lists, in order, on every answerable row: no diffs."""
+    base = [_ranked(1, ["a", "b", "c", "d", "e", "f"]), _ranked(2, ["x", "y"])]
+    run = [_ranked(1, ["a", "b", "c", "d", "e", "z"]), _ranked(2, ["x", "y"])]
+    assert top_k_diff(run, base) == (2, [])
+
+
+def test_top_k_diff_swapped_order_counts_as_different():
+    """Spec 0007, AC-9: the same chunks in a different order are a difference."""
+    base = [_ranked(1, ["a", "b", "c", "d", "e"]), _ranked(2, ["x", "y"])]
+    run = [_ranked(1, ["b", "a", "c", "d", "e"]), _ranked(2, ["x", "y"])]
+    assert top_k_diff(run, base) == (2, [1])
+
+
+def test_top_k_diff_missing_row_counts_as_different():
+    """Spec 0007, AC-9: an answerable baseline row absent from this run is a difference."""
+    base = [_ranked(1, ["a"]), _ranked(2, ["b"]), _ranked(3, ["c"])]
+    run = [_ranked(3, ["c"]), _ranked(1, ["a"])]
+    assert top_k_diff(run, base) == (3, [2])
+
+
+def test_top_k_diff_skips_ooc_rows():
+    """Spec 0007, AC-9: rows with an empty retrieved list (ooc) are not compared."""
+    base = [_ranked(1, []), _ranked(2, ["x"])]
+    run = [_ranked(1, ["q"]), _ranked(2, ["x"])]
+    assert top_k_diff(run, base) == (1, [])
+
+
+def test_render_compare_top5_section():
+    """Spec 0007, AC-9: render_compare appends the top-5 order section with the count and the
+    differing row ids."""
+    base = [_rec(1, "lookup", 0.5, 1.0, [_hit(1, [], "X"), _hit(2, [], "Y")]),
+            _rec(2, "lookup", 0.5, 1.0, [_hit(1, [], "Z")])]  # fmt: skip
+    new = [_rec(1, "lookup", 0.5, 1.0, [_hit(2, [], "Y"), _hit(1, [], "X")]),
+           _rec(2, "lookup", 0.5, 1.0, [_hit(1, [], "Z")])]  # fmt: skip
+    base_sum = summarize(base, META, NOTES)
+    new_sum = summarize(new, META, NOTES)
+    md = render_compare(new_sum, new, base_sum, base, "B", [1])
+    assert "### Top-5 order vs baseline (spec 0007, AC-9)" in md
+    assert "identical on 1 of 2 rows" in md
+    assert "differing rows: 1" in md
+    same = [_rec(1, "lookup", 0.5, 1.0, [_hit(1, [], "X")])]
+    same_md = render_compare(summarize(same, META, NOTES), same, base_sum, same, "B", [1])
+    assert "identical on 1 of 1 rows" in same_md and "differing rows" not in same_md

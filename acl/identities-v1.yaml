@@ -1,0 +1,38 @@
+# Fixture identities for permission-aware retrieval (spec 0007, AC-6; ADR-0021).
+# Groups are resolved in code (src/handbook_rag/identity.py), never listed here.
+
+version: identities-v1
+
+users:
+  # people-ops IC employee: sees everything through the people-ops group
+  - id: admin
+    employment_type: employee
+    role: ic
+    function: people-ops
+    entity: us-inc
+  # ordinary US employee
+  - id: us-ic
+    employment_type: employee
+    role: ic
+    function: engineering
+    entity: us-inc
+  # UK people manager: sees manager pages, UK entity pages, not US ones
+  - id: manager
+    employment_type: employee
+    role: people-manager
+    function: engineering
+    entity: uk-ltd
+  # contractor in staff: Contractor Benefits stays visible
+  - id: contractor
+    employment_type: contractor
+    role: ic
+    function: engineering
+  # temporary service provider: onboarding and contractor pages only (about 1.2% of chunks)
+  - id: narrow
+    employment_type: temporary
+    role: ic
+  # agency contractor in engineering: engineering subtree plus onboarding pages (about 32.5%)
+  - id: agency
+    employment_type: agency
+    role: ic
+    function: engineering

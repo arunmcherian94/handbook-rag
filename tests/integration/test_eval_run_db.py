@@ -11,7 +11,14 @@ import psycopg
 import pytest
 from fakes import FakeAnswerer, FakeEmbedder, bow_vector
 
-from handbook_rag.constants import BASELINE_CONFIG, CHECKOUT, CORPUS_PREFIX, EVAL_RUNS
+from handbook_rag import acl, identity
+from handbook_rag.constants import (
+    BASELINE_CONFIG,
+    CHECKOUT,
+    CORPUS_PREFIX,
+    EVAL_RUNS,
+    QUALITY_SET_USER,
+)
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.evaluation import evidence
 from handbook_rag.evaluation import run as run_mod
@@ -25,9 +32,14 @@ MODEL = "fake:eval-run-test"
 META_KEYS = {
     "eval_version", "eval_sha256", "harness_sha", "harness_dirty", "corpus_sha", "chunk_params",
     "embed_model", "answer_model", "system_prompt_sha256", "k", "timestamp", "rows", "mode",
-    "limit", "config_id", "eval_depth",
+    "limit", "config_id", "eval_depth", "user_id", "policy_version", "policy_sha256",
 }  # fmt: skip
 MISSING = "zzqx this line is in no stored chunk qxzz"
+
+
+def _admin(conn):
+    """Spec 0007, AC-9: the quality-set principal. Needs `make acl` to have run."""
+    return identity.load(QUALITY_SET_USER, acl.load_policy(conn))
 
 
 def _clean(conn):
@@ -104,7 +116,10 @@ def _meta(answer_model, rows):
         "params": {"size": 1, "overlap": 0},
         "tokenizer": "t",
     }
-    return run_mod.metadata("v0.0", b"eval", "sha", params, MODEL, answer_model, rows, None)
+    return run_mod.metadata(
+        "v0.0", b"eval", "sha", params, MODEL, answer_model, rows, None,
+        user_id="admin", policy_version="v", policy_sha256="s",
+    )  # fmt: skip
 
 
 def _read(out):
@@ -140,7 +155,15 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
     answerer = FakeAnswerer("never [1]")
     embedder = FakeEmbedder(name=MODEL)
     out = run_mod.run(
-        conn, rows, ev, embedder, None, meta=_meta(None, 2), out_root=tmp_path, checkout=checkout
+        conn,
+        rows,
+        ev,
+        embedder,
+        None,
+        principal=_admin(conn),
+        meta=_meta(None, 2),
+        out_root=tmp_path,
+        checkout=checkout,
     )
     assert answerer.calls == []
     assert len(embedder.calls) == 4  # spec 0006 AC-6: k=5 and depth-20 query per answerable row
@@ -202,6 +225,7 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
         ev,
         embedder,
         answerer,
+        principal=_admin(conn),
         meta=_meta("fake:answer", 1),
         out_root=tmp_path,
         checkout=checkout,
@@ -221,6 +245,7 @@ def test_full_mode_writes_abstention_and_checks(setup, tmp_path):
         ev,
         embedder,
         FakeAnswerer(NOT_FOUND),
+        principal=_admin(conn),
         meta=_meta("fake:answer", 1),
         out_root=tmp_path,
         checkout=checkout,
@@ -250,6 +275,7 @@ def test_heading_checked_against_pinned_file(setup, tmp_path):
         ev,
         FakeEmbedder(name=MODEL),
         FakeAnswerer("The handbook says so [1]."),
+        principal=_admin(conn),
         meta=_meta("fake:answer", 1),
         out_root=tmp_path,
         checkout=checkout,
@@ -333,3 +359,32 @@ def test_dry_run_spends_nothing(monkeypatch, capsys):
         and "estimated cost" in out
     )
     assert "Dry run: add CONFIRM=1 to spend." in out
+
+
+def test_baseline_ignores_new_principal_keys():
+    """Spec 0007, AC-9: an older baseline without user_id/policy_* is not a mismatch, and the new
+    keys are not a change against it."""
+    meta = _meta(None, 2)
+    base = {
+        k: v for k, v in meta.items() if k not in ("user_id", "policy_version", "policy_sha256")
+    }
+    assert run_mod.baseline_mismatch(base, meta) == []
+    assert run_mod.baseline_change(base, meta) is None
+
+
+def test_stale_acl_aborts_dry_run(monkeypatch):
+    """Spec 0007, AC-5: a stale ACL aborts main with the message naming `make acl`, before the
+    dry-run return and before any model is built."""
+
+    def stale(conn, policy):
+        raise acl.StaleACL("stored ACLs differ. Run `make acl`.")
+
+    def boom(*_, **__):
+        raise AssertionError("must abort before building a model")
+
+    if not (CHECKOUT / ".git").exists():
+        pytest.fail("Corpus checkout missing. Run `make corpus` first.")
+    monkeypatch.setattr(acl, "check_stale", stale)
+    monkeypatch.setattr(run_mod, "make_embedder", boom)
+    with pytest.raises(SystemExit, match="make acl"):
+        run_mod.main(["--limit", "2"])

@@ -60,3 +60,30 @@ def test_split_front_matter():
 )
 def test_skip_reason(front_matter, body, reason):
     assert skip_reason(front_matter, body) == reason
+
+
+@pytest.mark.parametrize(
+    ("url", "url_path"),
+    [
+        ("/handbook/upstream-studios/", "/handbook/upstream-studios/"),
+        ('"https://handbook.gitlab.com/handbook/engineering/Prep/"', "/handbook/engineering/prep/"),
+        ("/handbook/engineering/on-call", "/handbook/engineering/on-call/"),
+        ("'/handbook/a/#section'", "/handbook/a/"),
+    ],
+)
+def test_normalize_url_path(url, url_path):
+    """Spec 0007, AC-3: a redirect target is normalized like a stored url_path: an absolute
+    handbook.gitlab.com URL reduced to its path, lowercased, with a trailing slash."""
+    assert ingest.normalize_url_path(url) == url_path
+
+
+def test_normalize_rejects_other_host():
+    """Spec 0007, AC-3: a target on another host can't be in the corpus."""
+    with pytest.raises(ValueError, match="handbook.gitlab.com"):
+        ingest.normalize_url_path("https://about.gitlab.com/handbook/x/")
+
+
+def test_derive_redirect():
+    """Spec 0007, AC-3: `redirect_to:` is read from the front matter; a normal page has none."""
+    assert ingest.derive_redirect('title: X\nredirect_to: "/handbook/Y/"') == "/handbook/y/"
+    assert ingest.derive_redirect("title: X") is None

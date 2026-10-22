@@ -8,6 +8,14 @@ DOCUMENTS_SCHEMA = Path("db/init/002_documents.sql")
 CHUNKS_SCHEMA = Path("db/init/003_chunks.sql")
 TRACE_PATH = Path("runs/ask.jsonl")
 
+# Permissions (spec 0007, ADR-0021)
+POLICY_PATH = Path("acl/policy-v1.yaml")
+IDENTITIES_PATH = Path("acl/identities-v1.yaml")
+PERMISSIONS_SUITE = Path("docs/eval/permissions-v1.md")
+PERMISSIONS_RUNS = Path("runs/permissions")
+PERMISSIONS_KS = (5, 20)  # AC-12: k=5 frozen, plus depth 20
+QUALITY_SET_USER = "admin"  # AC-9: the quality set runs as admin
+
 # Chunking (spec 0003, AC-1)
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 64

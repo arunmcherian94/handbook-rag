@@ -53,3 +53,17 @@ END $$;
 
 -- Every reader filters on config_id (AC-4).
 CREATE INDEX IF NOT EXISTS chunks_config_id_idx ON chunks (config_id);
+
+-- Chunks carry their document's allow-list (spec 0007, AC-2); `make chunk` copies it on insert.
+-- An empty array matches no `&&` filter, so it fails closed (non-empty is the AC-4 test).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'chunks' AND column_name = 'allowed_groups') THEN
+        ALTER TABLE chunks ADD COLUMN allowed_groups text[];
+        UPDATE chunks c SET allowed_groups = d.acl_tags FROM documents d WHERE d.doc_id = c.doc_id;
+        ALTER TABLE chunks ALTER COLUMN allowed_groups SET NOT NULL;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS chunks_allowed_groups_idx ON chunks USING gin (allowed_groups);
