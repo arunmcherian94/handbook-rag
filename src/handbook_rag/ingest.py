@@ -56,19 +56,24 @@ def derive_url_path(path: str) -> str:
     """
     p = Path(path).relative_to("content")
     parts = p.parent.parts if p.name in ("_index.md", "index.md") else (*p.parent.parts, p.stem)
-    return normalize_url_path("/".join(parts))
+    return _as_url_path("/".join(parts))
+
+
+def _as_url_path(path: str) -> str:
+    """Lowercased, with one leading and one trailing slash: the stored url_path form."""
+    path = path.strip("/").lower()
+    return f"/{path}/" if path else "/"
 
 
 def normalize_url_path(url: str) -> str:
-    """A stored url_path from a site path or link: an absolute handbook.gitlab.com URL is reduced
-    to its path, then lowercased with one leading and one trailing slash. Redirect targets go
-    through the same function as ingestion (spec 0007, AC-3). Another host is a ValueError.
+    """A link or redirect target as a stored url_path: an absolute handbook.gitlab.com URL is
+    reduced to its path, then put in the form derive_url_path stores (spec 0007, AC-3). Another
+    host is a ValueError.
     """
     parts = urlsplit(url.strip().strip("\"'"))
     if parts.netloc and parts.netloc.lower() != HANDBOOK_HOST:
         raise ValueError(f"not a {HANDBOOK_HOST} URL: {url!r}")
-    path = parts.path.strip("/").lower()
-    return f"/{path}/" if path else "/"
+    return _as_url_path(parts.path)
 
 
 def derive_redirect(front_matter: str) -> str | None:

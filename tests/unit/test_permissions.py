@@ -3,11 +3,12 @@ from pathlib import Path
 import pytest
 from fakes import make_principal
 
-from handbook_rag.constants import PERMISSIONS_KS, PERMISSIONS_SUITE
+from handbook_rag.constants import PERMISSIONS_KS, PERMISSIONS_SUITE, POLICY_PATH
 from handbook_rag.evaluation import permissions as p
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evalset import parse as parse_evalset
 from handbook_rag.evaluation.permissions import Case, SuiteError
+from handbook_rag.policy import parse as parse_policy
 
 ACLS = {
     "content/handbook/open.md": ("staff",),
@@ -348,3 +349,22 @@ def test_estimate_counts_unique_question_tokens():
     est = p.estimate(["hello world", "another question"], 1_000_000.0)
     assert est["embed_tokens"] > 0
     assert est["embed_usd"] == pytest.approx(est["embed_tokens"])
+
+
+def test_suite_controls_are_live_rows_only():
+    """Spec 0007, AC-15 (corrected 23 Oct): only row 5's cases are labelled controls; the cases
+    drafted on cut rows 33 and 61 are labelled `cut-row targets`."""
+    suite = p.parse_suite(Path(PERMISSIONS_SUITE).read_text(encoding="utf-8"))
+    controls = {c.id for c in suite.cases if c.category == "control"}
+    cut = {c.id for c in suite.cases if c.category == "cut-row targets"}
+    assert controls == {"P-087", "P-088"}
+    assert cut == {"P-093", "P-094", "P-097", "P-098"}
+
+
+def test_control_row_missing_from_eval_set_fails():
+    """Spec 0007, AC-10: a control whose row isn't a v1.2 row is an error, never silently
+    re-scored on target docs."""
+    policy = parse_policy(POLICY_PATH.read_text(encoding="utf-8"))
+    suite = p.parse_suite(Path(PERMISSIONS_SUITE).read_text(encoding="utf-8"))
+    with pytest.raises(SuiteError, match="P-087: control row 5"):
+        p.plan_cases(suite, {}, policy, eval_rows={})

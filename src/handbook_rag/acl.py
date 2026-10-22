@@ -32,8 +32,14 @@ def resolve_acls(
 ) -> dict[str, tuple[str, ...]]:
     """documents.path -> allow-list. url_paths maps every document's path to its url_path;
     redirects maps a stub's path to its normalized target url_path. A stub takes its final
-    non-stub target's allow-list; a cycle or a target missing from the corpus is an AclError."""
-    by_url = {url: path for path, url in url_paths.items()}
+    non-stub target's allow-list; a cycle, a target missing from the corpus or a target shared
+    by two documents (x.md and x/_index.md) is an AclError."""
+    by_url: dict[str, str] = {}
+    shared: set[str] = set()
+    for path, url in url_paths.items():
+        if url in by_url:
+            shared.add(url)
+        by_url[url] = path
     acls = {}
     for path in url_paths:
         seen = [path]
@@ -41,6 +47,8 @@ def resolve_acls(
             target = redirects[path]
             if target not in by_url:
                 raise AclError(f"{seen[0]}: redirect target {target} is not in the corpus")
+            if target in shared:
+                raise AclError(f"{seen[0]}: redirect target {target} matches several documents")
             path = by_url[target]
             if path in seen:
                 raise AclError(f"redirect cycle: {' -> '.join([*seen, path])}")
@@ -124,6 +132,10 @@ def report(conn, policy: Policy, acls: Mapping[str, tuple[str, ...]]) -> str:
         ).fetchall()
     )
     total = sum(counts.values())
+
+    def share(n: int) -> str:
+        return f"{100 * n / total:.2f}%" if total else "n/a"
+
     out = [
         f"policy {policy.version} (sha256 {policy.sha256[:12]}), {len(acls)} documents, "
         f"{total} {BASELINE_CONFIG} chunks",
@@ -138,7 +150,7 @@ def report(conn, policy: Policy, acls: Mapping[str, tuple[str, ...]]) -> str:
     out += [
         "",
         f"restricted from staff: {len(hidden)} docs / {hidden_chunks} chunks "
-        f"({100 * hidden_chunks / total:.2f}%)",
+        f"({share(hidden_chunks)})",
         "",
         f"{'persona':<12} {'visible chunks':>14} {'share':>8}  groups",
     ]
@@ -146,8 +158,7 @@ def report(conn, policy: Policy, acls: Mapping[str, tuple[str, ...]]) -> str:
         principal = identity.load(user_id, policy)
         visible = sum(counts.get(p, 0) for p, acl in acls.items() if principal.groups & set(acl))
         out.append(
-            f"{user_id:<12} {visible:>14} {100 * visible / total:>7.2f}%  "
-            f"{', '.join(principal.group_list)}"
+            f"{user_id:<12} {visible:>14} {share(visible):>8}  {', '.join(principal.group_list)}"
         )
     return "\n".join(out)
 

@@ -459,11 +459,14 @@ def plan_cases(
                 principals[persona] = identity.load(persona, policy, identities_path)
             except identity.IdentityError as e:
                 raise SuiteError(f"{where}: {e}") from None
+    for c in suite.cases:
+        if c.category == "control" and c.row not in eval_rows:
+            raise SuiteError(f"{c.id}: control row {c.row} is not a v1.2 eval-set row")
     return Plan(
         suite,
         principals,
         {c.id: entitlement(c, acls, principals[c.persona]) for c in suite.cases},
-        {c.row: eval_rows[c.row] for c in suite.cases if c.row in eval_rows},
+        {c.row: eval_rows[c.row] for c in suite.cases if c.category == "control"},
     )
 
 

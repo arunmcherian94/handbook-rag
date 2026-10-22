@@ -71,3 +71,15 @@ def test_missing_target_fails():
     docs = _docs("a.md")
     with pytest.raises(AclError, match="not in the corpus"):
         resolve_acls(POLICY, docs, {"content/handbook/a.md": "/handbook/gone/"})
+
+
+def test_target_shared_by_two_documents_fails():
+    """Spec 0007, AC-3: x.md and x/_index.md share a url_path; a stub pointing there would
+    inherit whichever came last, so it fails instead."""
+    docs = {
+        "content/handbook/a.md": "/handbook/a/",
+        "content/handbook/x.md": "/handbook/x/",
+        "content/handbook/x/_index.md": "/handbook/x/",
+    }
+    with pytest.raises(AclError, match="several documents"):
+        resolve_acls(POLICY, docs, {"content/handbook/a.md": "/handbook/x/"})

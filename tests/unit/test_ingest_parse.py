@@ -87,3 +87,9 @@ def test_derive_redirect():
     """Spec 0007, AC-3: `redirect_to:` is read from the front matter; a normal page has none."""
     assert ingest.derive_redirect('title: X\nredirect_to: "/handbook/Y/"') == "/handbook/y/"
     assert ingest.derive_redirect("title: X") is None
+
+
+def test_url_path_keeps_file_name_characters():
+    """Spec 0007, AC-3 review fix: a file path is not a URL, so `#` and `?` in a file name stay
+    in its url_path (as before the redirect change)."""
+    assert derive_url_path("content/handbook/c#-guide.md") == "/handbook/c#-guide/"

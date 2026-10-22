@@ -225,3 +225,36 @@ def test_special_token_in_question(monkeypatch):
     canned(monkeypatch, chunks())
     r = ask_mod.ask(None, FakeEmbedder(), FakeAnswerer("ok [1]"), "what is <|endoftext|>?", P)
     assert r.tokens["query_embed"] > 0
+
+
+def test_main_refuses_stale_acls(monkeypatch):
+    """Spec 0007, AC-5: `make ask` stops on stale ACLs before any retrieval or model call."""
+
+    class Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, *args):
+            return type("R", (), {"fetchone": lambda self: (True,)})()
+
+    def stale(conn, policy):
+        raise ask_mod.acl.StaleACL(
+            "stored ACLs differ from policy-v1: 1 documents. Run `make acl`."
+        )
+
+    def no_retrieval(*args, **kwargs):
+        raise AssertionError("retrieved under stale ACLs")
+
+    monkeypatch.setattr(ask_mod, "read_manifest", lambda: None)
+    monkeypatch.setattr(ask_mod, "verify", lambda m: None)
+    monkeypatch.setattr(ask_mod, "make_embedder", lambda: FakeEmbedder())
+    monkeypatch.setattr(ask_mod, "make_answerer", lambda: FakeAnswerer())
+    monkeypatch.setattr(ask_mod, "connect", Conn)
+    monkeypatch.setattr(ask_mod.acl, "load_policy", lambda conn: None)
+    monkeypatch.setattr(ask_mod.acl, "check_stale", stale)
+    monkeypatch.setattr(ask_mod, "retrieve", no_retrieval)
+    with pytest.raises(SystemExit, match="make acl"):
+        ask_mod.main(["--as", "us-ic", "a question"])

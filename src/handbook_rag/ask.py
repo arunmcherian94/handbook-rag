@@ -20,6 +20,7 @@ import tiktoken
 
 from handbook_rag import acl, identity
 from handbook_rag.constants import BASELINE_CONFIG, MAX_CITATION, TOKENIZER, TOP_K, TRACE_PATH
+from handbook_rag.corpus import read_manifest, verify
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.embed import embed_with_retry
 from handbook_rag.identity import Principal
@@ -260,6 +261,8 @@ def main(argv=None) -> int:
     ap.add_argument("--as", dest="user_id", required=True, help="fixture user to ask as")
     ap.add_argument("--k", type=int, default=TOP_K)
     args = ap.parse_args(argv)
+    if error := verify(read_manifest()):
+        raise SystemExit(f"{error}\nRun `make corpus` to restore the pinned checkout.")
     embedder, answerer = make_embedder(), make_answerer()
     with connect() as conn:
         # Checked here, not in ask(): an empty retrieval there means nothing visible to the
@@ -269,7 +272,12 @@ def main(argv=None) -> int:
         ).fetchone()
         if not embedded:
             raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
-        principal = identity.load(args.user_id, acl.load_policy(conn))
+        policy = acl.load_policy(conn)
+        try:
+            acl.check_stale(conn, policy)  # spec 0007, AC-5: never filter on stale ACLs
+        except acl.StaleACL as e:
+            raise SystemExit(str(e)) from None
+        principal = identity.load(args.user_id, policy)
         result = ask(conn, embedder, answerer, args.question, principal, args.k)
     print(format_result(result))
     append_trace(result)
