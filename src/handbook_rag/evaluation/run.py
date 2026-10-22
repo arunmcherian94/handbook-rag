@@ -19,7 +19,7 @@ from pathlib import Path
 
 import tiktoken
 
-from handbook_rag import ask
+from handbook_rag import acl, ask, identity
 from handbook_rag.constants import (
     BASELINE_CONFIG,
     CHECKOUT,
@@ -30,6 +30,7 @@ from handbook_rag.constants import (
     EVAL_KS,
     EVAL_RUNS,
     EVAL_SET,
+    QUALITY_SET_USER,
     REGRESSION_ROWS,
     TOKENIZER,
     TOP_K,
@@ -42,6 +43,7 @@ from handbook_rag.evaluation.evalset import Row, parse
 from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import row_metrics
 from handbook_rag.evaluation.report import render_compare, render_md, summarize
+from handbook_rag.identity import Principal
 from handbook_rag.ingest import derive_title, split_front_matter
 from handbook_rag.models import (
     Answerer,
@@ -129,10 +131,15 @@ def metadata(
     answer_model: str | None,
     rows: int,
     limit: int | None,
+    *,
+    user_id: str | None = None,
+    policy_version: str | None = None,
+    policy_sha256: str | None = None,
 ) -> dict:
     """AC-6, AC-12 run metadata. corpus_sha and chunk_params (the stored config) come from
     stored_chunk_params (the DB); chunk_params in the output is the config's params.
-    answer_model None means retrieval-only."""
+    answer_model None means retrieval-only. Spec 0007, AC-9: user_id and the policy version and
+    sha256 record who the run was."""
     return {
         "eval_version": version,
         "eval_sha256": hashlib.sha256(eval_bytes).hexdigest(),
@@ -154,6 +161,9 @@ def metadata(
         "rows": rows,
         "mode": "retrieval-only" if answer_model is None else "full",
         "limit": limit,
+        "user_id": user_id,
+        "policy_version": policy_version,
+        "policy_sha256": policy_sha256,
     }
 
 
@@ -354,6 +364,7 @@ def run(
     embedder: Embedder,
     answerer: Answerer | None,
     *,
+    principal: Principal,
     meta: dict,
     out_root: Path = EVAL_RUNS,
     checkout: Path = CHECKOUT,
@@ -361,6 +372,7 @@ def run(
     baseline: tuple[str, dict, list[dict]] | None = None,
 ) -> Path:
     """Retrieve (and answer, unless answerer is None) every row; write the run folder (AC-7).
+    Every retrieval runs as `principal` (spec 0007, AC-8).
 
     answerer None is retrieval-only mode: ooc rows are skipped and the answer model is never
     called. config_id scopes retrieval; baseline (id, summary, records) adds the AC-14 comparison
@@ -374,14 +386,20 @@ def run(
         for row in to_run(rows, answerer is None):
             if answerer is None:
                 result = None
-                chunks = ask.retrieve(conn, embedder, row.question, TOP_K, config_id=config_id)
+                chunks = ask.retrieve(
+                    conn, embedder, row.question, principal, TOP_K, config_id=config_id
+                )
                 if not chunks:
                     raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
             else:
-                result = ask.ask(conn, embedder, answerer, row.question, TOP_K, config_id=config_id)
+                result = ask.ask(
+                    conn, embedder, answerer, row.question, principal, TOP_K, config_id=config_id
+                )
                 chunks = result.chunks
             deep = (
-                ask.retrieve(conn, embedder, row.question, EVAL_DEPTH, config_id=config_id)
+                ask.retrieve(
+                    conn, embedder, row.question, principal, EVAL_DEPTH, config_id=config_id
+                )
                 if row.answerable
                 else []
             )
@@ -476,6 +494,14 @@ def main(argv=None) -> int:
         for w in ev.warnings:
             print(f"warning: {w}", file=sys.stderr)
 
+        # AC-5: a stale ACL aborts before anything else; AC-9: the quality set runs as admin.
+        policy = acl.load_policy(conn)
+        try:
+            acl.check_stale(conn, policy)
+        except (acl.StaleACL, acl.AclError) as e:
+            raise SystemExit(str(e)) from None
+        principal = identity.load(QUALITY_SET_USER, policy)
+
         todo = to_run(rows, args.retrieval_only)
         n_ans = sum(r.answerable for r in todo)
         mode = "retrieval-only" if args.retrieval_only else "full"
@@ -503,6 +529,9 @@ def main(argv=None) -> int:
             None if args.retrieval_only else resolve_answer_spec(),
             len(todo),
             args.limit,
+            user_id=principal.user_id,
+            policy_version=policy.version,
+            policy_sha256=policy.sha256,
         )
         # AC-6: a baseline that differs in more than one change fails the dry run.
         if baseline and (diff := baseline_mismatch(baseline[1]["meta"], meta)):
@@ -528,7 +557,15 @@ def main(argv=None) -> int:
             )
         answerer = None if args.retrieval_only else make_answerer()
         out = run(
-            conn, rows, ev, embedder, answerer, meta=meta, config_id=args.config, baseline=baseline
+            conn,
+            rows,
+            ev,
+            embedder,
+            answerer,
+            principal=principal,
+            meta=meta,
+            config_id=args.config,
+            baseline=baseline,
         )
 
     overall = json.loads((out / "summary.json").read_text(encoding="utf-8"))["groups"]["overall"]

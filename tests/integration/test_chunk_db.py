@@ -308,3 +308,43 @@ def test_register_config_rejects_drift_and_unknown(conn, monkeypatch):
         conn.rollback()
         conn.execute("DELETE FROM chunk_configs WHERE config_id = 'test-drift'")
         conn.commit()
+
+
+def test_allowed_groups_is_not_null_text_array(conn):
+    """Spec 0007, AC-2: chunks.allowed_groups is a NOT NULL text[]."""
+    assert conn.execute(
+        """SELECT data_type, udt_name, is_nullable FROM information_schema.columns
+           WHERE table_name = 'chunks' AND column_name = 'allowed_groups'"""
+    ).fetchone() == ("ARRAY", "_text", "NO")
+
+
+def test_allowed_groups_has_gin_index(conn):
+    """Spec 0007, AC-2: allowed_groups has a GIN index for the `&&` pre-filter."""
+    (defn,) = conn.execute(
+        "SELECT indexdef FROM pg_indexes WHERE indexname = 'chunks_allowed_groups_idx'"
+    ).fetchone()
+    assert "USING gin (allowed_groups)" in defn
+
+
+def test_documents_acl_tags_defaults_to_empty(conn):
+    """Spec 0007, AC-2: an untagged document fails closed; acl_tags defaults to '{}'."""
+    (default,) = conn.execute(
+        """SELECT column_default FROM information_schema.columns
+           WHERE table_name = 'documents' AND column_name = 'acl_tags'"""
+    ).fetchone()
+    assert default.startswith("'{}'")
+
+
+def test_chunks_inherit_parent_acl_tags(conn):
+    """Spec 0007, AC-2: the chunk code path copies the parent's acl_tags to allowed_groups."""
+    with conn.transaction(force_rollback=True):
+        (doc_id,) = conn.execute("SELECT doc_id FROM documents ORDER BY doc_id LIMIT 1").fetchone()
+        conn.execute("UPDATE documents SET acl_tags = %s WHERE doc_id = %s", (["g1", "g2"], doc_id))
+        conn.execute("DELETE FROM chunks WHERE doc_id = %s AND config_id = %s",
+                     (doc_id, BASELINE_CONFIG))  # fmt: skip
+        run(conn, force=True)
+        groups = conn.execute(
+            "SELECT DISTINCT allowed_groups FROM chunks WHERE doc_id = %s AND config_id = %s",
+            (doc_id, BASELINE_CONFIG),
+        ).fetchall()
+        assert groups == [(["g1", "g2"],)]

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus ingest chunk embed ask eval test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest chunk embed acl ask eval permissions test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -23,14 +23,21 @@ embed: ## Embed CONFIG's chunks with no embedding for EMBED_MODEL: dry run unles
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.embed \
 		$(if $(CONFIG),--config $(CONFIG)) $(if $(filter 1,$(CONFIRM)),--confirm) $(if $(LIMIT),--limit $(LIMIT))
 
-ask: ## Answer a question from the handbook: make ask Q="..."
-	@test -n "$$Q" || { echo 'usage: make ask Q="your question"'; exit 2; }
-	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask "$$Q"
+acl: ## Resolve acl/policy-v1.yaml onto documents and every config's chunks: dry run unless CONFIRM=1
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.acl $(if $(filter 1,$(CONFIRM)),--confirm)
+
+ask: ## Answer a question as a fixture user: make ask AS=us-ic Q="..."
+	@test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make ask AS=<user id> Q="your question"'; exit 2; }
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask --as "$(AS)" "$$Q"
 
 eval: ## Run the eval set: CONFIRM=1 to spend (only 1 counts), LIMIT=n, RETRIEVAL_ONLY=1, CONFIG=, BASELINE=<run id>
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.run \
 		$(if $(filter 1,$(CONFIRM)),--confirm) $(if $(LIMIT),--limit $(LIMIT)) $(if $(filter 1,$(RETRIEVAL_ONLY)),--retrieval-only) \
 		$(if $(CONFIG),--config $(CONFIG)) $(if $(BASELINE),--baseline $(BASELINE))
+
+permissions: ## Run permissions-v1, retrieval-only: dry run unless CONFIRM=1, CONFIG=
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.permissions \
+		$(if $(filter 1,$(CONFIRM)),--confirm) $(if $(CONFIG),--config $(CONFIG))
 
 test: test-unit test-integration ## Run unit + integration tests
 

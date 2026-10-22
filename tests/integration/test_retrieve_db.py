@@ -1,13 +1,22 @@
+import random
+import re
 import uuid
+from pathlib import Path
 
 import psycopg
 import pytest
-from fakes import FakeEmbedder, bow_vector
+from fakes import FakeEmbedder, bow_vector, make_principal
 
-from handbook_rag.ask import retrieve
+from handbook_rag import acl, identity
+from handbook_rag.ask import SEARCH, retrieve, search
 from handbook_rag.db import connect, vector_literal
 
 pytestmark = pytest.mark.integration
+
+# Spec 0007, AC-8: people-ops is on every policy rule, so this principal sees every document
+# once `make acl` has run (test chunks below are inserted with the same group).
+ADMIN_LIKE = make_principal("people-ops")
+SRC = Path(__file__).resolve().parents[2] / "src"
 
 INSERT = "INSERT INTO chunk_embeddings (chunk_id, model, embedding) VALUES (%s, %s, %s::vector)"
 MODEL = "fake:retrieve-test"
@@ -61,7 +70,7 @@ def seeded():
 def test_retrieve_exact_order_and_model_filter(seeded):
     """AC-5: target ranks first, distances ascend, only the queried model's rows come back."""
     conn, rows, target, query = seeded
-    got = retrieve(conn, FakeEmbedder(name=MODEL), query, k=5)
+    got = retrieve(conn, FakeEmbedder(name=MODEL), query, ADMIN_LIKE, k=5)
     assert len(got) == 5
     assert got[0].chunk_id == target[0]
     assert [g.n for g in got] == [1, 2, 3, 4, 5]
@@ -79,13 +88,13 @@ def test_retrieve_exact_order_and_model_filter(seeded):
 def test_retrieve_respects_k(seeded):
     """AC-5: LIMIT k."""
     conn, _, _, query = seeded
-    assert len(retrieve(conn, FakeEmbedder(name=MODEL), query, k=3)) == 3
+    assert len(retrieve(conn, FakeEmbedder(name=MODEL), query, ADMIN_LIKE, k=3)) == 3
 
 
 def test_retrieve_unknown_model_is_empty(seeded):
     """AC-5: a model with no embeddings yields nothing."""
     conn, _, _, query = seeded
-    assert retrieve(conn, FakeEmbedder(name="fake:no-rows"), query, k=5) == []
+    assert retrieve(conn, FakeEmbedder(name="fake:no-rows"), query, ADMIN_LIKE, k=5) == []
 
 
 def test_missing_heading_falls_back_to_doc_title(seeded):
@@ -96,7 +105,7 @@ def test_missing_heading_falls_back_to_doc_title(seeded):
            WHERE c.heading IS NULL AND c.config_id = 'fixed-512-64' ORDER BY c.chunk_id LIMIT 1"""
     ).fetchone()
     conn.execute(INSERT, (chunk_id, TITLE, vector_literal(bow_vector(content))))
-    got = retrieve(conn, FakeEmbedder(name=TITLE), content, k=1)
+    got = retrieve(conn, FakeEmbedder(name=TITLE), content, ADMIN_LIKE, k=1)
     (hit,) = got
     assert hit.chunk_id == chunk_id
     assert hit.heading == title
@@ -114,16 +123,16 @@ def test_other_config_chunks_never_returned(seeded):
     )
     conn.execute(
         "INSERT INTO chunks (chunk_id, doc_id, chunk_index, content, token_count, chunk_size, "
-        "chunk_overlap, tokenizer, commit_sha, config_id) "
-        "VALUES (%s, %s, 0, 'decoy', 1, 1, 0, 'cl100k_base', 'x', %s)",
+        "chunk_overlap, tokenizer, commit_sha, config_id, allowed_groups) "
+        "VALUES (%s, %s, 0, 'decoy', 1, 1, 0, 'cl100k_base', 'x', %s, '{people-ops}')",
         (decoy_id, target[2], DECOY),
     )
     conn.execute(INSERT, (decoy_id, MODEL, vector_literal(bow_vector(query))))
     embedder = FakeEmbedder(name=MODEL)
-    assert decoy_id not in {g.chunk_id for g in retrieve(conn, embedder, query, k=10)}
-    assert [g.chunk_id for g in retrieve(conn, embedder, query, k=10, config_id=DECOY)] == [
-        decoy_id
-    ]
+    assert decoy_id not in {g.chunk_id for g in retrieve(conn, embedder, query, ADMIN_LIKE, k=10)}
+    assert [
+        g.chunk_id for g in retrieve(conn, embedder, query, ADMIN_LIKE, k=10, config_id=DECOY)
+    ] == [decoy_id]
 
 
 @pytest.mark.parametrize("config_id", ["structural-v2", "fixed-512-64-prefixed"])
@@ -143,13 +152,137 @@ def test_new_configs_are_scoped(seeded, config_id):
         )
     conn.execute(
         "INSERT INTO chunks (chunk_id, doc_id, chunk_index, content, token_count, chunk_size, "
-        "chunk_overlap, tokenizer, commit_sha, config_id) "
-        "VALUES (%s, %s, 0, 'new config', 1, 1, 0, 'cl100k_base', 'x', %s)",
+        "chunk_overlap, tokenizer, commit_sha, config_id, allowed_groups) "
+        "VALUES (%s, %s, 0, 'new config', 1, 1, 0, 'cl100k_base', 'x', %s, '{people-ops}')",
         (new_id, target[2], config_id),
     )
     conn.execute(INSERT, (new_id, MODEL, vector_literal(bow_vector(query))))
     embedder = FakeEmbedder(name=MODEL)
-    assert new_id not in {g.chunk_id for g in retrieve(conn, embedder, query, k=10)}
-    assert [g.chunk_id for g in retrieve(conn, embedder, query, k=10, config_id=config_id)] == [
-        new_id
+    assert new_id not in {g.chunk_id for g in retrieve(conn, embedder, query, ADMIN_LIKE, k=10)}
+    assert [
+        g.chunk_id for g in retrieve(conn, embedder, query, ADMIN_LIKE, k=10, config_id=config_id)
+    ] == [new_id]
+
+
+# --- Spec 0007, AC-8 / AC-9 ---------------------------------------------------------------------
+
+
+SEED_MODEL = "test:acl-seed"  # vectors seeded by these tests, never by `make embed`
+
+
+def _seed(conn, n=3000):
+    """Seed 16-d vectors under SEED_MODEL for every fixed-512-64 chunk visible to new-contractor
+    plus the first n by chunk_id, with the real allowed_groups. The first two chunks share one
+    vector (an exact tie, as duplicate pages produce). Call inside a rolled-back transaction, so
+    the tests need no paid embeddings. Returns (rng for queries, the tied vector)."""
+    rng = random.Random(20261023)
+    ids = [
+        r[0]
+        for r in conn.execute(
+            "SELECT chunk_id FROM chunks WHERE config_id = 'fixed-512-64' AND "
+            "(allowed_groups && '{new-contractor}' OR chunk_id IN (SELECT chunk_id FROM chunks "
+            "WHERE config_id = 'fixed-512-64' ORDER BY chunk_id LIMIT %s)) ORDER BY chunk_id",
+            (n,),
+        ).fetchall()
     ]
+    assert len(ids) > n, "no chunk visible to new-contractor; run `make acl`"
+    vectors = [[rng.gauss(0, 1) for _ in range(16)] for _ in ids]
+    vectors[1] = vectors[0]
+    with conn.cursor() as cur:
+        cur.executemany(
+            INSERT, [(i, SEED_MODEL, vector_literal(v)) for i, v in zip(ids, vectors, strict=True)]
+        )
+    return rng, vector_literal(vectors[0])
+
+
+def _query(rng):
+    return vector_literal([rng.gauss(0, 1) for _ in range(16)])
+
+
+def test_search_filters_by_groups():
+    """Spec 0007, AC-8: a principal with a group no chunk has gets nothing; every chunk returned
+    for a narrow principal has an allowed group in common with it. Assumes `make acl` has run
+    (decision approved by Arun).
+    """
+    with connect() as conn, conn.transaction(force_rollback=True):
+        rng, _ = _seed(conn)
+        q = _query(rng)
+        assert search(conn, q, SEED_MODEL, make_principal("no-such-group"), 5, "fixed-512-64") == []
+        narrow = make_principal("new-contractor")
+        got = search(conn, q, SEED_MODEL, narrow, 10, "fixed-512-64")
+        assert len(got) == 10
+        for g in got:
+            (groups,) = conn.execute(
+                "SELECT allowed_groups FROM chunks WHERE chunk_id = %s", (g.chunk_id,)
+            ).fetchone()
+            assert set(groups) & narrow.groups
+
+
+def _sql_literals():
+    """(file, string) for every string literal under src/ (SQL lives in plain str constants)."""
+    import ast
+
+    for path in sorted(SRC.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                yield path.relative_to(SRC), node.value
+
+
+def test_every_vector_query_has_the_predicate():
+    """Spec 0007, AC-8: every SQL literal that ranks by a pgvector operator filters on
+    allowed_groups. The scan must find at least the SEARCH query."""
+    found = [(f, t) for f, t in _sql_literals() if re.search(r"<=>|<#>|<->", t)]
+    assert any("handbook_rag/ask.py" in str(f) for f, _ in found)
+    for f, t in found:
+        assert "allowed_groups &&" in t, f"{f}: vector query without the ACL predicate:\n{t}"
+
+
+# Chunk text selected outside a user-serving path (spec 0007, AC-8; approved by Arun).
+EXEMPT_CONTENT_READS = {
+    "handbook_rag/chunk.py": "ingestion diff against stored chunks; never serves a user",
+    "handbook_rag/embed.py": "pending-chunks query feeding the embedder; never serves a user",
+}
+
+
+def test_chunk_content_reads_have_the_predicate():
+    """Spec 0007, AC-8: SQL that selects chunk content FROM chunks (fetch by id, not ranking)
+    carries the predicate, except evaluation/ and the explicit exempt list with reasons."""
+    pattern = re.compile(r"select\b.*?\bcontent\b.*?\bfrom\s+chunks\b", re.I | re.S)
+    exempt_hit = set()
+    for f, t in _sql_literals():
+        key = str(f)
+        if not pattern.search(t) or key.startswith("handbook_rag/evaluation/"):
+            continue
+        if key in EXEMPT_CONTENT_READS:
+            exempt_hit.add(key)
+            continue
+        assert "allowed_groups &&" in t, f"{f}: chunk content read without the predicate:\n{t}"
+    assert exempt_hit == set(EXEMPT_CONTENT_READS), (
+        "stale exempt list: remove entries that match nothing"
+    )
+
+
+def test_admin_top5_equals_unfiltered_top5():
+    """Spec 0007, AC-9 (free proxy): with exact search and an allow-list admitting every document,
+    admin's top 5 equals the top 5 of SEARCH with the predicate removed, in order, for 33 queries
+    over seeded vectors. Needs `make acl`."""
+    unfiltered = re.sub(r"\n\s*AND c\.allowed_groups && %\(groups\)s::text\[\]", "", SEARCH)
+    assert unfiltered != SEARCH
+    with connect() as conn, conn.transaction(force_rollback=True):
+        rng, tied = _seed(conn)
+        admin = identity.load("admin", acl.load_policy(conn))
+        for q in [tied] + [_query(rng) for _ in range(32)]:
+            params = {"q": q, "model": SEED_MODEL, "k": 5, "config_id": "fixed-512-64"}
+            want = [r[0] for r in conn.execute(unfiltered, params).fetchall()]
+            got = [g.chunk_id for g in search(conn, q, SEED_MODEL, admin, 5, "fixed-512-64")]
+            assert got == want
+
+
+def test_exact_ties_break_on_chunk_id():
+    """Spec 0007, AC-9: chunks at exactly the same distance (duplicate pages) come back in
+    chunk_id order, so the ranking doesn't depend on the query plan."""
+    with connect() as conn, conn.transaction(force_rollback=True):
+        _, tied = _seed(conn)
+        got = search(conn, tied, SEED_MODEL, make_principal("people-ops"), 2, "fixed-512-64")
+        assert got[0].distance == got[1].distance
+        assert got[0].chunk_id < got[1].chunk_id

@@ -415,8 +415,8 @@ def chunk_packed(
 UPSERT = """
 INSERT INTO chunks (chunk_id, doc_id, chunk_index, content, token_count, heading,
                     chunk_size, chunk_overlap, tokenizer, commit_sha,
-                    config_id, heading_path, line_start, line_end)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    config_id, heading_path, line_start, line_end, allowed_groups)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (chunk_id) DO UPDATE SET
     doc_id = EXCLUDED.doc_id, chunk_index = EXCLUDED.chunk_index,
     content = EXCLUDED.content, token_count = EXCLUDED.token_count,
@@ -424,7 +424,7 @@ ON CONFLICT (chunk_id) DO UPDATE SET
     chunk_overlap = EXCLUDED.chunk_overlap, tokenizer = EXCLUDED.tokenizer,
     commit_sha = EXCLUDED.commit_sha, config_id = EXCLUDED.config_id,
     heading_path = EXCLUDED.heading_path, line_start = EXCLUDED.line_start,
-    line_end = EXCLUDED.line_end
+    line_end = EXCLUDED.line_end, allowed_groups = EXCLUDED.allowed_groups
 """
 
 
@@ -533,8 +533,8 @@ def run(conn, config_id: str = BASELINE_CONFIG, force: bool = False) -> RunResul
         ids: list[uuid.UUID] = []
         rows: list[tuple] = []
         with conn.cursor(name="chunk_docs") as docs:
-            docs.execute("SELECT doc_id, path, body FROM documents ORDER BY doc_id")
-            for doc_id, path, body in docs:
+            docs.execute("SELECT doc_id, path, body, acl_tags FROM documents ORDER BY doc_id")
+            for doc_id, path, body, acl_tags in docs:
                 result.docs += 1
                 for c in chunk(doc_id, path, body):
                     ids.append(c.chunk_id)
@@ -542,7 +542,7 @@ def run(conn, config_id: str = BASELINE_CONFIG, force: bool = False) -> RunResul
                     rows.append(
                         (c.chunk_id, doc_id, c.chunk_index, c.content, c.token_count, c.heading,
                          size, overlap, TOKENIZER, m.sha,
-                         config_id, hp, c.line_start, c.line_end)
+                         config_id, hp, c.line_start, c.line_end, acl_tags)
                     )  # fmt: skip
                 if len(rows) >= CHUNK_BATCH:
                     result.changed += flush(conn, rows)

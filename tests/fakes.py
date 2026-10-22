@@ -8,11 +8,12 @@ real adapters to test their request and response handling.
 import hashlib
 import math
 import re
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 
 import httpx2
 import openai
 
+from handbook_rag.identity import Principal
 from handbook_rag.models import Completion
 
 _REQ = httpx2.Request("POST", "https://api.openai.com/v1/embeddings")
@@ -135,3 +136,8 @@ class FakeOpenAIClient:
             ],
             usage=SimpleNamespace(prompt_tokens=50, completion_tokens=10),
         )
+
+
+def make_principal(*groups: str, user_id: str = "test") -> Principal:
+    """A Principal with exactly these groups, for tests outside src/ (spec 0007, AC-8)."""
+    return Principal(user_id, MappingProxyType({}), frozenset(groups))

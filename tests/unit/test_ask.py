@@ -2,7 +2,7 @@ import json
 import uuid
 
 import pytest
-from fakes import FakeAnswerer, FakeEmbedder
+from fakes import FakeAnswerer, FakeEmbedder, make_principal
 
 from handbook_rag import ask as ask_mod
 from handbook_rag.ask import (
@@ -35,14 +35,19 @@ def chunks(k=5):
     ]
 
 
+P = make_principal("staff")
+
+
 def canned(monkeypatch, cs):
-    monkeypatch.setattr(ask_mod, "retrieve", lambda conn, embedder, q, k=5, config_id=None: cs)
+    monkeypatch.setattr(
+        ask_mod, "retrieve", lambda conn, embedder, q, principal, k=5, config_id=None: cs
+    )
 
 
 def run_ask(monkeypatch, text="Yes [2] and [9].", cs=None, **kw):
     canned(monkeypatch, chunks() if cs is None else cs)
     answerer = FakeAnswerer(text=text, **kw)
-    return ask(None, FakeEmbedder(), answerer, "Q?"), answerer
+    return ask(None, FakeEmbedder(), answerer, "Q?", P), answerer
 
 
 def test_search_scopes_to_config():
@@ -54,13 +59,13 @@ def test_ask_passes_config_id(monkeypatch):
     """AC-4: ask forwards config_id to retrieve; the default is the baseline."""
     seen = []
 
-    def fake(conn, embedder, q, k=5, config_id=None):
+    def fake(conn, embedder, q, principal, k=5, config_id=None):
         seen.append(config_id)
         return chunks()
 
     monkeypatch.setattr(ask_mod, "retrieve", fake)
-    ask(None, FakeEmbedder(), FakeAnswerer(text="Yes [1]."), "Q?")
-    ask(None, FakeEmbedder(), FakeAnswerer(text="Yes [1]."), "Q?", config_id="structural-v1")
+    ask(None, FakeEmbedder(), FakeAnswerer(text="Yes [1]."), "Q?", P)
+    ask(None, FakeEmbedder(), FakeAnswerer(text="Yes [1]."), "Q?", P, config_id="structural-v1")
     assert seen == ["fixed-512-64", "structural-v1"]
 
 
@@ -149,13 +154,30 @@ def test_ask_truncated(monkeypatch):
     assert r.truncated
 
 
-def test_ask_empty_retrieval(monkeypatch):
-    """AC-5: no embeddings for the model stops before any answer call."""
+def test_ask_empty_retrieval(monkeypatch, tmp_path):
+    """Spec 0007, AC-8: nothing visible gives the standard NOT_FOUND reply, no model call and no
+    permission message; the trace still writes."""
     answerer = FakeAnswerer(text="x")
     canned(monkeypatch, [])
-    with pytest.raises(SystemExit, match="make embed"):
-        ask(None, FakeEmbedder(), answerer, "Q?")
+    r = ask(None, FakeEmbedder(), answerer, "Q?", P)
+    assert r.answer == NOT_FOUND and r.chunks == [] and r.citations == []
     assert answerer.calls == []
+    assert "permission" not in format_result(r).lower()
+    assert append_trace(r, tmp_path / "ask.jsonl")["retrieved"] == []
+
+
+def test_principal_is_required():
+    """Spec 0007, AC-8: retrieve and ask have no default principal and no unfiltered overload."""
+    with pytest.raises(TypeError):
+        ask_mod.retrieve(None, FakeEmbedder(), "Q?")
+    with pytest.raises(TypeError):
+        ask(None, FakeEmbedder(), FakeAnswerer(text="x"), "Q?")
+
+
+def test_cli_requires_as():
+    """Spec 0007, AC-8: the CLI has no unfiltered mode; --as is required."""
+    with pytest.raises(SystemExit):
+        ask_mod.main(["Q?"])
 
 
 def test_append_trace(monkeypatch, tmp_path):
@@ -201,5 +223,38 @@ def test_format_result_clean(monkeypatch):
 def test_special_token_in_question(monkeypatch):
     """AC-8: a question containing a tokenizer special token still answers and traces."""
     canned(monkeypatch, chunks())
-    r = ask_mod.ask(None, FakeEmbedder(), FakeAnswerer("ok [1]"), "what is <|endoftext|>?")
+    r = ask_mod.ask(None, FakeEmbedder(), FakeAnswerer("ok [1]"), "what is <|endoftext|>?", P)
     assert r.tokens["query_embed"] > 0
+
+
+def test_main_refuses_stale_acls(monkeypatch):
+    """Spec 0007, AC-5: `make ask` stops on stale ACLs before any retrieval or model call."""
+
+    class Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, *args):
+            return type("R", (), {"fetchone": lambda self: (True,)})()
+
+    def stale(conn, policy):
+        raise ask_mod.acl.StaleACL(
+            "stored ACLs differ from policy-v1: 1 documents. Run `make acl`."
+        )
+
+    def no_retrieval(*args, **kwargs):
+        raise AssertionError("retrieved under stale ACLs")
+
+    monkeypatch.setattr(ask_mod, "read_manifest", lambda: None)
+    monkeypatch.setattr(ask_mod, "verify", lambda m: None)
+    monkeypatch.setattr(ask_mod, "make_embedder", lambda: FakeEmbedder())
+    monkeypatch.setattr(ask_mod, "make_answerer", lambda: FakeAnswerer())
+    monkeypatch.setattr(ask_mod, "connect", Conn)
+    monkeypatch.setattr(ask_mod.acl, "load_policy", lambda conn: None)
+    monkeypatch.setattr(ask_mod.acl, "check_stale", stale)
+    monkeypatch.setattr(ask_mod, "retrieve", no_retrieval)
+    with pytest.raises(SystemExit, match="make acl"):
+        ask_mod.main(["--as", "us-ic", "a question"])

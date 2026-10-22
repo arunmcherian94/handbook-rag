@@ -1,6 +1,6 @@
 # 0007: Permission-aware retrieval (week 2: synthetic ACLs as a SQL pre-filter)
 
-- Status: approved
+- Status: implemented (Part A, AC-1 to AC-16); Part B (AC-17 to AC-19) not built
 - Date: 2026-10-20
 - Depends on: 0003–0006, ADR-0011, ADR-0020, ADR-0022, eval set v1.2, run `2026-10-21-d83f3edc` (text-embedding-3-large@1536, retrieval-only; amended 22 Oct, was `2026-10-19-d2625d91`)
 
@@ -173,18 +173,19 @@ Case drafting (run later, in a fresh session, after this spec merges)
 - 2026-10-21, amended on the cases branch: AC-15 minimums lowered (denied 12, same-question 3, claimed-identity 4; agency and partial unchanged) and the review rule changed to a fresh-agent review with Arun deciding the flags (Arun: the cases are synthetic). Cases and counts: [permissions-v1 changelog](../docs/eval/CHANGELOG.md#permissions-v1-2026-10-21).
 - 2026-10-22, amended before the Part A build, after ADR-0022 made text-embedding-3-large@1536 the default: the AC-9 baseline is `2026-10-21-d83f3edc` (was `d2625d91`, 3-small). AC-15's control rows are corrected (15, 39 and 109 are cut rows) and the 3-large validity is recorded: 50 of 52 cases. [Journal 22 Oct](../docs/journal/2026-10-22-spec-0007-amendment.md).
 - 2026-10-23, correction during the Part A build: rows 33 and 61 are cut rows too, so the only v1.2 control row is 5. P-093, P-094, P-097 and P-098 are scored as ordinary cases on their target docs (Arun). Validity is unchanged: 50 of 52. [Journal 22 Oct](../docs/journal/2026-10-22-spec-0007-amendment.md#correction-23-oct-rows-33-and-61).
+- 2026-10-23, Part A implemented ([journal](../docs/journal/2026-10-22-permissions-build.md)). One addition beyond the ACs, approved by Arun: `SEARCH` orders by distance then `chunk_id`, because duplicate pages produce exact distance ties whose order Postgres doesn't fix. AC-9 still held exactly: 33 of 33 rows identical to `d83f3edc`.
 
 ## Verification
 
 - `make acl` dry run: per-group counts and persona shares match the journal's recon figures.
 - `make acl`, then the invariant tests over all five configs.
-- The admin regression against `d83f3edc` (AC-9).
+- The admin regression against `d83f3edc` (AC-9). The ranking adds `c.chunk_id` as a tiebreaker (duplicate pages tie exactly); no row of `d83f3edc` has a tie in its top 5.
 - After the cases merge: a permissions-suite run with leak 0, over-block 0 and authorized recall reported.
 - `make test` and `make lint` pass.
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass (Part A: 414 unit, 62 integration)
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items decided (Arun delegated the call; journal 22 Oct)
+- [x] Clean-room verified (fresh clone under `$HOME`, own DB, pinned corpus linked, ingest, five configs chunked, `make acl`; same results)
+- [x] docs updated: journal entry, follow-ups (no new ADR: the decisions are ADR-0021's)

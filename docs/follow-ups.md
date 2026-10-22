@@ -89,6 +89,14 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 - Prompts and reasoning settings may be model-specific on the answer side; `prompts.py` holds one prompt.
 - **LLM gateway, decide in week 7** with the FastAPI service (graceful degradation, cost per query): LiteLLM, Portkey or OpenRouter give one API, fallbacks, routing, central keys and spend for answer models. It doesn't remove an embedding switch's main cost, the re-embed, and it is a new dependency. Week 6 instead if it should sit with observability.
 
+## From the spec 0007 Part A build (2026-10-22)
+
+- **Guardrails against unapproved paid calls (next PR, Arun):** an agent ran `make ask` without approval during this build ([journal](journal/2026-10-22-permissions-build.md#accidental-paid-call)). `make ask` is the only paid target with no dry run. Candidates: `make ask` dry-runs unless `CONFIRM=1`, like `embed`, `eval` and `permissions`; a Claude Code PreToolUse hook that blocks any paid target (`ask`, `embed`, `eval`, `permissions` with `CONFIRM=1`) unless the session holds an explicit approval; a per-run spend log.
+- **Store `redirect_to:` at ingest:** ACL resolution re-reads every pinned file to find redirect stubs (the stored body has no front matter), and the stale check does it again on every `make ask`/`eval`/`permissions`. A documents column set at ingest would drop the disk scan and remove the risk of ingest and ACL time reading different checkouts. Needs a schema change.
+- **Detect duplicate `url_path`s at ingest:** `x.md` and `x/_index.md` would share one. `make acl` now fails if a redirect targets such a path, but citations and url_path lookups can't tell the two apart. None exist at the pin.
+- **`make ask` stale-check latency:** the check reads every corpus file per question. Fine for a CLI; revisit with the week-6 service (cache the policy sha and redirect map at `make acl` time).
+- **Retrieval-only eval empty-result message:** an empty retrieval says "run `make embed`", which is right only while the quality set runs as admin (AC-9). If that user changes, distinguish "no embeddings" from "nothing visible".
+
 ## Reading (deferred)
 
 - **Chroma, [Evaluating chunking strategies for retrieval](https://research.trychroma.com/evaluating-chunking):** dropped on 20 Oct because the chunking track is closed. Trigger: the week 4 size sweep.

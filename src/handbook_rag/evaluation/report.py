@@ -242,6 +242,25 @@ def _paired_rows(label: str, deltas: list[float]) -> str:
     return f"| {label} | {s.mean:+.3f} | {s.se:.3f} | {ratio} | {s.n} |"
 
 
+def top_k_diff(records: list[dict], base_records: list[dict], k: int = 5) -> tuple[int, list[int]]:
+    """Spec 0007, AC-9: (rows compared, sorted row ids whose top-k chunk_ids differ in order).
+    Compared rows are the answerable ones (non-empty `retrieved` in the baseline). A baseline
+    row missing from this run counts as differing."""
+    by_row = {r["row"]: r for r in records}
+    compared = 0
+    differing: list[int] = []
+    for base in base_records:
+        if not base.get("retrieved"):
+            continue
+        compared += 1
+        want = [r["chunk_id"] for r in base["retrieved"][:k]]
+        run = by_row.get(base["row"])
+        got = [r["chunk_id"] for r in (run.get("retrieved") or [])[:k]] if run else None
+        if got != want:
+            differing.append(base["row"])
+    return compared, sorted(differing)
+
+
 def render_compare(
     summary: dict,
     records: list[dict],
@@ -316,4 +335,9 @@ def render_compare(
             cells = (_cell(b, "chunk_fact_recall@5"), _matched_cell(t, summary["matched"]["k"]))
             out.append(f"| {i} | chunk_fact_recall@matched | {cells[0]} | {cells[1]} |")
         out.append(f"| {i} | best relevant chunk | {_best_chunk(b)} | {_best_chunk(t)} |")
+    compared, differing = top_k_diff(records, base_records)
+    out += ["", "### Top-5 order vs baseline (spec 0007, AC-9)", ""]
+    out.append(f"identical on {compared - len(differing)} of {compared} rows")
+    if differing:
+        out += ["", "differing rows: " + ", ".join(str(i) for i in differing)]
     return "\n".join(out) + "\n"

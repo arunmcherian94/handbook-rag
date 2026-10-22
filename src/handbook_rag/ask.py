@@ -18,11 +18,14 @@ from pathlib import Path
 
 import tiktoken
 
+from handbook_rag import acl, identity
 from handbook_rag.constants import BASELINE_CONFIG, MAX_CITATION, TOKENIZER, TOP_K, TRACE_PATH
+from handbook_rag.corpus import read_manifest, verify
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.embed import embed_with_retry
-from handbook_rag.models import Answerer, Embedder, make_answerer, make_embedder
-from handbook_rag.prompts import SYSTEM_PROMPT
+from handbook_rag.identity import Principal
+from handbook_rag.models import Answerer, Completion, Embedder, make_answerer, make_embedder
+from handbook_rag.prompts import NOT_FOUND, SYSTEM_PROMPT
 
 SEARCH = """
 -- No section heading (intro text, or a doc without headings): cite the doc title instead.
@@ -33,9 +36,12 @@ FROM chunk_embeddings e
 JOIN chunks c USING (chunk_id)
 JOIN documents d USING (doc_id)
 WHERE e.model = %(model)s AND c.config_id = %(config_id)s
+  -- Spec 0007, AC-8: the principal's groups filter before ranking; there is no unfiltered path.
+  AND c.allowed_groups && %(groups)s::text[]
 -- OpenAI embeddings are unit-normalised, so <=> (cosine) and <#> (neg. inner product) rank alike.
 -- Choose between them on cost and index support. <-> is L2 distance, <+> is L1.
-ORDER BY e.embedding <=> %(q)s::vector
+-- chunk_id breaks exact ties (duplicate pages chunk identically), so the order is reproducible.
+ORDER BY e.embedding <=> %(q)s::vector, c.chunk_id
 LIMIT %(k)s
 """
 
@@ -82,24 +88,35 @@ class AskResult:
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
+def search(
+    conn, q: str, model: str, principal: Principal, k: int, config_id: str = BASELINE_CONFIG
+) -> list[Retrieved]:
+    """Exact cosine top-k of an embedded query (a vector_literal) over the chunks the principal
+    may see (spec 0007, AC-8). retrieve() and the permissions suite both go through here."""
+    rows = conn.execute(
+        SEARCH,
+        {"q": q, "model": model, "k": k, "config_id": config_id, "groups": principal.group_list},
+    ).fetchall()
+    return [Retrieved(n, *row) for n, row in enumerate(rows, 1)]
+
+
 def retrieve(
     conn,
     embedder: Embedder,
     question: str,
+    principal: Principal,
     k: int = TOP_K,
     sleep=time.sleep,
     rand=random.random,
     config_id: str = BASELINE_CONFIG,
 ) -> list[Retrieved]:
-    """Exact cosine top-k for the embedder's model; no index (AC-5).
+    """Exact cosine top-k for the embedder's model; no index (AC-5), over the chunks the
+    principal may see (spec 0007, AC-8: principal is required, there is no unfiltered path).
 
     The embedder's SDK retries are off, so the query goes through the same capped retry policy.
     """
     q = vector_literal(embed_with_retry(embedder, [question], sleep, rand)[0])
-    rows = conn.execute(
-        SEARCH, {"q": q, "model": embedder.name, "k": k, "config_id": config_id}
-    ).fetchall()
-    return [Retrieved(n, *row) for n, row in enumerate(rows, 1)]
+    return search(conn, q, embedder.name, principal, k, config_id)
 
 
 def build_prompt(question: str, chunks: list[Retrieved]) -> tuple[str, str]:
@@ -138,17 +155,21 @@ def ask(
     embedder: Embedder,
     answerer: Answerer,
     question: str,
+    principal: Principal,
     k: int = TOP_K,
     clock=time.perf_counter,
     config_id: str = BASELINE_CONFIG,
 ) -> AskResult:
     t0 = clock()
-    chunks = retrieve(conn, embedder, question, k, config_id=config_id)
+    chunks = retrieve(conn, embedder, question, principal, k, config_id=config_id)
     t1 = clock()
-    if not chunks:
-        raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
-    system, user = build_prompt(question, chunks)
-    completion = answerer.answer(system, user)
+    if chunks:
+        system, user = build_prompt(question, chunks)
+        completion = answerer.answer(system, user)
+    else:
+        # Spec 0007, AC-8: nothing visible to this principal gets the standard reply, never a
+        # permission message (and no model call: there is nothing to answer from).
+        completion = Completion(NOT_FOUND, 0, 0, False)
     t2 = clock()
     citations, invalid = parse_citations(completion.text, chunks)
     return AskResult(
@@ -180,11 +201,12 @@ def ask(
 def append_trace(result: AskResult, path: Path = TRACE_PATH) -> dict:
     """Append one JSON line per ask (AC-8)."""
     shas = sorted({c.commit_sha for c in result.chunks})
-    first = result.chunks[0]
+    first = result.chunks[0] if result.chunks else None
     record = {
         "timestamp": result.timestamp,
-        "corpus_sha": shas[0] if len(shas) == 1 else shas,
-        "chunk_params": {
+        "corpus_sha": shas[0] if len(shas) == 1 else shas or None,
+        "chunk_params": first
+        and {
             "chunk_size": first.chunk_size,
             "chunk_overlap": first.chunk_overlap,
             "tokenizer": first.tokenizer,
@@ -236,11 +258,27 @@ def format_result(result: AskResult) -> str:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Ask the GitLab handbook a question.")
     ap.add_argument("question")
+    ap.add_argument("--as", dest="user_id", required=True, help="fixture user to ask as")
     ap.add_argument("--k", type=int, default=TOP_K)
     args = ap.parse_args(argv)
+    if error := verify(read_manifest()):
+        raise SystemExit(f"{error}\nRun `make corpus` to restore the pinned checkout.")
     embedder, answerer = make_embedder(), make_answerer()
     with connect() as conn:
-        result = ask(conn, embedder, answerer, args.question, args.k)
+        # Checked here, not in ask(): an empty retrieval there means nothing visible to the
+        # principal and must look like any other NOT_FOUND (spec 0007, AC-8).
+        (embedded,) = conn.execute(
+            "SELECT EXISTS (SELECT 1 FROM chunk_embeddings WHERE model = %s)", (embedder.name,)
+        ).fetchone()
+        if not embedded:
+            raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
+        policy = acl.load_policy(conn)
+        try:
+            acl.check_stale(conn, policy)  # spec 0007, AC-5: never filter on stale ACLs
+        except (acl.StaleACL, acl.AclError) as e:
+            raise SystemExit(str(e)) from None
+        principal = identity.load(args.user_id, policy)
+        result = ask(conn, embedder, answerer, args.question, principal, args.k)
     print(format_result(result))
     append_trace(result)
     return 0

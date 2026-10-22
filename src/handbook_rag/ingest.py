@@ -6,12 +6,15 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from handbook_rag.constants import CHECKOUT, DOCUMENTS_SCHEMA
 from handbook_rag.corpus import git_out, read_manifest, verify
 from handbook_rag.db import connect
 
 FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.DOTALL)
+REDIRECT_TO = re.compile(r"^redirect_to:[ \t]*(.+?)[ \t]*$", re.MULTILINE | re.IGNORECASE)
+HANDBOOK_HOST = "handbook.gitlab.com"
 
 
 @dataclass(frozen=True)
@@ -53,7 +56,30 @@ def derive_url_path(path: str) -> str:
     """
     p = Path(path).relative_to("content")
     parts = p.parent.parts if p.name in ("_index.md", "index.md") else (*p.parent.parts, p.stem)
-    return "/" + "".join(f"{part}/" for part in parts).lower()
+    return _as_url_path("/".join(parts))
+
+
+def _as_url_path(path: str) -> str:
+    """Lowercased, with one leading and one trailing slash: the stored url_path form."""
+    path = path.strip("/").lower()
+    return f"/{path}/" if path else "/"
+
+
+def normalize_url_path(url: str) -> str:
+    """A link or redirect target as a stored url_path: an absolute handbook.gitlab.com URL is
+    reduced to its path, then put in the form derive_url_path stores (spec 0007, AC-3). Another
+    host is a ValueError.
+    """
+    parts = urlsplit(url.strip().strip("\"'"))
+    if parts.netloc and parts.netloc.lower() != HANDBOOK_HOST:
+        raise ValueError(f"not a {HANDBOOK_HOST} URL: {url!r}")
+    return _as_url_path(parts.path)
+
+
+def derive_redirect(front_matter: str) -> str | None:
+    """The normalized `redirect_to:` target of a redirect stub, else None (spec 0007, AC-3)."""
+    m = REDIRECT_TO.search(front_matter)
+    return normalize_url_path(m.group(1)) if m else None
 
 
 def skip_reason(front_matter: str, body: str) -> str | None:
