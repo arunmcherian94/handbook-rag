@@ -275,7 +275,7 @@ def main(argv=None) -> int:
         policy = acl.load_policy(conn)
         try:
             acl.check_stale(conn, policy)  # spec 0007, AC-5: never filter on stale ACLs
-        except acl.StaleACL as e:
+        except (acl.StaleACL, acl.AclError) as e:
             raise SystemExit(str(e)) from None
         principal = identity.load(args.user_id, policy)
         result = ask(conn, embedder, answerer, args.question, principal, args.k)

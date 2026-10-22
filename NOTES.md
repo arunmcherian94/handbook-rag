@@ -60,3 +60,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-20: embedding comparison prep, for spec 0008](docs/journal/2026-10-20-embedding-comparison-prep.md)
 - [2026-10-21: embedding model comparison, spec 0008](docs/journal/2026-10-21-embedding-comparison.md)
 - [2026-10-22: spec 0007 amendment, admin baseline and controls](docs/journal/2026-10-22-spec-0007-amendment.md)
+- [2026-10-22: permission-aware retrieval build, spec 0007 Part A](docs/journal/2026-10-22-permissions-build.md)

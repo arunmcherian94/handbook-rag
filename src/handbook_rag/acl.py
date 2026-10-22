@@ -20,7 +20,7 @@ from handbook_rag.policy import Policy, load, resolve
 
 
 class AclError(ValueError):
-    """A redirect chain that cycles or leaves the corpus."""
+    """A redirect stub whose target is off-host, missing, shared or part of a cycle."""
 
 
 class StaleACL(RuntimeError):
@@ -63,7 +63,11 @@ def read_redirects(paths: list[str], checkout: Path = CHECKOUT) -> dict[str, str
     redirects = {}
     for path in paths:
         front_matter, _ = split_front_matter((checkout / path).read_text(encoding="utf-8"))
-        if target := derive_redirect(front_matter):
+        try:
+            target = derive_redirect(front_matter)
+        except ValueError as e:  # an off-host redirect_to
+            raise AclError(f"{path}: {e}") from None
+        if target:
             redirects[path] = target
     return redirects
 
@@ -171,7 +175,10 @@ def main(argv=None) -> int:
         raise SystemExit(f"{error}\nRun `make corpus` to restore the pinned checkout.")
     with connect() as conn:
         policy = load_policy(conn)
-        acls = expected_acls(conn, policy)
+        try:
+            acls = expected_acls(conn, policy)
+        except AclError as e:
+            raise SystemExit(f"cannot resolve redirect stubs: {e}") from None
         print(report(conn, policy, acls))
         if not args.confirm:
             print("\nDry run: nothing written. CONFIRM=1 to apply.")

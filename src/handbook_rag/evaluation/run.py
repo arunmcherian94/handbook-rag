@@ -498,7 +498,7 @@ def main(argv=None) -> int:
         policy = acl.load_policy(conn)
         try:
             acl.check_stale(conn, policy)
-        except acl.StaleACL as e:
+        except (acl.StaleACL, acl.AclError) as e:
             raise SystemExit(str(e)) from None
         principal = identity.load(QUALITY_SET_USER, policy)
 

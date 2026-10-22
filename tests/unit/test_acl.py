@@ -1,6 +1,6 @@
 import pytest
 
-from handbook_rag.acl import AclError, resolve_acls
+from handbook_rag.acl import AclError, read_redirects, resolve_acls
 from handbook_rag.policy import parse
 
 POLICY = parse(
@@ -83,3 +83,12 @@ def test_target_shared_by_two_documents_fails():
     }
     with pytest.raises(AclError, match="several documents"):
         resolve_acls(POLICY, docs, {"content/handbook/a.md": "/handbook/x/"})
+
+
+def test_off_host_redirect_names_the_stub(tmp_path):
+    """Spec 0007, AC-3: a redirect_to on another host fails as an AclError naming the stub."""
+    stub = tmp_path / "content/handbook/a.md"
+    stub.parent.mkdir(parents=True)
+    stub.write_text('---\nredirect_to: "https://docs.gitlab.com/x/"\n---\nMoved.\n')
+    with pytest.raises(AclError, match="content/handbook/a.md"):
+        read_redirects(["content/handbook/a.md"], tmp_path)
