@@ -97,6 +97,19 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 - **`make ask` stale-check latency:** the check reads every corpus file per question. Fine for a CLI; revisit with the week-6 service (cache the policy sha and redirect map at `make acl` time).
 - **Retrieval-only eval empty-result message:** an empty retrieval says "run `make embed`", which is right only while the quality set runs as admin (AC-9). If that user changes, distinguish "no embeddings" from "nothing visible".
 
+## Permissions switch (2026-10-23)
+
+- **`PERMISSIONS=on|off` flag, default on (Arun, 23 Oct; Arun writes the spec when time frees up):** with it off, the whole pipeline behaves as if there were no synthetic permissions. It needs its own spec: it amends spec 0007 AC-8 ("no unfiltered overload") and the unfiltered path [ADR-0021](decisions/0021-permission-model.md) rejected, so it also needs an ADR. Spec 0009 is earmarked for answer evaluation (above), so take the next free number. Draft design:
+  - One reader, `acl.permissions_enabled()`. Any other value is an error.
+  - `identity.UNRESTRICTED`, a Principal with no groups. Every retrieval path still takes a required principal. `ask.search()` switches to a second literal, `SEARCH_UNRESTRICTED`: the same SQL without the `allowed_groups &&` line, with the same order and `chunk_id` tiebreak. The AC-8 predicate-scan test exempts only that literal.
+  - `make ask`: skips the policy load and the stale check, `--as` becomes optional, and it prints `permissions: off`.
+  - `make eval`: runs as `UNRESTRICTED`, with no stale check.
+  - `make permissions`: refuses, because leak scoring needs permissions on.
+  - `make acl`: unchanged. The ACL data stays in the DB, so switching back on needs no re-run.
+  - Traceability: `runs/ask.jsonl` and the eval metadata record the flag, so an off run can't pass as an on run.
+  - Tests use seeded vectors: off returns chunks no persona can see (including fail-closed `{}`), and on is unchanged.
+  - Out of scope: per-user toggles and agent wiring (week 5 inherits the principal).
+
 ## Reading (deferred)
 
 - **Chroma, [Evaluating chunking strategies for retrieval](https://research.trychroma.com/evaluating-chunking):** dropped on 20 Oct because the chunking track is closed. Trigger: the week 4 size sweep.
