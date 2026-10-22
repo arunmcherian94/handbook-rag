@@ -1,3 +1,4 @@
+import random
 import re
 import uuid
 from pathlib import Path
@@ -16,7 +17,6 @@ pytestmark = pytest.mark.integration
 # once `make acl` has run (test chunks below are inserted with the same group).
 ADMIN_LIKE = make_principal("people-ops")
 SRC = Path(__file__).resolve().parents[2] / "src"
-LARGE = "openai:text-embedding-3-large@1536"
 
 INSERT = "INSERT INTO chunk_embeddings (chunk_id, model, embedding) VALUES (%s, %s, %s::vector)"
 MODEL = "fake:retrieve-test"
@@ -167,38 +167,50 @@ def test_new_configs_are_scoped(seeded, config_id):
 # --- Spec 0007, AC-8 / AC-9 ---------------------------------------------------------------------
 
 
-def _stored_vectors(conn, n):
-    """n stored 3-large vectors of fixed-512-64 chunks as query literals (no API call)."""
-    rows = conn.execute(
-        "SELECT e.embedding::text FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
-        "WHERE e.model = %s AND c.config_id = 'fixed-512-64' ORDER BY c.chunk_id LIMIT %s",
-        (LARGE, n),
-    ).fetchall()
-    if len(rows) < n:
-        pytest.fail(f"need {n} stored {LARGE} vectors for fixed-512-64. Run `make embed` first.")
-    return [r[0] for r in rows]
+SEED_MODEL = "test:acl-seed"  # vectors seeded by these tests, never by `make embed`
+
+
+def _seed(conn, n=3000):
+    """Seed 16-d vectors under SEED_MODEL for every fixed-512-64 chunk visible to new-contractor
+    plus the first n by chunk_id, with the real allowed_groups. The first two chunks share one
+    vector (an exact tie, as duplicate pages produce). Call inside a rolled-back transaction, so
+    the tests need no paid embeddings. Returns (rng for queries, the tied vector)."""
+    rng = random.Random(20261023)
+    ids = [
+        r[0]
+        for r in conn.execute(
+            "SELECT chunk_id FROM chunks WHERE config_id = 'fixed-512-64' AND "
+            "(allowed_groups && '{new-contractor}' OR chunk_id IN (SELECT chunk_id FROM chunks "
+            "WHERE config_id = 'fixed-512-64' ORDER BY chunk_id LIMIT %s)) ORDER BY chunk_id",
+            (n,),
+        ).fetchall()
+    ]
+    assert len(ids) > n, "no chunk visible to new-contractor; run `make acl`"
+    vectors = [[rng.gauss(0, 1) for _ in range(16)] for _ in ids]
+    vectors[1] = vectors[0]
+    with conn.cursor() as cur:
+        cur.executemany(
+            INSERT, [(i, SEED_MODEL, vector_literal(v)) for i, v in zip(ids, vectors, strict=True)]
+        )
+    return rng, vector_literal(vectors[0])
+
+
+def _query(rng):
+    return vector_literal([rng.gauss(0, 1) for _ in range(16)])
 
 
 def test_search_filters_by_groups():
     """Spec 0007, AC-8: a principal with a group no chunk has gets nothing; every chunk returned
     for a narrow principal has an allowed group in common with it. Assumes `make acl` has run
-    (decision approved by Arun): on the old '{public}' data the narrow principal gets [].
+    (decision approved by Arun).
     """
-    with connect() as conn:
-        (q,) = _stored_vectors(conn, 1)
-        nobody = make_principal("no-such-group")
-        assert search(conn, q, LARGE, nobody, 5, "fixed-512-64") == []
-        # Query from a chunk the narrow principal may see, so the result is non-empty.
+    with connect() as conn, conn.transaction(force_rollback=True):
+        rng, _ = _seed(conn)
+        q = _query(rng)
+        assert search(conn, q, SEED_MODEL, make_principal("no-such-group"), 5, "fixed-512-64") == []
         narrow = make_principal("new-contractor")
-        (visible,) = conn.execute(
-            "SELECT e.embedding::text FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
-            "WHERE e.model = %s AND c.config_id = 'fixed-512-64' "
-            "AND c.allowed_groups && %s::text[] ORDER BY c.chunk_id LIMIT 1",
-            (LARGE, narrow.group_list),
-        ).fetchone() or (None,)
-        assert visible is not None, "no chunk visible to new-contractor; run `make acl`"
-        got = search(conn, visible, LARGE, narrow, 10, "fixed-512-64")
-        assert got
+        got = search(conn, q, SEED_MODEL, narrow, 10, "fixed-512-64")
+        assert len(got) == 10
         for g in got:
             (groups,) = conn.execute(
                 "SELECT allowed_groups FROM chunks WHERE chunk_id = %s", (g.chunk_id,)
@@ -252,14 +264,25 @@ def test_chunk_content_reads_have_the_predicate():
 
 def test_admin_top5_equals_unfiltered_top5():
     """Spec 0007, AC-9 (free proxy): with exact search and an allow-list admitting every document,
-    admin's top 5 equals the top 5 of SEARCH with the predicate removed, in order, for 33 stored
-    3-large queries. Needs `make acl`."""
+    admin's top 5 equals the top 5 of SEARCH with the predicate removed, in order, for 33 queries
+    over seeded vectors. Needs `make acl`."""
     unfiltered = re.sub(r"\n\s*AND c\.allowed_groups && %\(groups\)s::text\[\]", "", SEARCH)
     assert unfiltered != SEARCH
-    with connect() as conn:
+    with connect() as conn, conn.transaction(force_rollback=True):
+        rng, tied = _seed(conn)
         admin = identity.load("admin", acl.load_policy(conn))
-        for q in _stored_vectors(conn, 33):
-            params = {"q": q, "model": LARGE, "k": 5, "config_id": "fixed-512-64"}
+        for q in [tied] + [_query(rng) for _ in range(32)]:
+            params = {"q": q, "model": SEED_MODEL, "k": 5, "config_id": "fixed-512-64"}
             want = [r[0] for r in conn.execute(unfiltered, params).fetchall()]
-            got = [g.chunk_id for g in search(conn, q, LARGE, admin, 5, "fixed-512-64")]
+            got = [g.chunk_id for g in search(conn, q, SEED_MODEL, admin, 5, "fixed-512-64")]
             assert got == want
+
+
+def test_exact_ties_break_on_chunk_id():
+    """Spec 0007, AC-9: chunks at exactly the same distance (duplicate pages) come back in
+    chunk_id order, so the ranking doesn't depend on the query plan."""
+    with connect() as conn, conn.transaction(force_rollback=True):
+        _, tied = _seed(conn)
+        got = search(conn, tied, SEED_MODEL, make_principal("people-ops"), 2, "fixed-512-64")
+        assert got[0].distance == got[1].distance
+        assert got[0].chunk_id < got[1].chunk_id
