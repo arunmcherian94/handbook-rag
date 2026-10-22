@@ -14,6 +14,11 @@ Amendment to [spec 0007](../../specs/0007-permission-aware-retrieval.md) before 
   - Cost: 4 query embeddings, about $0.000003.
 - **Result:** controls cover rows 5 and 33 (4 cases). Row 61's P-097 and P-098 stay invalid and are not re-targeted. permissions-v1 is unchanged: 50 of 52 cases valid.
 
+## Correction, 23 Oct: rows 33 and 61
+- **Gate catch (Part A build):** the suite builder couldn't parse rows 33 and 61 as v1.2 rows. They are in § 5 Cut as well, so the amendment above was wrong to call row 33 a valid control. The 22 Oct check ran the parser only over rows 15, 22, 39, 92 and 109, not over the rows the existing controls were built on.
+- The live candidate rows are 5, 22 and 92. Only row 5 is valid (P-087, P-088).
+- **Decision (Arun):** P-093, P-094, P-097 and P-098 stay in the suite as ordinary cases, scored on their target docs. Cut-row facts are unmarked and outside v1.2, so they aren't used. Validity is unchanged: 50 of 52.
+
 ---
 
 Prev: [2026-10-21: embedding model comparison, spec 0008](2026-10-21-embedding-comparison.md)

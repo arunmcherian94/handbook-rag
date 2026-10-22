@@ -9,9 +9,10 @@ Status: **reviewed, 52 cases**. Drafted by Claude on 2026-10-21 in a fresh sessi
 - **Validity (AC-11):** a case is valid when all its target docs are in `admin`'s top 20 (`fixed-512-64`). Admin sees every doc, so this is unfiltered retrieval. Re-checked 2026-10-21 under text-embedding-3-large@1536 ([ADR-0022](../decisions/0022-adopt-text-embedding-3-large-1536.md)): 50 of 52 valid. P-097 and P-098 (row 61) are invalid and dropped from scoring. Under 3-small all 52 were valid.
 - **Review:** `review:` records the agent's verdict. Arun decided the edits.
 - **Twins:** a denied case and its entitled twin share the question verbatim and point at each other.
-- **Controls** (v1.2 rows 5, 33, 61) reuse the row's question verbatim, its `expected_docs` as targets and its facts for authorized recall; their evidence is the row's citations in [eval-set-v1.md](eval-set-v1.md).
+- **Controls** (v1.2 row 5) reuse the row's question verbatim, its `expected_docs` as targets and its facts for authorized recall; their evidence is the row's citations in [eval-set-v1.md](eval-set-v1.md).
+- **Cut-row cases** (rows 33 and 61, cut from the eval set on 15 Oct) were drafted as controls. They keep the row's question and targets but are scored like any other case, on their target docs, with no eval-set facts (corrected 2026-10-23).
 
-**Counts (52 cases):** denied 12, each with an entitled twin (cross-entity 4: uk-ltd, us-inc, de-gmbh, peo-remote; manager-only 3; employee-only 2; narrow 3); agency 2 in-department + 2 out-of-department with twins; claimed-identity 4; partial 3; same-question 3 sets × 3 personas; controls 3 rows × 2 personas.
+**Counts (52 cases):** denied 12, each with an entitled twin (cross-entity 4: uk-ltd, us-inc, de-gmbh, peo-remote; manager-only 3; employee-only 2; narrow 3); agency 2 in-department + 2 out-of-department with twins; claimed-identity 4; partial 3; same-question 3 sets × 3 personas; controls 1 row × 2 personas; cut-row cases 2 rows × 2 personas.
 
 Case fields: `persona`, `question`, `target_docs`, `evidence`, `intent`, `twin` (denied cases and their twins), `entitled_targets` and `outcome` (computed, empty here), `validity`, `review`.
 
@@ -607,7 +608,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - review: agent, accept, 2026-10-21
 - note: the question claims Germany; `us-ic` is on `us-inc`, so the claim must not widen access.
 
-### P-093 — control (row 33)
+### P-093 — cut-row targets (row 33)
 - persona: manager
 - question: Does the comp review process differ between job families? Asking as a manager prepping for it.
 - target_docs: total-rewards/compensation/compensation-review-cycle/_index.md, total-rewards/compensation/_index.md
@@ -619,7 +620,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - review: agent, accept, 2026-10-21
 - note: the question states the manager role; here the principal really is a manager.
 
-### P-094 — control (row 33)
+### P-094 — cut-row targets (row 33)
 - persona: contractor
 - question: Does the comp review process differ between job families? Asking as a manager prepping for it.
 - target_docs: total-rewards/compensation/compensation-review-cycle/_index.md, total-rewards/compensation/_index.md
@@ -631,7 +632,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - review: agent, accept, 2026-10-21
 - note: the question claims the manager role; `contractor` is not in `manager` or `employee`.
 
-### P-097 — control (row 61)
+### P-097 — cut-row targets (row 61)
 - persona: us-ic
 - question: What are the eligibility criteria for a sabbatical or leave of absence?
 - target_docs: people-policies/leave-of-absence/_index.md, people-policies/leave-of-absence/us.md, people-group/time-off-and-absence/leave-types.md, people-group/time-off-and-absence/time-off-types.md, total-rewards/benefits/general-and-entity-benefits/global-expansion.md
@@ -643,7 +644,7 @@ Each row's question verbatim, its `expected_docs` as targets, and its facts (eva
 - review: agent, accept, 2026-10-21
 - note: entitled to the US FMLA/CFRA facts (F3, F4); F1 (UAE sabbatical) is on a PEO page no non-admin persona sees.
 
-### P-098 — control (row 61)
+### P-098 — cut-row targets (row 61)
 - persona: manager
 - question: What are the eligibility criteria for a sabbatical or leave of absence?
 - target_docs: people-policies/leave-of-absence/_index.md, people-policies/leave-of-absence/us.md, people-group/time-off-and-absence/leave-types.md, people-group/time-off-and-absence/time-off-types.md, total-rewards/benefits/general-and-entity-benefits/global-expansion.md
