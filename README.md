@@ -2,7 +2,7 @@
 
 A permission-aware RAG assistant over the [GitLab public handbook](https://handbook.gitlab.com). Answers cite the handbook sections they come from. Retrieval only searches the chunks the asking user is allowed to see.
 
-**Status (week 2 of 8):** a pinned corpus, ingestion, chunking experiments, the embedding model choice, an eval harness, and permission-aware retrieval (spec 0007 Part A) are all built. Hybrid search, reranking, an agent layer and observability come in later weeks.
+**Status:** a pinned corpus, ingestion, chunking experiments, the embedding model choice, an eval harness, and permission-aware retrieval (spec 0007 Part A) are all built. Hybrid search, reranking, an agent layer and observability come in later weeks.
 
 ## How it works
 
