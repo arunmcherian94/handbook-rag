@@ -14,9 +14,11 @@ from handbook_rag.evaluation.run import (
     baseline_mismatch,
     estimate,
     metadata,
+    new_run_id,
     record,
     stored_chunk_params,
     to_run,
+    written_run_id,
 )
 from handbook_rag.models import InputTooLong, describe_embedder
 
@@ -234,3 +236,18 @@ def test_record_ooc_has_no_deep():
     stored, ev, chunks = _deep_setup([0, 1, 2, 3, 4])
     rec = record(FakeConn(stored), ROWS[1], ev, chunks, [], None)
     assert rec["deep"] == [] and rec["near_tie"] is False and rec["metrics"] == {}
+
+
+def test_run_id_is_dated_and_unique():
+    """Spec 0009, AC-3: the folder name is chosen before the run, as <date>-<8 hex>."""
+    meta = {"timestamp": "2026-10-24T15:00:00+00:00"}
+    a, b = new_run_id(meta), new_run_id(meta)
+    assert a.startswith("2026-10-24-") and len(a) == len("2026-10-24-") + 8 and a != b
+
+
+def test_spend_line_links_a_partial_run_folder(tmp_path):
+    """Spec 0009, AC-3: a failed run that created its folder is logged with its run id; one that
+    failed before creating it is logged with none."""
+    assert written_run_id(tmp_path, "2026-10-24-abcd1234") is None
+    (tmp_path / "2026-10-24-abcd1234").mkdir()
+    assert written_run_id(tmp_path, "2026-10-24-abcd1234") == "2026-10-24-abcd1234"

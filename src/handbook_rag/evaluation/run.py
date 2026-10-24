@@ -88,6 +88,17 @@ def estimate(
     }
 
 
+def new_run_id(meta: dict) -> str:
+    """`<date>-<8 hex>`: the run folder's name, chosen before the run so a failed run's spend
+    line can point at its partial folder (spec 0009, AC-3)."""
+    return f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
+
+
+def written_run_id(out_root: Path, run_id: str) -> str | None:
+    """run_id if the run created its folder, else None (spec 0009, AC-3)."""
+    return run_id if (out_root / run_id).is_dir() else None
+
+
 def _git(*args: str) -> str:
     """git in the harness repo (cwd), not the corpus checkout (corpus.git_out)."""
     return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
@@ -371,15 +382,17 @@ def run(
     checkout: Path = CHECKOUT,
     config_id: str = BASELINE_CONFIG,
     baseline: tuple[str, dict, list[dict]] | None = None,
+    run_id: str | None = None,
 ) -> Path:
     """Retrieve (and answer, unless answerer is None) every row; write the run folder (AC-7).
     Every retrieval runs as `principal` (spec 0007, AC-8).
 
     answerer None is retrieval-only mode: ooc rows are skipped and the answer model is never
     called. config_id scopes retrieval; baseline (id, summary, records) adds the AC-14 comparison
-    to summary.md. checkout is the pinned corpus the AC-5 heading check reads. Returns the folder.
+    to summary.md. checkout is the pinned corpus the AC-5 heading check reads. run_id names the
+    folder (new_run_id() if None). Returns the folder.
     """
-    out = out_root / f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
+    out = out_root / (run_id or new_run_id(meta))
     out.mkdir(parents=True)
     records: list[dict] = []
     # Appended per row, so a crash mid-run keeps what was paid for.
@@ -559,7 +572,7 @@ def main(argv=None) -> int:
                 f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
             )
         answerer = None if args.retrieval_only else make_answerer()
-        out, status = None, "failed"
+        run_id, status = new_run_id(meta), "failed"
         try:
             out = run(
                 conn,
@@ -571,13 +584,14 @@ def main(argv=None) -> int:
                 meta=meta,
                 config_id=args.config,
                 baseline=baseline,
+                run_id=run_id,
             )
             status = "ok"
         finally:  # spec 0009, AC-3: logged even when the run fails after spending
             log_spend(
                 "eval",
                 cost["total_usd"],
-                run_id=out and out.name,
+                run_id=written_run_id(EVAL_RUNS, run_id),
                 embed_model=embedder.name,
                 answer_model=answerer and answerer.name,
                 status=status,

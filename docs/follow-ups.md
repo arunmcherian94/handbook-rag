@@ -71,7 +71,7 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
 
 ## From the spec 0008 review (2026-10-21)
 
-- **`make ask` query mode, before adopting a non-OpenAI embedder:** spec 0008 gives eval a query-mode embedder without touching the frozen `ask.py`. `make ask` still builds a document-mode one. With Qwen3 or Gemini as the default, every live question would be embedded as a document: no query instruction, wrong `task_type`. Fix it in the PR that changes `DEFAULT_EMBED_MODEL` (spec 0008 AC-3, AC-9). Not needed for OpenAI models, which have no input types.
+- **`make ask` query mode, before adopting a non-OpenAI embedder:** spec 0008 gives eval a query-mode embedder without touching the frozen `ask.py`. `make ask` still builds a document-mode one. With Qwen3 or Gemini as the default, every live question would be embedded as a document: no query instruction, wrong `task_type`. Fix it in the PR that changes `DEFAULT_EMBED_MODEL` (spec 0008 AC-3, AC-9). Not needed for OpenAI models, which have no input types. In the same PR, make `ask.estimate` and the trace's `query_embed` count go through `query_embedder.prepare()`, so the dry run counts the template's tokens and runs the InputTooLong check (#39 review item 2, 24 Oct).
 - **Indexing vectors over 2,000 dims, week 6 (ANN):** spec 0008 runs every candidate at 1,536, so only the model changes against 3-small, and HNSW on `vector` stays possible. Options if native dims are wanted later, from the [pgvector README](https://github.com/pgvector/pgvector) (checked 21 Oct):
   - HNSW on `halfvec` (up to 4,000 dims) covers 3-large's 3,072.
   - An expression index on `subvector(embedding, 1, n)`, then re-rank the shortlist on the full vector.
@@ -127,3 +127,7 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
   - [Qdrant, filterable HNSW](https://qdrant.tech/articles/filtrable-hnsw/) and [Weaviate, filtering](https://weaviate.io/developers/weaviate/concepts/filtering): how dedicated vector DBs handle restrictive filters (extra graph links per payload value, switching to flat search below a threshold).
   - Gollapudi et al., *Filtered-DiskANN* (WWW 2023): label-aware graph indexes, relevant if groups ever become partitions.
 - **Exact-search latency:** about 100–225 ms p50 for the ~98% personas on the laptop DB (a full scan and sort of 22k vectors). This is the cost an ANN index would remove. It matters in week 7 (the service) more than now.
+
+## From the #39 deferred review items (2026-10-24)
+
+- **One `spend.logged(target, usd, …)` context manager** in place of the five try/finally spend blocks (ask, embed, eval, permissions, ann). Do it when the next paid target lands (the week 3 reranker), after spec 0007 Part B merges, so it doesn't conflict with that branch.

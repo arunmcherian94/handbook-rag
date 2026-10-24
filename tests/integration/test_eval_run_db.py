@@ -164,8 +164,10 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
         meta=_meta(None, 2),
         out_root=tmp_path,
         checkout=checkout,
+        run_id="2026-10-24-abcd1234",
     )
     assert answerer.calls == []
+    assert out == tmp_path / "2026-10-24-abcd1234"  # spec 0009, AC-3: main names the folder
     assert len(embedder.calls) == 4  # spec 0006 AC-6: k=5 and depth-20 query per answerable row
     assert out.parent == tmp_path
     assert {p.name for p in out.iterdir()} == {"rows.jsonl", "summary.json", "summary.md"}
