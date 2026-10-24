@@ -358,7 +358,7 @@ def test_dry_run_spends_nothing(monkeypatch, capsys):
         and "mode full" in out
         and "estimated cost" in out
     )
-    assert "Dry run: add CONFIRM=1 to spend." in out
+    assert "Dry run: `make paid-eval` spends." in out
 
 
 def test_baseline_ignores_new_principal_keys():

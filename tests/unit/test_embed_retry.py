@@ -174,7 +174,7 @@ def test_main_without_confirm_never_embeds(monkeypatch, capsys):
     assert embed.main(["--config", "structural-v1"]) == 0
     out = capsys.readouterr().out
     assert "embed structural-v1: 3 pending chunks for fake:embed-test, ~1500 tokens" in out
-    assert "$0.0000" in out and "Dry run: add CONFIRM=1 to spend." in out
+    assert "$0.0000" in out and "Dry run: `make paid-embed` spends." in out
 
 
 def test_per_model_input_limit_is_local():

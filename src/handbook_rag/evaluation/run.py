@@ -57,6 +57,7 @@ from handbook_rag.models import (
     resolve_embed_spec,
 )
 from handbook_rag.prompts import SYSTEM_PROMPT
+from handbook_rag.spend import log_spend, paid
 
 HEADLINE = ("chunk_fact_recall@5", "chunk_all_required@5", "chunk_mrr", "retrieved_tokens@5")
 
@@ -390,7 +391,10 @@ def run(
                     conn, embedder, row.question, principal, TOP_K, config_id=config_id
                 )
                 if not chunks:
-                    raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
+                    raise SystemExit(
+                        f"no embeddings for {embedder.name}; run `make embed` for the cost, "
+                        "then `make paid-embed`"
+                    )
             else:
                 result = ask.ask(
                     conn, embedder, answerer, row.question, principal, TOP_K, config_id=config_id
@@ -467,7 +471,7 @@ def main(argv=None) -> int:
             raise SystemExit(
                 f"baseline run {args.baseline} not found in {EVAL_RUNS} (summary.json, "
                 "rows.jsonl); re-run the baseline retrieval-only first: "
-                "`make eval CONFIG=fixed-512-64 RETRIEVAL_ONLY=1 CONFIRM=1`"
+                "`make paid-eval CONFIG=fixed-512-64 RETRIEVAL_ONLY=1`"
             ) from None
 
     m = read_manifest()
@@ -539,8 +543,7 @@ def main(argv=None) -> int:
                 f"baseline {baseline[0]} differs in more than one change (chunk config or "
                 "embed model; spec 0008 AC-6):\n  " + "\n  ".join(diff)
             )
-        if not args.confirm:
-            print("Dry run: add CONFIRM=1 to spend.")
+        if not paid(args.confirm, "eval"):  # spec 0009
             return 0
 
         # Built only after confirm, so a dry run needs no API key.
@@ -553,20 +556,32 @@ def main(argv=None) -> int:
         if not has_embeddings:
             raise SystemExit(
                 f"config {args.config!r} has no embeddings for {embedder.name}; "
-                f"run `make embed CONFIG={args.config}`"
+                f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
             )
         answerer = None if args.retrieval_only else make_answerer()
-        out = run(
-            conn,
-            rows,
-            ev,
-            embedder,
-            answerer,
-            principal=principal,
-            meta=meta,
-            config_id=args.config,
-            baseline=baseline,
-        )
+        out, status = None, "failed"
+        try:
+            out = run(
+                conn,
+                rows,
+                ev,
+                embedder,
+                answerer,
+                principal=principal,
+                meta=meta,
+                config_id=args.config,
+                baseline=baseline,
+            )
+            status = "ok"
+        finally:  # spec 0009, AC-3: logged even when the run fails after spending
+            log_spend(
+                "eval",
+                cost["total_usd"],
+                run_id=out and out.name,
+                embed_model=embedder.name,
+                answer_model=answerer and answerer.name,
+                status=status,
+            )
 
     overall = json.loads((out / "summary.json").read_text(encoding="utf-8"))["groups"]["overall"]
     print(f"wrote {out}")
