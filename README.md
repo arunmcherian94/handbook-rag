@@ -25,15 +25,15 @@ make up                      # Postgres + pgvector
 make corpus                  # check out the pinned handbook
 make ingest
 make chunk
-make embed                   # paid: prints an estimate; CONFIRM=1 to spend
+make embed                   # dry run: prints the estimate; `make paid-embed` spends
 make acl                     # dry run; CONFIRM=1 to write the ACLs
-make ask AS=us-ic Q="How many days of PTO do I get?"
+make paid-ask AS=us-ic Q="How many days of PTO do I get?"
 make test
 ```
 
 `make help` lists every target.
 
-**Costs:** `make embed`, `make eval` and `make permissions` are dry runs that print an estimate unless `CONFIRM=1` is set. `make ask` has no dry run: each call makes one embedding and one answer-model request.
+**Costs:** `make ask`, `make embed`, `make eval` and `make permissions` are dry runs that print an estimate. Their `paid-` twins (`make paid-ask`, …) take the same options and spend. Each paid run appends a line to `runs/spend.jsonl`. In Claude Code, a project hook asks for a human's approval before any paid target runs ([spec 0009](specs/0009-paid-call-guardrails.md)).
 
 ## Results
 

@@ -52,7 +52,7 @@ from handbook_rag.models import (
     resolve_embed_spec,
 )
 from handbook_rag.policy import Policy
-from handbook_rag.spend import log_spend
+from handbook_rag.spend import log_spend, paid
 
 ADMIN = "admin"
 ADMIN_DEPTH = max(PERMISSIONS_KS)  # AC-11: admin's top 20 is both the validity set and over-block's
@@ -646,8 +646,7 @@ def main(argv=None) -> int:
             f"{len(questions)} unique questions)"
         )
         meta = metadata(suite, suite_bytes, policy, corpus_sha, chunk_params["config_id"], spec)
-        if not args.confirm:
-            print("Dry run: add CONFIRM=1 to spend.")
+        if not paid(args.confirm, "permissions"):  # spec 0009
             return 0
 
         # Built only after confirm, so a dry run needs no API key.

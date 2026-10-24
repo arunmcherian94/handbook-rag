@@ -43,7 +43,7 @@ from handbook_rag.models import (
     resolve_embed_spec,
 )
 from handbook_rag.prompts import NOT_FOUND, SYSTEM_PROMPT
-from handbook_rag.spend import log_spend
+from handbook_rag.spend import log_spend, paid
 
 SEARCH = """
 -- No section heading (intro text, or a doc without headings): cite the doc title instead.
@@ -309,8 +309,7 @@ def main(argv=None) -> int:
             raise SystemExit(str(e)) from None
         principal = identity.load(args.user_id, policy)
         print(f"ask as {args.user_id}: {embed_spec}, {answer_spec}, estimated cost ${usd:.4f}")
-        if not args.confirm:  # spec 0009, AC-1
-            print("Dry run: add CONFIRM=1 to spend.")
+        if not paid(args.confirm, "ask"):  # spec 0009, AC-1
             return 0
         # Built only after confirm, so a dry run needs no API key.
         embedder, answerer = make_embedder(embed_spec), make_answerer(answer_spec)

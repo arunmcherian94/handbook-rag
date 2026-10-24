@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
-"""PreToolUse hook on Bash (spec 0009, AC-2): a command that may spend needs a human click, in
-every permission mode. Anything else passes silently.
+"""PreToolUse hook on Bash (spec 0009, AC-2): a paid run needs a human click, in every permission
+mode. Anything else passes silently.
 
-Matched broadly on purpose: any CONFIRM assignment (quoted or not, any value) and any `--conf`
-prefix (argparse accepts abbreviations of --confirm). A false prompt costs a click; a miss costs
-money. A payload the hook can't read also asks: the guard never fails open.
+Spending has its own names, so the match is exact: a `make paid-<target>` call, or an assignment
+of the env var the Python mains require before they spend (the direct `python -m` route). Plain
+targets only dry-run, so nothing else can spend. A payload the hook can't read also asks: the
+guard never fails open.
 """
 
 import json
 import re
 import sys
 
-PAID = re.compile(r"\bCONFIRM\b|--conf")
+PAID = re.compile(
+    r"\bmake\b[^;&|\n]*\bpaid-(?:ask|eval|permissions|embed)\b|\bHANDBOOK_PAID_RUN\s*="
+)
 ASK = {
     "hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "ask",
-        "permissionDecisionReason": "may spend (CONFIRM / --confirm): needs Arun's approval",
+        "permissionDecisionReason": "paid run: needs Arun's approval",
     }
 }
 

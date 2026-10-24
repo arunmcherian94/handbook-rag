@@ -273,8 +273,13 @@ class _Conn:
         return type("R", (), {"fetchone": lambda self: (True,)})()
 
 
-def _main_env(monkeypatch, tmp_path, answerer=None):
-    """main() up to the confirm gate, with no DB, corpus or API; spend and trace go to tmp."""
+def _main_env(monkeypatch, tmp_path, answerer=None, paid_env=True):
+    """main() up to the confirm gate, with no DB, corpus or API; spend and trace go to tmp.
+    paid_env sets the env var `make paid-ask` sets."""
+    if paid_env:
+        monkeypatch.setenv(spend.PAID_ENV, "1")
+    else:
+        monkeypatch.delenv(spend.PAID_ENV, raising=False)
     monkeypatch.setattr(ask_mod, "read_manifest", lambda: None)
     monkeypatch.setattr(ask_mod, "verify", lambda m: None)
     monkeypatch.setattr(ask_mod, "connect", _Conn)
@@ -304,7 +309,21 @@ def test_main_dry_run_by_default(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(ask_mod, "make_answerer", no_client)
     assert ask_mod.main(["--as", "us-ic", "a question"]) == 0
     out = capsys.readouterr().out
-    assert "estimated cost $0.00" in out and "Dry run: add CONFIRM=1 to spend." in out
+    assert "estimated cost $0.00" in out and "Dry run: `make paid-ask` spends." in out
+    assert not spend_log.exists() and traces == []
+
+
+def test_main_confirm_without_paid_target_refuses(monkeypatch, tmp_path):
+    """Spec 0009, AC-2: --confirm alone (a direct `python -m` call) can't spend; only the
+    paid-ask target, which the hook matches, sets the env var."""
+    spend_log, traces = _main_env(monkeypatch, tmp_path, paid_env=False)
+
+    def no_client(spec):
+        raise AssertionError("built a model client without the paid target")
+
+    monkeypatch.setattr(ask_mod, "make_embedder", no_client)
+    with pytest.raises(SystemExit, match="make paid-ask"):
+        ask_mod.main(["--as", "us-ic", "--confirm", "a question"])
     assert not spend_log.exists() and traces == []
 
 

@@ -57,7 +57,7 @@ from handbook_rag.models import (
     resolve_embed_spec,
 )
 from handbook_rag.prompts import SYSTEM_PROMPT
-from handbook_rag.spend import log_spend
+from handbook_rag.spend import log_spend, paid
 
 HEADLINE = ("chunk_fact_recall@5", "chunk_all_required@5", "chunk_mrr", "retrieved_tokens@5")
 
@@ -468,7 +468,7 @@ def main(argv=None) -> int:
             raise SystemExit(
                 f"baseline run {args.baseline} not found in {EVAL_RUNS} (summary.json, "
                 "rows.jsonl); re-run the baseline retrieval-only first: "
-                "`make eval CONFIG=fixed-512-64 RETRIEVAL_ONLY=1 CONFIRM=1`"
+                "`make paid-eval CONFIG=fixed-512-64 RETRIEVAL_ONLY=1`"
             ) from None
 
     m = read_manifest()
@@ -540,8 +540,7 @@ def main(argv=None) -> int:
                 f"baseline {baseline[0]} differs in more than one change (chunk config or "
                 "embed model; spec 0008 AC-6):\n  " + "\n  ".join(diff)
             )
-        if not args.confirm:
-            print("Dry run: add CONFIRM=1 to spend.")
+        if not paid(args.confirm, "eval"):  # spec 0009
             return 0
 
         # Built only after confirm, so a dry run needs no API key.

@@ -5,10 +5,24 @@ still logged. The figure is the dry-run estimate, not the provider's bill.
 """
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
 from handbook_rag.constants import SPEND_LOG
+
+PAID_ENV = "HANDBOOK_PAID_RUN"  # set only by the `make paid-<target>` recipes
+
+
+def paid(confirm: bool, target: str) -> bool:
+    """Spec 0009, AC-1, AC-2: spend only with --confirm and PAID_ENV=1, so every route that spends
+    goes through a name the hook matches. Prints the dry-run notice otherwise."""
+    if not confirm:
+        print(f"Dry run: `make paid-{target}` spends.")
+        return False
+    if os.environ.get(PAID_ENV) != "1":
+        raise SystemExit(f"--confirm spends only via `make paid-{target}` ({PAID_ENV}=1)")
+    return True
 
 
 def log_spend(

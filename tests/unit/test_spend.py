@@ -1,6 +1,8 @@
 import json
 
-from handbook_rag.spend import log_spend
+import pytest
+
+from handbook_rag.spend import PAID_ENV, log_spend, paid
 
 
 def test_log_spend_appends_one_line_per_call(tmp_path):
@@ -21,3 +23,20 @@ def test_log_spend_appends_one_line_per_call(tmp_path):
         "status",
     }
     assert recs[0]["run_id"] == "2026-10-24-abcd1234" and recs[1]["est_usd"] == 0.5
+
+
+@pytest.mark.parametrize("target", ["ask", "embed", "eval", "permissions"])
+def test_paid_gate(monkeypatch, capsys, target):
+    """Spec 0009, AC-1, AC-2: no --confirm is a dry run naming the paid target; --confirm without
+    the env var refuses; both together spend. One gate serves all four mains."""
+    monkeypatch.delenv(PAID_ENV, raising=False)
+    assert paid(False, target) is False
+    assert f"Dry run: `make paid-{target}` spends." in capsys.readouterr().out
+    with pytest.raises(SystemExit, match=f"make paid-{target}"):
+        paid(True, target)
+    monkeypatch.setenv(PAID_ENV, "0")
+    with pytest.raises(SystemExit):
+        paid(True, target)
+    monkeypatch.setenv(PAID_ENV, "1")
+    assert paid(True, target) is True
+    assert paid(False, target) is False  # the env var alone never spends

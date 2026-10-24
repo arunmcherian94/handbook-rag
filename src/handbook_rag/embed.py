@@ -40,7 +40,7 @@ from handbook_rag.models import (
     make_embedder,
     resolve_embed_spec,
 )
-from handbook_rag.spend import log_spend
+from handbook_rag.spend import log_spend, paid
 
 log = logging.getLogger(__name__)
 
@@ -330,8 +330,7 @@ def main(argv=None) -> int:
                 f"embed {args.config}: {n} pending chunks for {spec}, "
                 f"~{tokens} tokens, estimated ${usd:.4f}"
             )
-            if not args.confirm:
-                print("Dry run: add CONFIRM=1 to spend.")
+            if not paid(args.confirm, "embed"):  # spec 0009
                 return 0
             embedder = make_embedder(spec)  # only after --confirm: a dry run needs no API key
             status = "failed"
