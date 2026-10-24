@@ -25,7 +25,7 @@ Rejected:
 
 ## Consequences
 - One tested `WHERE` per reader. A forgotten filter mixes configs, so tests cover each reader.
-- **Revisit when an ANN index arrives.** HNSW over a shared table with a filter loses recall (the same recall-starvation mode as the ACL pre-filter), and HNSW needs a typed `vector(n)`. Then: LIST-partition `chunks` by `config_id` and `chunk_embeddings` by model, with a typed HNSW index per partition. `config_id` is already the partition key.
+- **Revisit when an ANN index arrives.** HNSW over a shared table with a filter loses recall (the same recall-starvation mode as the ACL pre-filter), and HNSW needs a typed `vector(n)`. Then: LIST-partition `chunks` by `config_id` and `chunk_embeddings` by model, with a typed HNSW index per partition. `config_id` is already the partition key. For the ACL filter, iterative scans are enough (spec 0007 Part B, [ADR-0021](0021-permission-model.md#consequences)), so partitioning stays about configs and models, not groups.
 - **How production does this:**
   - Each index is versioned and built beside the old one, and an alias is flipped once evals pass.
   - The old index is kept warm for a rollback window.
