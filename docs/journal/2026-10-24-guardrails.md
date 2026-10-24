@@ -34,3 +34,16 @@ Follow-up to the [accidental paid call](2026-10-22-permissions-build.md#accident
 
 ## Spend
 - None.
+
+## Deferred review items, decided later on 24 Oct
+Arun handed the 7 lower-priority items to a fresh-agent review, which checked each claim against main.
+- **Fixed** (PR `fix/spend-log-run-id`; `ann.py` in #40): a failed eval or permissions run logged `run_id: null` even when its partial folder existed. `main` now creates the folder (`new_run_dir`) before spending and passes it to `run()`, so the spend line always names it. An existing folder name raises instead of being reused. /code-review on the first version (pass a name, then check whether a folder exists) caught that the check couldn't tell this run's folder from an older one with the same name.
+- **Follow-ups:**
+  - `ask`'s document-kind embed: the spec 0008 entry already covers it.
+  - `ask.estimate` skipping `prepare()`: added to that entry.
+  - the spend context manager: a new entry.
+- **Won't fix:**
+  - **The `ask` dry run needs the DB and fresh ACLs.** That matches eval and permissions, and spec 0007 AC-5 puts the stale check in the dry run on purpose.
+  - **An unknown `ANSWER_MODEL` passes the dry run.** An unknown provider fails before any spend, and a mistyped model name wastes at most one query embed. Checking it would need an answer-model registry.
+  - **The duplicated estimate formula.** It's two lines with different multipliers, and sharing it would make `ask` import from `evaluation`, which already imports `ask`.
+- **Same class as item 4, no action:** eval and permissions check that stored embeddings exist only after the paid gate. A dry run can pass and the paid run then stop, but nothing is spent.

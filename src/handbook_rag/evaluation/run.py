@@ -88,6 +88,15 @@ def estimate(
     }
 
 
+def new_run_dir(out_root: Path, meta: dict) -> Path:
+    """Create the run folder `<date>-<8 hex>` under out_root; an existing one raises, so a
+    folder is never shared. The paid mains create it before spending, so a failed run's spend
+    line names its partial folder (spec 0009, AC-3)."""
+    out = out_root / f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
+    out.mkdir(parents=True)
+    return out
+
+
 def _git(*args: str) -> str:
     """git in the harness repo (cwd), not the corpus checkout (corpus.git_out)."""
     return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
@@ -371,16 +380,17 @@ def run(
     checkout: Path = CHECKOUT,
     config_id: str = BASELINE_CONFIG,
     baseline: tuple[str, dict, list[dict]] | None = None,
+    out: Path | None = None,
 ) -> Path:
     """Retrieve (and answer, unless answerer is None) every row; write the run folder (AC-7).
     Every retrieval runs as `principal` (spec 0007, AC-8).
 
     answerer None is retrieval-only mode: ooc rows are skipped and the answer model is never
     called. config_id scopes retrieval; baseline (id, summary, records) adds the AC-14 comparison
-    to summary.md. checkout is the pinned corpus the AC-5 heading check reads. Returns the folder.
+    to summary.md. checkout is the pinned corpus the AC-5 heading check reads. out is a folder
+    from new_run_dir() (one is created under out_root if None). Returns the folder.
     """
-    out = out_root / f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
-    out.mkdir(parents=True)
+    out = out if out is not None else new_run_dir(out_root, meta)
     records: list[dict] = []
     # Appended per row, so a crash mid-run keeps what was paid for.
     with (out / "rows.jsonl").open("w", encoding="utf-8") as f:
@@ -559,9 +569,9 @@ def main(argv=None) -> int:
                 f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
             )
         answerer = None if args.retrieval_only else make_answerer()
-        out, status = None, "failed"
+        out, status = new_run_dir(EVAL_RUNS, meta), "failed"
         try:
-            out = run(
+            run(
                 conn,
                 rows,
                 ev,
@@ -571,13 +581,14 @@ def main(argv=None) -> int:
                 meta=meta,
                 config_id=args.config,
                 baseline=baseline,
+                out=out,
             )
             status = "ok"
         finally:  # spec 0009, AC-3: logged even when the run fails after spending
             log_spend(
                 "eval",
                 cost["total_usd"],
-                run_id=out and out.name,
+                run_id=out.name,
                 embed_model=embedder.name,
                 answer_model=answerer and answerer.name,
                 status=status,

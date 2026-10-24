@@ -14,7 +14,6 @@ import random
 import re
 import sys
 import time
-import uuid
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -42,7 +41,7 @@ from handbook_rag.evaluation.evalset import Row
 from handbook_rag.evaluation.evalset import parse as parse_evalset
 from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import fact_recall_at
-from handbook_rag.evaluation.run import _git, stored_chunk_params
+from handbook_rag.evaluation.run import _git, new_run_dir, stored_chunk_params
 from handbook_rag.identity import Principal
 from handbook_rag.models import (
     InputTooLong,
@@ -502,11 +501,12 @@ def run(
     config_id: str = BASELINE_CONFIG,
     sleep=time.sleep,
     rand=random.random,
+    out: Path | None = None,
 ) -> Path:
     """Retrieve every case's top 20 as its persona and as admin (one query embedding per unique
-    question); write the run folder (AC-13). Returns the folder."""
-    out = out_root / f"{meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
-    out.mkdir(parents=True)
+    question); write the run folder (AC-13): out, from new_run_dir() (one is created under
+    out_root if None). Returns the folder."""
+    out = out if out is not None else new_run_dir(out_root, meta)
     vectors: dict[str, str] = {}
     searched: dict[tuple[str, str], list[ask.Retrieved]] = {}
     doc_cache: dict = {}
@@ -661,15 +661,15 @@ def main(argv=None) -> int:
                 f"config {args.config!r} has no embeddings for {embedder.name}; "
                 f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
             )
-        out, status = None, "failed"
+        out, status = new_run_dir(PERMISSIONS_RUNS, meta), "failed"
         try:
-            out = run(conn, plan, acls, ev, embedder, meta=meta, config_id=args.config)
+            run(conn, plan, acls, ev, embedder, meta=meta, config_id=args.config, out=out)
             status = "ok"
         finally:  # spec 0009, AC-3: logged even when the run fails after spending
             log_spend(
                 "permissions",
                 cost["embed_usd"],
-                run_id=out and out.name,
+                run_id=out.name,
                 embed_model=embedder.name,
                 answer_model=None,
                 status=status,

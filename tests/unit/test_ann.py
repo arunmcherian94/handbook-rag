@@ -234,7 +234,6 @@ def _main(monkeypatch, tmp_path, *, paid_env, missing=("q",)):
     monkeypatch.setattr(ann, "ANN_RUNS", tmp_path / "runs")
 
     def measure(conn, s, vectors, model, out):
-        out.mkdir(parents=True)
         (out / "summary.json").write_text(json.dumps({"admin_hnsw_settings_differ": []}))
         (out / "summary.md").write_text("# ANN")
         return out
@@ -286,27 +285,13 @@ def test_confirm_with_every_vector_saved_builds_no_embedder(monkeypatch, tmp_pat
     assert built == [] and len(log.read_text().splitlines()) == 1
 
 
-def test_failed_run_still_logs(monkeypatch, tmp_path):
-    """Spec 0009, AC-3: a run that fails before writing anything is logged as failed, with no
-    run id."""
-    log, _ = _main(monkeypatch, tmp_path, paid_env=True)
-
-    def boom(*a, **kw):
-        raise RuntimeError("db gone")
-
-    monkeypatch.setattr(ann, "measure", boom)
-    with pytest.raises(RuntimeError):
-        ann.main(["run", "--confirm"])
-    rec = json.loads(log.read_text())
-    assert rec["status"] == "failed" and rec["run_id"] is None
-
-
-def test_failed_run_links_its_partial_folder(monkeypatch, tmp_path):
-    """Spec 0009, AC-3: a run that fails after creating its folder logs that folder's run id."""
+def test_failed_run_logs_its_partial_folder(monkeypatch, tmp_path):
+    """Spec 0009, AC-3: a run that fails after spending is logged as failed, naming the run
+    folder main created before spending."""
     log, _ = _main(monkeypatch, tmp_path, paid_env=True)
 
     def partial(conn, s, vectors, model, out):
-        out.mkdir(parents=True)
+        (out / "queries.jsonl").write_text("{}\n")
         raise RuntimeError("db gone mid-run")
 
     monkeypatch.setattr(ann, "measure", partial)

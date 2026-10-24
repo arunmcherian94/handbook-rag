@@ -154,6 +154,7 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
     ev = evidence.check(rows, conn, BASELINE_CONFIG, checkout)
     answerer = FakeAnswerer("never [1]")
     embedder = FakeEmbedder(name=MODEL)
+    folder = run_mod.new_run_dir(tmp_path, _meta(None, 2))
     out = run_mod.run(
         conn,
         rows,
@@ -162,12 +163,12 @@ def test_retrieval_only_writes_outputs(setup, tmp_path):
         None,
         principal=_admin(conn),
         meta=_meta(None, 2),
-        out_root=tmp_path,
         checkout=checkout,
+        out=folder,
     )
     assert answerer.calls == []
+    assert out == folder and out.parent == tmp_path  # spec 0009, AC-3: main's folder is used
     assert len(embedder.calls) == 4  # spec 0006 AC-6: k=5 and depth-20 query per answerable row
-    assert out.parent == tmp_path
     assert {p.name for p in out.iterdir()} == {"rows.jsonl", "summary.json", "summary.md"}
     records, summary = _read(out)
     assert set(records) == {1, 2}

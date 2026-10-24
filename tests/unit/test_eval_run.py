@@ -14,6 +14,7 @@ from handbook_rag.evaluation.run import (
     baseline_mismatch,
     estimate,
     metadata,
+    new_run_dir,
     record,
     stored_chunk_params,
     to_run,
@@ -234,3 +235,17 @@ def test_record_ooc_has_no_deep():
     stored, ev, chunks = _deep_setup([0, 1, 2, 3, 4])
     rec = record(FakeConn(stored), ROWS[1], ev, chunks, [], None)
     assert rec["deep"] == [] and rec["near_tie"] is False and rec["metrics"] == {}
+
+
+def test_run_dir_is_created_dated_and_never_shared(tmp_path, monkeypatch):
+    """Spec 0009, AC-3: the paid mains create the run folder before spending, as <date>-<8 hex>;
+    a name that already exists raises rather than reusing another run's folder."""
+    meta = {"timestamp": "2026-10-24T15:00:00+00:00"}
+    out = new_run_dir(tmp_path, meta)
+    assert out.is_dir() and out.parent == tmp_path
+    assert out.name.startswith("2026-10-24-") and len(out.name) == len("2026-10-24-") + 8
+    fixed = uuid.UUID(int=0)
+    monkeypatch.setattr(uuid, "uuid4", lambda: fixed)
+    new_run_dir(tmp_path, meta)
+    with pytest.raises(FileExistsError):
+        new_run_dir(tmp_path, meta)
