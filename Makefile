@@ -26,9 +26,9 @@ embed: ## Embed CONFIG's chunks with no embedding for EMBED_MODEL: dry run unles
 acl: ## Resolve acl/policy-v1.yaml onto documents and every config's chunks: dry run unless CONFIRM=1
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.acl $(if $(filter 1,$(CONFIRM)),--confirm)
 
-ask: ## Answer a question as a fixture user: make ask AS=us-ic Q="..."
+ask: ## Answer a question as a fixture user: make ask AS=us-ic Q="...", dry run unless CONFIRM=1
 	@test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make ask AS=<user id> Q="your question"'; exit 2; }
-	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask --as "$(AS)" "$$Q"
+	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask --as "$(AS)" $(if $(filter 1,$(CONFIRM)),--confirm) "$$Q"
 
 eval: ## Run the eval set: CONFIRM=1 to spend (only 1 counts), LIMIT=n, RETRIEVAL_ONLY=1, CONFIG=, BASELINE=<run id>
 	PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.run \

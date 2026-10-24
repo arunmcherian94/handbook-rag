@@ -19,13 +19,31 @@ from pathlib import Path
 import tiktoken
 
 from handbook_rag import acl, identity
-from handbook_rag.constants import BASELINE_CONFIG, MAX_CITATION, TOKENIZER, TOP_K, TRACE_PATH
+from handbook_rag.constants import (
+    BASELINE_CONFIG,
+    EST_ANSWER_USD_PER_ROW,
+    MAX_CITATION,
+    TOKENIZER,
+    TOP_K,
+    TRACE_PATH,
+)
 from handbook_rag.corpus import read_manifest, verify
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.embed import embed_with_retry
 from handbook_rag.identity import Principal
-from handbook_rag.models import Answerer, Completion, Embedder, make_answerer, make_embedder
+from handbook_rag.models import (
+    Answerer,
+    Completion,
+    Embedder,
+    describe_embedder,
+    embed_usd_per_1m,
+    make_answerer,
+    make_embedder,
+    resolve_answer_spec,
+    resolve_embed_spec,
+)
 from handbook_rag.prompts import NOT_FOUND, SYSTEM_PROMPT
+from handbook_rag.spend import log_spend
 
 SEARCH = """
 -- No section heading (intro text, or a doc without headings): cite the doc title instead.
@@ -255,30 +273,60 @@ def format_result(result: AskResult) -> str:
     return "\n".join(lines)
 
 
+def estimate(question: str, embed_spec: str) -> float:
+    """Spec 0009, AC-1: one query embed at the model's price plus the flat per-answer cost."""
+    tokens = len(tiktoken.get_encoding(TOKENIZER).encode(question, disallowed_special=()))
+    return tokens * embed_usd_per_1m(embed_spec) / 1_000_000 + EST_ANSWER_USD_PER_ROW
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Ask the GitLab handbook a question.")
     ap.add_argument("question")
     ap.add_argument("--as", dest="user_id", required=True, help="fixture user to ask as")
     ap.add_argument("--k", type=int, default=TOP_K)
+    ap.add_argument("--confirm", action="store_true", help="spend; without it, a dry run")
     args = ap.parse_args(argv)
     if error := verify(read_manifest()):
         raise SystemExit(f"{error}\nRun `make corpus` to restore the pinned checkout.")
-    embedder, answerer = make_embedder(), make_answerer()
+    try:  # an unknown model or bad @dims fails the dry run
+        embed_spec = describe_embedder(resolve_embed_spec()).name
+        usd = estimate(args.question, embed_spec)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+    answer_spec = resolve_answer_spec()
     with connect() as conn:
         # Checked here, not in ask(): an empty retrieval there means nothing visible to the
         # principal and must look like any other NOT_FOUND (spec 0007, AC-8).
         (embedded,) = conn.execute(
-            "SELECT EXISTS (SELECT 1 FROM chunk_embeddings WHERE model = %s)", (embedder.name,)
+            "SELECT EXISTS (SELECT 1 FROM chunk_embeddings WHERE model = %s)", (embed_spec,)
         ).fetchone()
         if not embedded:
-            raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
+            raise SystemExit(f"no embeddings for {embed_spec}; run `make embed`")
         policy = acl.load_policy(conn)
         try:
             acl.check_stale(conn, policy)  # spec 0007, AC-5: never filter on stale ACLs
         except (acl.StaleACL, acl.AclError) as e:
             raise SystemExit(str(e)) from None
         principal = identity.load(args.user_id, policy)
-        result = ask(conn, embedder, answerer, args.question, principal, args.k)
+        print(f"ask as {args.user_id}: {embed_spec}, {answer_spec}, estimated cost ${usd:.4f}")
+        if not args.confirm:  # spec 0009, AC-1
+            print("Dry run: add CONFIRM=1 to spend.")
+            return 0
+        # Built only after confirm, so a dry run needs no API key.
+        embedder, answerer = make_embedder(embed_spec), make_answerer(answer_spec)
+        status = "failed"
+        try:
+            result = ask(conn, embedder, answerer, args.question, principal, args.k)
+            status = "ok"
+        finally:  # spec 0009, AC-3: logged even when the run fails after spending
+            log_spend(
+                "ask",
+                usd,
+                run_id=None,
+                embed_model=embed_spec,
+                answer_model=answer_spec,
+                status=status,
+            )
     print(format_result(result))
     append_trace(result)
     return 0

@@ -57,6 +57,7 @@ from handbook_rag.models import (
     resolve_embed_spec,
 )
 from handbook_rag.prompts import SYSTEM_PROMPT
+from handbook_rag.spend import log_spend
 
 HEADLINE = ("chunk_fact_recall@5", "chunk_all_required@5", "chunk_mrr", "retrieved_tokens@5")
 
@@ -556,17 +557,29 @@ def main(argv=None) -> int:
                 f"run `make embed CONFIG={args.config}`"
             )
         answerer = None if args.retrieval_only else make_answerer()
-        out = run(
-            conn,
-            rows,
-            ev,
-            embedder,
-            answerer,
-            principal=principal,
-            meta=meta,
-            config_id=args.config,
-            baseline=baseline,
-        )
+        out, status = None, "failed"
+        try:
+            out = run(
+                conn,
+                rows,
+                ev,
+                embedder,
+                answerer,
+                principal=principal,
+                meta=meta,
+                config_id=args.config,
+                baseline=baseline,
+            )
+            status = "ok"
+        finally:  # spec 0009, AC-3: logged even when the run fails after spending
+            log_spend(
+                "eval",
+                cost["total_usd"],
+                run_id=out and out.name,
+                embed_model=embedder.name,
+                answer_model=answerer and answerer.name,
+                status=status,
+            )
 
     overall = json.loads((out / "summary.json").read_text(encoding="utf-8"))["groups"]["overall"]
     print(f"wrote {out}")

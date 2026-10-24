@@ -1,3 +1,4 @@
+import functools
 import json
 import uuid
 
@@ -5,6 +6,7 @@ import pytest
 from fakes import FakeAnswerer, FakeEmbedder, make_principal
 
 from handbook_rag import ask as ask_mod
+from handbook_rag import spend
 from handbook_rag.ask import (
     Retrieved,
     append_trace,
@@ -258,3 +260,79 @@ def test_main_refuses_stale_acls(monkeypatch):
     monkeypatch.setattr(ask_mod, "retrieve", no_retrieval)
     with pytest.raises(SystemExit, match="make acl"):
         ask_mod.main(["--as", "us-ic", "a question"])
+
+
+class _Conn:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, *args):
+        return type("R", (), {"fetchone": lambda self: (True,)})()
+
+
+def _main_env(monkeypatch, tmp_path, answerer=None):
+    """main() up to the confirm gate, with no DB, corpus or API; spend and trace go to tmp."""
+    monkeypatch.setattr(ask_mod, "read_manifest", lambda: None)
+    monkeypatch.setattr(ask_mod, "verify", lambda m: None)
+    monkeypatch.setattr(ask_mod, "connect", _Conn)
+    monkeypatch.setattr(ask_mod.acl, "load_policy", lambda conn: None)
+    monkeypatch.setattr(ask_mod.acl, "check_stale", lambda conn, policy: None)
+    monkeypatch.setattr(ask_mod.identity, "load", lambda user_id, policy: P)
+    monkeypatch.setattr(ask_mod, "make_embedder", lambda spec: FakeEmbedder())
+    monkeypatch.setattr(ask_mod, "make_answerer", lambda spec: answerer or FakeAnswerer("ok"))
+    monkeypatch.setattr(
+        ask_mod, "log_spend", functools.partial(spend.log_spend, path=tmp_path / "spend.jsonl")
+    )
+    traces = []
+    monkeypatch.setattr(ask_mod, "append_trace", traces.append)
+    canned(monkeypatch, chunks())
+    return tmp_path / "spend.jsonl", traces
+
+
+def test_main_dry_run_by_default(monkeypatch, tmp_path, capsys):
+    """Spec 0009, AC-1: without --confirm, main prints the estimate and builds no model client,
+    writes no trace and no spend line."""
+    spend_log, traces = _main_env(monkeypatch, tmp_path)
+
+    def no_client(spec):
+        raise AssertionError("built a model client on a dry run")
+
+    monkeypatch.setattr(ask_mod, "make_embedder", no_client)
+    monkeypatch.setattr(ask_mod, "make_answerer", no_client)
+    assert ask_mod.main(["--as", "us-ic", "a question"]) == 0
+    out = capsys.readouterr().out
+    assert "estimated cost $0.00" in out and "Dry run: add CONFIRM=1 to spend." in out
+    assert not spend_log.exists() and traces == []
+
+
+def test_estimate_prices_embed_and_answer():
+    """Spec 0009, AC-1: query-embed tokens at the model's price plus the flat answer cost."""
+    usd = ask_mod.estimate("one two three", "openai:text-embedding-3-large@1536")
+    assert usd == pytest.approx(3 * 0.13 / 1e6 + ask_mod.EST_ANSWER_USD_PER_ROW)
+
+
+def test_main_confirm_logs_one_spend_line(monkeypatch, tmp_path):
+    """Spec 0009, AC-3: a confirmed ask appends exactly one spend line."""
+    spend_log, traces = _main_env(monkeypatch, tmp_path)
+    assert ask_mod.main(["--as", "us-ic", "--confirm", "a question"]) == 0
+    (line,) = spend_log.read_text().splitlines()
+    rec = json.loads(line)
+    assert (rec["target"], rec["status"], rec["run_id"]) == ("ask", "ok", None)
+    assert rec["est_usd"] > 0 and len(traces) == 1
+
+
+def test_main_confirm_logs_failed_run(monkeypatch, tmp_path):
+    """Spec 0009, AC-3: a run that fails after the confirm gate still logs one line."""
+
+    class Boom(FakeAnswerer):
+        def answer(self, system, user):
+            raise RuntimeError("provider down")
+
+    spend_log, _ = _main_env(monkeypatch, tmp_path, answerer=Boom())
+    with pytest.raises(RuntimeError):
+        ask_mod.main(["--as", "us-ic", "--confirm", "a question"])
+    (line,) = spend_log.read_text().splitlines()
+    assert json.loads(line)["status"] == "failed"

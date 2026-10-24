@@ -52,6 +52,7 @@ from handbook_rag.models import (
     resolve_embed_spec,
 )
 from handbook_rag.policy import Policy
+from handbook_rag.spend import log_spend
 
 ADMIN = "admin"
 ADMIN_DEPTH = max(PERMISSIONS_KS)  # AC-11: admin's top 20 is both the validity set and over-block's
@@ -661,7 +662,19 @@ def main(argv=None) -> int:
                 f"config {args.config!r} has no embeddings for {embedder.name}; "
                 f"run `make embed CONFIG={args.config}`"
             )
-        out = run(conn, plan, acls, ev, embedder, meta=meta, config_id=args.config)
+        out, status = None, "failed"
+        try:
+            out = run(conn, plan, acls, ev, embedder, meta=meta, config_id=args.config)
+            status = "ok"
+        finally:  # spec 0009, AC-3: logged even when the run fails after spending
+            log_spend(
+                "permissions",
+                cost["embed_usd"],
+                run_id=out and out.name,
+                embed_model=embedder.name,
+                answer_model=None,
+                status=status,
+            )
 
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     print(f"wrote {out}")

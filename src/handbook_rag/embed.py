@@ -40,6 +40,7 @@ from handbook_rag.models import (
     make_embedder,
     resolve_embed_spec,
 )
+from handbook_rag.spend import log_spend
 
 log = logging.getLogger(__name__)
 
@@ -333,7 +334,19 @@ def main(argv=None) -> int:
                 print("Dry run: add CONFIRM=1 to spend.")
                 return 0
             embedder = make_embedder(spec)  # only after --confirm: a dry run needs no API key
-            s = run(conn, embedder, limit=args.limit, config_id=args.config)
+            status = "failed"
+            try:
+                s = run(conn, embedder, limit=args.limit, config_id=args.config)
+                status = "failed" if s.failed else "ok"
+            finally:  # spec 0009, AC-3: logged even when the run fails after spending
+                log_spend(
+                    "embed",
+                    usd,
+                    run_id=None,
+                    embed_model=spec,
+                    answer_model=None,
+                    status=status,
+                )
     except (RetriesExhausted, FatalEmbedError) as e:
         log.error("embedding stopped: %s", e)
         return 2

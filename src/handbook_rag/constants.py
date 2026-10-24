@@ -7,6 +7,7 @@ CHECKOUT = Path("data/handbook")
 DOCUMENTS_SCHEMA = Path("db/init/002_documents.sql")
 CHUNKS_SCHEMA = Path("db/init/003_chunks.sql")
 TRACE_PATH = Path("runs/ask.jsonl")
+SPEND_LOG = Path("runs/spend.jsonl")  # one line per confirmed paid run (spec 0009, AC-3)
 
 # Permissions (spec 0007, ADR-0021)
 POLICY_PATH = Path("acl/policy-v1.yaml")
