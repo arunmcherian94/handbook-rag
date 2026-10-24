@@ -120,3 +120,13 @@ EST_ANSWER_USD_PER_ROW = 0.004
 COMPARE_ROWS = (52, 53, 8, 10, 99, 38, 89)
 # The structural-v1 regressions vs the baseline (run 62a52a83), shown per row (spec 0006, AC-7).
 REGRESSION_ROWS = (11, 34, 44, 49, 51, 58, 88, 100)
+
+# Recall starvation on a separate HNSW path (spec 0007 Part B, AC-17, AC-18)
+ANN_RUNS = Path("runs/ann")
+ANN_VECTORS = ANN_RUNS / "query-vectors.jsonl"  # query embeddings, keyed by (model, question)
+ANN_MODEL = DEFAULT_EMBED_MODEL  # ADR-0022; the copy's vector(1536) type follows from it
+ANN_BASELINE = EVAL_RUNS / "2026-10-21-d83f3edc"  # the AC-9 baseline the exact path must match
+# pgvector 0.8.7 defaults, recorded with every run; a sweep is a follow-up.
+HNSW_M = 16
+HNSW_EF_CONSTRUCTION = 64
+HNSW_ITERATIVE_SCANS = ("off", "strict_order", "relaxed_order")

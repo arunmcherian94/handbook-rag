@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval permissions paid-permissions test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval permissions paid-permissions ann-build ann paid-ann test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -30,6 +30,7 @@ EVAL = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.r
 	$(if $(CONFIG),--config $(CONFIG)) $(if $(BASELINE),--baseline $(BASELINE))
 PERMISSIONS = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.permissions \
 	$(if $(CONFIG),--config $(CONFIG))
+ANN = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.ann
 ASK_USAGE = @test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make ask AS=<user id> Q="your question"'; exit 2; }
 
 embed: ## Dry run: chunks of CONFIG with no embedding for EMBED_MODEL, and the cost; LIMIT=n
@@ -60,6 +61,15 @@ permissions: ## Dry run: permissions-v1 cases and cost (retrieval-only); CONFIG=
 
 paid-permissions: ## Spend: run permissions-v1, same options as `make permissions`
 	$(SPEND) $(PERMISSIONS) --confirm
+
+ann-build: ## Copy fixed-512-64 3-large vectors into ann.hnsw_chunks + HNSW index: dry run unless CONFIRM=1 (no spend)
+	$(ANN) build $(if $(filter 1,$(CONFIRM)),--confirm)
+
+ann: ## Dry run: exact vs HNSW recall-starvation run, saved/missing query vectors and cost
+	$(ANN) run
+
+paid-ann: ## Spend: embed missing query vectors, then run as `make ann` describes
+	$(SPEND) $(ANN) run --confirm
 
 test: test-unit test-integration ## Run unit + integration tests
 

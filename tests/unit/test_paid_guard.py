@@ -78,6 +78,7 @@ def test_targets_come_from_the_makefile(tmp_path):
     finally:
         sys.path.pop(0)
     assert set(paid_guard.paid_targets()) == {
+        "paid-ann",
         "paid-ask",
         "paid-embed",
         "paid-eval",
