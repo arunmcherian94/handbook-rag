@@ -659,7 +659,7 @@ def main(argv=None) -> int:
         if not has_embeddings:
             raise SystemExit(
                 f"config {args.config!r} has no embeddings for {embedder.name}; "
-                f"run `make embed CONFIG={args.config}`"
+                f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
             )
         out, status = None, "failed"
         try:

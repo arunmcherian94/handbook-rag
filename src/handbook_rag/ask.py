@@ -301,7 +301,10 @@ def main(argv=None) -> int:
             "SELECT EXISTS (SELECT 1 FROM chunk_embeddings WHERE model = %s)", (embed_spec,)
         ).fetchone()
         if not embedded:
-            raise SystemExit(f"no embeddings for {embed_spec}; run `make embed`")
+            raise SystemExit(
+                f"no embeddings for {embed_spec}; run `make embed` for the cost, "
+                "then `make paid-embed`"
+            )
         policy = acl.load_policy(conn)
         try:
             acl.check_stale(conn, policy)  # spec 0007, AC-5: never filter on stale ACLs

@@ -391,7 +391,10 @@ def run(
                     conn, embedder, row.question, principal, TOP_K, config_id=config_id
                 )
                 if not chunks:
-                    raise SystemExit(f"no embeddings for {embedder.name}; run `make embed`")
+                    raise SystemExit(
+                        f"no embeddings for {embedder.name}; run `make embed` for the cost, "
+                        "then `make paid-embed`"
+                    )
             else:
                 result = ask.ask(
                     conn, embedder, answerer, row.question, principal, TOP_K, config_id=config_id
@@ -553,7 +556,7 @@ def main(argv=None) -> int:
         if not has_embeddings:
             raise SystemExit(
                 f"config {args.config!r} has no embeddings for {embedder.name}; "
-                f"run `make embed CONFIG={args.config}`"
+                f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
             )
         answerer = None if args.retrieval_only else make_answerer()
         out, status = None, "failed"
