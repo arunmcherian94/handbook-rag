@@ -65,7 +65,7 @@ ADMIN = permissions.ADMIN
 
 CREATE_TABLE = """
 CREATE TABLE ann.hnsw_chunks (
-    chunk_id uuid PRIMARY KEY REFERENCES chunks ON DELETE CASCADE,
+    chunk_id uuid PRIMARY KEY,  -- no foreign key: it would add triggers to production chunks
     allowed_groups text[] NOT NULL,
     embedding vector(1536) NOT NULL
 )
@@ -214,11 +214,12 @@ def index_settings(conn) -> dict:
 
 @contextmanager
 def hnsw_mode(conn, mode: str) -> Iterator[None]:
-    """One transaction with hnsw.iterative_scan = mode and seq scans off, so ANN_SEARCH walks
-    the index. The settings end with the transaction, so call it with none open."""
+    """A read-only block with hnsw.iterative_scan = mode and seq scans off, so ANN_SEARCH walks
+    the index. Always rolled back: as a transaction or as a savepoint inside one, the rollback
+    undoes the settings, so nothing after the block runs with them."""
     if mode not in HNSW_ITERATIVE_SCANS:
         raise ValueError(f"unknown hnsw.iterative_scan {mode!r}")
-    with conn.transaction():
+    with conn.transaction(force_rollback=True):
         conn.execute(
             "SELECT set_config('hnsw.iterative_scan', %s, true), "
             "set_config('enable_seqscan', 'off', true)",
@@ -417,7 +418,7 @@ def measure(
     out = out_root / f"{s.meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
     out.mkdir(parents=True)
     conn.commit()
-    conn.autocommit = True  # each hnsw_mode block is its own transaction, so SET LOCAL ends there
+    conn.autocommit = True  # exact queries run alone; each hnsw_mode block is its own transaction
     lits = {q.question: vector_literal(vectors[q.question]) for q in s.queries}
     first = lits[s.queries[0].question]
 
@@ -431,13 +432,16 @@ def measure(
             plans[f"{persona}/{mode}"] = nodes
 
     def one(setting: str, q: str, principal: Principal, k: int) -> tuple[list, float]:
-        t0 = clock()
+        """The query's ids and its time alone: the clock starts after hnsw_mode's settings,
+        so the HNSW figure carries no extra round trips the exact one doesn't."""
         if setting == EXACT:
+            t0 = clock()
             ids = [r.chunk_id for r in ask.search(conn, q, model, principal, k, config_id)]
-        else:
-            with hnsw_mode(conn, setting):
-                ids = [cid for cid, _ in hnsw_search(conn, q, principal, k)]
-        return ids, (clock() - t0) * 1000
+            return ids, (clock() - t0) * 1000
+        with hnsw_mode(conn, setting):
+            t0 = clock()
+            ids = [cid for cid, _ in hnsw_search(conn, q, principal, k)]
+            return ids, (clock() - t0) * 1000
 
     for principal in s.principals.values():  # warm-up: caches and the index pages
         for q in s.queries:

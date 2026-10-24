@@ -87,6 +87,15 @@ def test_production_search_still_scans_exactly(built):
     assert not [d for (d,) in indexes if "(embedding" in d]
 
 
+def test_hnsw_mode_settings_end_with_the_block(built):
+    """AC-17: exact search after an HNSW block runs with the planner's defaults again."""
+    conn, _, _ = built
+    with ann.hnsw_mode(conn, "strict_order"):
+        assert conn.execute("SHOW enable_seqscan").fetchone() == ("off",)
+    assert conn.execute("SHOW enable_seqscan").fetchone() == ("on",)
+    assert conn.execute("SHOW hnsw.iterative_scan").fetchone() == ("off",)
+
+
 def test_admin_exact_results_unchanged_by_the_copy(built):
     """AC-17 (AC-9 after Part B): admin's exact top 5 is the same with and without schema ann."""
     conn, rng, admin = built
@@ -132,6 +141,7 @@ def test_strict_iterative_scan_fills_k_for_a_narrow_principal(built):
 
 
 def test_unknown_mode_is_refused(built):
+    """AC-18: only the three iterative_scan settings the spec compares are accepted."""
     conn, _, _ = built
     with pytest.raises(ValueError), ann.hnsw_mode(conn, "on"):
         pass
