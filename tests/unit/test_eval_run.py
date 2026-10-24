@@ -14,11 +14,10 @@ from handbook_rag.evaluation.run import (
     baseline_mismatch,
     estimate,
     metadata,
-    new_run_id,
+    new_run_dir,
     record,
     stored_chunk_params,
     to_run,
-    written_run_id,
 )
 from handbook_rag.models import InputTooLong, describe_embedder
 
@@ -238,16 +237,15 @@ def test_record_ooc_has_no_deep():
     assert rec["deep"] == [] and rec["near_tie"] is False and rec["metrics"] == {}
 
 
-def test_run_id_is_dated_and_unique():
-    """Spec 0009, AC-3: the folder name is chosen before the run, as <date>-<8 hex>."""
+def test_run_dir_is_created_dated_and_never_shared(tmp_path, monkeypatch):
+    """Spec 0009, AC-3: the paid mains create the run folder before spending, as <date>-<8 hex>;
+    a name that already exists raises rather than reusing another run's folder."""
     meta = {"timestamp": "2026-10-24T15:00:00+00:00"}
-    a, b = new_run_id(meta), new_run_id(meta)
-    assert a.startswith("2026-10-24-") and len(a) == len("2026-10-24-") + 8 and a != b
-
-
-def test_spend_line_links_a_partial_run_folder(tmp_path):
-    """Spec 0009, AC-3: a failed run that created its folder is logged with its run id; one that
-    failed before creating it is logged with none."""
-    assert written_run_id(tmp_path, "2026-10-24-abcd1234") is None
-    (tmp_path / "2026-10-24-abcd1234").mkdir()
-    assert written_run_id(tmp_path, "2026-10-24-abcd1234") == "2026-10-24-abcd1234"
+    out = new_run_dir(tmp_path, meta)
+    assert out.is_dir() and out.parent == tmp_path
+    assert out.name.startswith("2026-10-24-") and len(out.name) == len("2026-10-24-") + 8
+    fixed = uuid.UUID(int=0)
+    monkeypatch.setattr(uuid, "uuid4", lambda: fixed)
+    new_run_dir(tmp_path, meta)
+    with pytest.raises(FileExistsError):
+        new_run_dir(tmp_path, meta)

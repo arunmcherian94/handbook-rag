@@ -37,7 +37,7 @@ Follow-up to the [accidental paid call](2026-10-22-permissions-build.md#accident
 
 ## Deferred review items, decided later on 24 Oct
 Arun handed the 7 lower-priority items to a fresh-agent review, which checked each claim against main.
-- **Fixed** (PR `fix/spend-log-run-id`; `ann.py` in #40): a failed eval or permissions run logged `run_id: null` even when its partial folder existed. `main` now names the folder before the run, and the spend line links it whenever the folder was created.
+- **Fixed** (PR `fix/spend-log-run-id`; `ann.py` in #40): a failed eval or permissions run logged `run_id: null` even when its partial folder existed. `main` now creates the folder (`new_run_dir`) before spending and passes it to `run()`, so the spend line always names it. An existing folder name raises instead of being reused. /code-review on the first version (pass a name, then check whether a folder exists) caught that the check couldn't tell this run's folder from an older one with the same name.
 - **Follow-ups:**
   - `ask`'s document-kind embed: the spec 0008 entry already covers it.
   - `ask.estimate` skipping `prepare()`: added to that entry.
