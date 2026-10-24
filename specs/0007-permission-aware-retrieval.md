@@ -1,6 +1,6 @@
 # 0007: Permission-aware retrieval (week 2: synthetic ACLs as a SQL pre-filter)
 
-- Status: implemented (Part A, AC-1 to AC-16); Part B (AC-17 to AC-19) not built
+- Status: implemented (Part A, AC-1 to AC-16; Part B, AC-17 to AC-19)
 - Date: 2026-10-20
 - Depends on: 0003–0006, ADR-0011, ADR-0020, ADR-0022, eval set v1.2, run `2026-10-21-d83f3edc` (text-embedding-3-large@1536, retrieval-only; amended 22 Oct, was `2026-10-19-d2625d91`)
 
@@ -111,7 +111,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
 
 ### Part B: recall starvation on an HNSW path (Friday 23 Oct; its own plan gate and PR)
 
-- AC-17: **A separate HNSW path** over `fixed-512-64` embeddings: a typed `vector(1536)` HNSW index (cosine) on a structure apart from the production tables. That structure carries `allowed_groups`, and its queries apply the AC-8 predicate. The AC-4 invariants, the AC-5 stale check and the AC-8 predicate test cover it. The production exact-search `SEARCH` and its results are untouched (the week 2 comparability rule). A test asserts AC-9 still holds after Part B.
+- AC-17: **A separate HNSW path** over `fixed-512-64` embeddings: a typed `vector(1536)` HNSW index (cosine) on a structure apart from the production tables. That structure carries `allowed_groups`, and its queries apply the AC-8 predicate. The AC-4 invariants, the AC-5 stale check and the AC-8 predicate test cover it. The production exact-search `SEARCH` and its results are untouched (the week 2 comparability rule). A test asserts AC-9 still holds after Part B, and (amended 24 Oct) an EXPLAIN test shows the production `SEARCH` still scans exactly.
 - AC-18: **Measurement**, for every persona, on the permissions-suite questions and the v1.2 answerable questions, at three selectivity points: the ~98% cluster (`admin` 100%, `us-ic`, `manager`, `contractor`), `agency` (32.46%) and `narrow` (1.15%). Compared:
   - the exact path
   - HNSW with iterative scans off
@@ -120,7 +120,8 @@ Case drafting (run later, in a fresh session, after this spec merges)
   Reported, per persona and per setting:
   - **Primary: ANN recall@k against the exact filtered top k**, |HNSW_filtered ∩ exact_filtered| / min(k, |exact_filtered|) at k = 5 and 20, plus the number of results returned (and the count of questions returning fewer than k). The denominator counts only what exact search could return, so a persona that sees fewer than k chunks isn't scored as an ANN miss. It needs no eval facts, so it is defined for every persona and question.
   - **Secondary: fact recall** (AC-12 authorized recall), only for rows where the persona is entitled to at least one required fact, with n shown. At the pin, n is 17 v1.2 rows for `narrow`, 18 for `agency`, 31 for `us-ic`, `manager` and `contractor`, and 32 for `admin`.
-  - Latency p50/p95. Settings are recorded: `ef_search`, `max_scan_tuples`.
+  - Latency p50/p95. Settings are recorded: `ef_search`, `max_scan_tuples`, and (amended 24 Oct) the index's `m` and `ef_construction`, its build time, and the table and index sizes.
+  - (Amended 24 Oct) Query vectors are embedded once per unique question (a dry-run cost and Arun's OK first), saved, and reused by every setting and every later run.
 - AC-19: **Write-up:** a journal entry with the numbers and an ADR-0020/0021 consequence: when production gets an ANN index, use iterative scans or partition by group. No production change.
 
 ## Out of scope
@@ -174,6 +175,8 @@ Case drafting (run later, in a fresh session, after this spec merges)
 - 2026-10-22, amended before the Part A build, after ADR-0022 made text-embedding-3-large@1536 the default: the AC-9 baseline is `2026-10-21-d83f3edc` (was `d2625d91`, 3-small). AC-15's control rows are corrected (15, 39 and 109 are cut rows) and the 3-large validity is recorded: 50 of 52 cases. [Journal 22 Oct](../docs/journal/2026-10-22-spec-0007-amendment.md).
 - 2026-10-23, correction during the Part A build: rows 33 and 61 are cut rows too, so the only v1.2 control row is 5. P-093, P-094, P-097 and P-098 are scored as ordinary cases on their target docs (Arun). Validity is unchanged: 50 of 52. [Journal 22 Oct](../docs/journal/2026-10-22-spec-0007-amendment.md#correction-23-oct-rows-33-and-61).
 - 2026-10-23, Part A implemented ([journal](../docs/journal/2026-10-22-permissions-build.md)). One addition beyond the ACs, approved by Arun: `SEARCH` orders by distance then `chunk_id`, because duplicate pages produce exact distance ties whose order Postgres doesn't fix. AC-9 still held exactly: 33 of 33 rows identical to `d83f3edc`.
+
+- 2026-10-24, amended at the Part B plan gate (Arun): AC-17 gains the EXPLAIN test; AC-18 records `m`, `ef_construction`, the build time and sizes, and embeds each query once, saving it. Admin is reported as the permissions-off proxy (no unfiltered SQL, so AC-8 keeps no exemption). Part B implemented: run `2026-10-24-ddf4a2dc` (first run `9f826bfd` superseded after review), [journal](../docs/journal/2026-10-24-part-b.md).
 
 ## Verification
 

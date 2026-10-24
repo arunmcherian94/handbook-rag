@@ -17,7 +17,7 @@
   4. Record a sync-run log (old SHA → new SHA, counts).
 - **Chunk-level hashes** plus pipeline version columns for incremental re-embedding. A content-hash embedding cache, keyed by (model, input text), would also stop identical text in two chunk configs from being embedded twice ([ADR-0020](decisions/0020-chunk-configs-coexist.md)).
 - **Semantic chunking:** revisit only if structure-aware chunking leaves the right-page-wrong-chunk rows (52, 53, 8, 10, 99, 38, 89) unfixed. The corpus has heading structure, so boundaries come free ([ADR-0019](decisions/0019-structural-first-recursive-inside-chunking.md)).
-- **Partition chunks and embeddings when an ANN index arrives:** LIST-partition by `config_id` and model, with a typed HNSW index per partition, to avoid filtered-HNSW recall loss ([ADR-0020](decisions/0020-chunk-configs-coexist.md)).
+- **Partition chunks and embeddings when an ANN index arrives:** LIST-partition by `config_id` and model, with a typed HNSW index per partition, to avoid filtered-HNSW recall loss ([ADR-0020](decisions/0020-chunk-configs-coexist.md)). Updated 24 Oct (spec 0007 Part B): the ACL filter doesn't need group partitions, because `relaxed_order` iterative scans recover recall at 1.15% selectivity. The config and model filters are equality filters, and partitioning still fits them better than a shared index.
 - **Contextual retrieval, optional, end of plan if needed (Arun, 21 Oct):** before embedding, an LLM writes 50–100 tokens placing each chunk in its document (Anthropic, Sep 2024: top-20 retrieval failures −35% with contextual embeddings, −49% with contextual BM25, −67% with reranking). It targets our wrong-entity misses (row 58's five "Time Off Policies" chunks; Qwen's row 47). Cost: one LLM call per chunk with its document in the prompt, about 162M input tokens for `fixed-512-64` (22,378 chunks; characters ÷ 4) and 1.7M output, tens of dollars uncached, plus a re-embed. Prompt caching or a section-plus-intro window cuts it. The heading-path prefix is the free version; test that first. Moved off the week-2 roadmap.
 - **Review agents** for spec conformance and architecture.
 - **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the week 3 freeze.
@@ -110,7 +110,20 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
   - Traceability: `runs/ask.jsonl` and the eval metadata record the flag, so an off run can't pass as an on run.
   - Tests use seeded vectors: off returns chunks no persona can see (including fail-closed `{}`), and on is unchanged.
   - Out of scope: per-user toggles and agent wiring (week 5 inherits the principal).
+  - When built, add a true permissions-off row to the spec 0007 Part B measurement (`make ann`). Admin is the proxy until then.
 
 ## Reading (deferred)
 
 - **Chroma, [Evaluating chunking strategies for retrieval](https://research.trychroma.com/evaluating-chunking):** dropped on 20 Oct because the chunking track is closed. Trigger: the week 4 size sweep.
+
+## From spec 0007 Part B (2026-10-24)
+
+- **HNSW parameter sweep:** Part B ran pgvector's defaults only (m 16, ef_construction 64, ef_search 40). Admin's unfiltered HNSW ceiling was 0.981 ANN recall@20. Sweep `ef_search` (and `max_scan_tuples` for the narrow persona) against latency before any production ANN index. The saved query vectors make it free.
+- **Reading to do, filtered ANN** (from Part B; takeaways go in the week's reading log, in Arun's words):
+  - [pgvector README, iterative index scans](https://github.com/pgvector/pgvector#iterative-index-scans): the settings, the re-sort CTE, `max_scan_tuples` and `scan_mem_multiplier`. Also confirm how strict_order drops out-of-order candidates (the journal's account is unverified).
+  - [pgvector 0.8.0 release notes](https://www.postgresql.org/about/news/pgvector-080-released-2952/): why iterative scans were added, and the planner changes for filtered queries.
+  - Malkov and Yashunin, *Efficient and robust approximate nearest neighbor search using HNSW graphs* ([arXiv 1603.09320](https://arxiv.org/abs/1603.09320)): what `m`, `ef_construction` and `ef_search` trade, before the sweep.
+  - Patel et al., *ACORN: Performant and Predicate-Agnostic Search Over Vector Embeddings and Structured Data* ([arXiv 2403.04871](https://arxiv.org/abs/2403.04871)): filter-aware graph traversal, the alternative to post-filtering plus iterative scans.
+  - [Qdrant, filterable HNSW](https://qdrant.tech/articles/filtrable-hnsw/) and [Weaviate, filtering](https://weaviate.io/developers/weaviate/concepts/filtering): how dedicated vector DBs handle restrictive filters (extra graph links per payload value, switching to flat search below a threshold).
+  - Gollapudi et al., *Filtered-DiskANN* (WWW 2023): label-aware graph indexes, relevant if groups ever become partitions.
+- **Exact-search latency:** about 100–225 ms p50 for the ~98% personas on the laptop DB (a full scan and sort of 22k vectors). This is the cost an ANN index would remove. It matters in week 7 (the service) more than now.
