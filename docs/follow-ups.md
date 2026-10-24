@@ -118,5 +118,5 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 
 ## From spec 0007 Part B (2026-10-24)
 
-- **HNSW parameter sweep:** Part B ran pgvector's defaults only (m 16, ef_construction 64, ef_search 40). Admin's unfiltered HNSW ceiling was 0.975 ANN recall@20. Sweep `ef_search` (and `max_scan_tuples` for the narrow persona) against latency before any production ANN index. The saved query vectors make it free.
-- **Exact-search latency:** about 225 ms p50 for the ~98% personas on the laptop DB (a full scan and sort of 22k vectors). This is the cost an ANN index would remove. It matters in week 7 (the service) more than now.
+- **HNSW parameter sweep:** Part B ran pgvector's defaults only (m 16, ef_construction 64, ef_search 40). Admin's unfiltered HNSW ceiling was 0.981 ANN recall@20. Sweep `ef_search` (and `max_scan_tuples` for the narrow persona) against latency before any production ANN index. The saved query vectors make it free.
+- **Exact-search latency:** about 100–225 ms p50 for the ~98% personas on the laptop DB (a full scan and sort of 22k vectors). This is the cost an ANN index would remove. It matters in week 7 (the service) more than now.

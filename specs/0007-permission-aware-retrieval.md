@@ -176,7 +176,7 @@ Case drafting (run later, in a fresh session, after this spec merges)
 - 2026-10-23, correction during the Part A build: rows 33 and 61 are cut rows too, so the only v1.2 control row is 5. P-093, P-094, P-097 and P-098 are scored as ordinary cases on their target docs (Arun). Validity is unchanged: 50 of 52. [Journal 22 Oct](../docs/journal/2026-10-22-spec-0007-amendment.md#correction-23-oct-rows-33-and-61).
 - 2026-10-23, Part A implemented ([journal](../docs/journal/2026-10-22-permissions-build.md)). One addition beyond the ACs, approved by Arun: `SEARCH` orders by distance then `chunk_id`, because duplicate pages produce exact distance ties whose order Postgres doesn't fix. AC-9 still held exactly: 33 of 33 rows identical to `d83f3edc`.
 
-- 2026-10-24, amended at the Part B plan gate (Arun): AC-17 gains the EXPLAIN test; AC-18 records `m`, `ef_construction`, the build time and sizes, and embeds each query once, saving it. Admin is reported as the permissions-off proxy (no unfiltered SQL, so AC-8 keeps no exemption). Part B implemented: run `2026-10-24-9f826bfd`, [journal](../docs/journal/2026-10-24-part-b.md).
+- 2026-10-24, amended at the Part B plan gate (Arun): AC-17 gains the EXPLAIN test; AC-18 records `m`, `ef_construction`, the build time and sizes, and embeds each query once, saving it. Admin is reported as the permissions-off proxy (no unfiltered SQL, so AC-8 keeps no exemption). Part B implemented: run `2026-10-24-ddf4a2dc` (first run `9f826bfd` superseded after review), [journal](../docs/journal/2026-10-24-part-b.md).
 
 ## Verification
 
