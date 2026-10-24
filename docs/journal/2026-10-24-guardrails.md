@@ -14,8 +14,13 @@ Follow-up to the [accidental paid call](2026-10-22-permissions-build.md#accident
   - This journal entry was missing although NOTES.md linked to it.
 - **Listed for Arun, not fixed:** see the PR description.
 
+## Verification
+- Live: a harmless `echo` containing the confirm token raised the approval prompt mid-session, and Arun declined it. `make ask AS=us-ic Q="test"` printed the estimate ($0.0040) and the dry-run line, and no spend log was written.
+- Clean room: fresh clone under `$HOME` with its own venv and the pinned corpus linked, run against the existing DB (this PR changes no schema): 433 unit and 62 integration passed, lint clean.
+
 ## Limitations
 - The hook matches command text, so indirection (a variable holding the flag, a wrapper script) can get past it. It stops accidents, not a determined bypass. The dry-run default and the spend log are the other two layers.
+- False positives are by design: any Bash command mentioning the token prompts, including a heredoc that writes docs (it happened once while committing this entry). Doc text goes through the Edit tool, which the hook doesn't watch.
 - `est_usd` in the spend log is the dry-run estimate, not the provider's bill.
 
 ## Spend

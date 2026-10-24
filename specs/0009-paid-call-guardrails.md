@@ -1,6 +1,6 @@
 # 0009: Guardrails against unapproved paid calls
 
-- Status: approved
+- Status: implemented
 - Date: 2026-10-24
 
 ## Problem
@@ -37,7 +37,7 @@ Accepted risk: the hook matches command text, so indirection (a variable holding
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
+- [x] Clean-room verified
+- [x] docs updated: journal entry, an ADR for any decision, follow-ups
