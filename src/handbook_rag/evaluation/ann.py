@@ -47,7 +47,7 @@ from handbook_rag.evaluation.evalset import Row
 from handbook_rag.evaluation.evalset import parse as parse_evalset
 from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import fact_recall_at
-from handbook_rag.evaluation.run import stored_chunk_params
+from handbook_rag.evaluation.run import new_run_dir, stored_chunk_params
 from handbook_rag.identity import Principal
 from handbook_rag.models import (
     InputTooLong,
@@ -412,11 +412,10 @@ def measure(
     clock=time.perf_counter,
 ) -> Path:
     """Per persona and question: exact (ask.search) and HNSW at each iterative_scan setting, at
-    each k. A warm-up pass, then a timed pass; the timed pass's results are scored. Writes the
-    run folder `out`, which the caller names so a failed run's spend line can point at it."""
+    each k. A warm-up pass, then a timed pass; the timed pass's results are scored. Writes into
+    `out`, from new_run_dir(): the caller creates it before spending so the spend line names it."""
     ks = s.meta["ks"]
     depth = max(ks)
-    out.mkdir(parents=True)
     conn.commit()
     conn.autocommit = True  # exact queries run alone; each hnsw_mode block is its own transaction
     lits = {q.question: vector_literal(vectors[q.question]) for q in s.queries}
@@ -714,7 +713,7 @@ def run_main(confirm: bool) -> int:
 
         # Built only after confirm and only if a vector is missing: a dry run needs no API key.
         embedder = make_embedder(ANN_MODEL, kind="query") if s.missing else None
-        out, status = ANN_RUNS / f"{s.meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}", "failed"
+        out, status = new_run_dir(ANN_RUNS, s.meta), "failed"
         try:
             vectors = query_vectors(
                 [q.question for q in s.queries],
@@ -728,7 +727,7 @@ def run_main(confirm: bool) -> int:
             log_spend(
                 "ann",
                 s.cost["embed_usd"],
-                run_id=out.name if out.exists() else None,  # a partial folder is still linked
+                run_id=out.name,
                 embed_model=model,
                 answer_model=None,
                 status=status,
