@@ -406,16 +406,16 @@ def measure(
     vectors: Mapping[str, list[float]],
     *,
     model: str,
-    out_root: Path = ANN_RUNS,
+    out: Path,
     config_id: str = BASELINE_CONFIG,
     baseline: Path = ANN_BASELINE,
     clock=time.perf_counter,
 ) -> Path:
     """Per persona and question: exact (ask.search) and HNSW at each iterative_scan setting, at
-    each k. A warm-up pass, then a timed pass; the timed pass's results are scored."""
+    each k. A warm-up pass, then a timed pass; the timed pass's results are scored. Writes the
+    run folder `out`, which the caller names so a failed run's spend line can point at it."""
     ks = s.meta["ks"]
     depth = max(ks)
-    out = out_root / f"{s.meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}"
     out.mkdir(parents=True)
     conn.commit()
     conn.autocommit = True  # exact queries run alone; each hnsw_mode block is its own transaction
@@ -714,7 +714,7 @@ def run_main(confirm: bool) -> int:
 
         # Built only after confirm and only if a vector is missing: a dry run needs no API key.
         embedder = make_embedder(ANN_MODEL, kind="query") if s.missing else None
-        out, status = None, "failed"
+        out, status = ANN_RUNS / f"{s.meta['timestamp'][:10]}-{uuid.uuid4().hex[:8]}", "failed"
         try:
             vectors = query_vectors(
                 [q.question for q in s.queries],
@@ -722,13 +722,13 @@ def run_main(confirm: bool) -> int:
                 lambda texts: embed_with_retry(embedder, texts, time.sleep, random.random),
                 ANN_VECTORS,
             )
-            out = measure(conn, s, vectors, model=model)
+            measure(conn, s, vectors, model=model, out=out)
             status = "ok"
         finally:  # spec 0009, AC-3
             log_spend(
                 "ann",
                 s.cost["embed_usd"],
-                run_id=out and out.name,
+                run_id=out.name if out.exists() else None,  # a partial folder is still linked
                 embed_model=model,
                 answer_model=None,
                 status=status,

@@ -216,7 +216,11 @@ def _main(monkeypatch, tmp_path, *, paid_env, missing=("q",)):
         None,
         list(missing),
         {"embed_usd": 0.0001, "embed_tokens": 3},
-        {"questions": {"total": 1, "suite": 1, "v1.2_answerable": 0}, "ks": [5, 20]},
+        {
+            "questions": {"total": 1, "suite": 1, "v1.2_answerable": 0},
+            "ks": [5, 20],
+            "timestamp": "2026-10-24T00:00:00",
+        },
     )
     monkeypatch.setattr(ann, "read_manifest", lambda: None)
     monkeypatch.setattr(ann, "verify", lambda m: None)
@@ -227,11 +231,15 @@ def _main(monkeypatch, tmp_path, *, paid_env, missing=("q",)):
     monkeypatch.setattr(
         ann, "make_embedder", lambda spec, kind: built.append(kind) or FakeEmbedder(dims=1536)
     )
-    out = tmp_path / "run"
-    out.mkdir()
-    (out / "summary.json").write_text(json.dumps({"admin_hnsw_settings_differ": []}))
-    (out / "summary.md").write_text("# ANN")
-    monkeypatch.setattr(ann, "measure", lambda conn, s, vectors, model: out)
+    monkeypatch.setattr(ann, "ANN_RUNS", tmp_path / "runs")
+
+    def measure(conn, s, vectors, model, out):
+        out.mkdir(parents=True)
+        (out / "summary.json").write_text(json.dumps({"admin_hnsw_settings_differ": []}))
+        (out / "summary.md").write_text("# ANN")
+        return out
+
+    monkeypatch.setattr(ann, "measure", measure)
     monkeypatch.setattr(
         ann, "log_spend", functools.partial(spend.log_spend, path=tmp_path / "spend.jsonl")
     )
@@ -263,7 +271,8 @@ def test_confirm_embeds_missing_and_logs_one_spend_line(monkeypatch, tmp_path):
     assert ann.load_vectors(tmp_path / "v.jsonl", MODEL).keys() == {"q"}
     (line,) = log.read_text().splitlines()
     rec = json.loads(line)
-    assert rec["target"] == "ann" and rec["run_id"] == "run" and rec["status"] == "ok"
+    (folder,) = (tmp_path / "runs").iterdir()
+    assert rec["target"] == "ann" and rec["run_id"] == folder.name and rec["status"] == "ok"
     assert rec["est_usd"] == 0.0001 and rec["embed_model"] == MODEL
 
 
@@ -278,7 +287,8 @@ def test_confirm_with_every_vector_saved_builds_no_embedder(monkeypatch, tmp_pat
 
 
 def test_failed_run_still_logs(monkeypatch, tmp_path):
-    """Spec 0009, AC-3: a run that fails after spending is logged as failed."""
+    """Spec 0009, AC-3: a run that fails before writing anything is logged as failed, with no
+    run id."""
     log, _ = _main(monkeypatch, tmp_path, paid_env=True)
 
     def boom(*a, **kw):
@@ -287,4 +297,21 @@ def test_failed_run_still_logs(monkeypatch, tmp_path):
     monkeypatch.setattr(ann, "measure", boom)
     with pytest.raises(RuntimeError):
         ann.main(["run", "--confirm"])
-    assert json.loads(log.read_text())["status"] == "failed"
+    rec = json.loads(log.read_text())
+    assert rec["status"] == "failed" and rec["run_id"] is None
+
+
+def test_failed_run_links_its_partial_folder(monkeypatch, tmp_path):
+    """Spec 0009, AC-3: a run that fails after creating its folder logs that folder's run id."""
+    log, _ = _main(monkeypatch, tmp_path, paid_env=True)
+
+    def partial(conn, s, vectors, model, out):
+        out.mkdir(parents=True)
+        raise RuntimeError("db gone mid-run")
+
+    monkeypatch.setattr(ann, "measure", partial)
+    with pytest.raises(RuntimeError):
+        ann.main(["run", "--confirm"])
+    rec = json.loads(log.read_text())
+    (folder,) = (tmp_path / "runs").iterdir()
+    assert rec["status"] == "failed" and rec["run_id"] == folder.name
