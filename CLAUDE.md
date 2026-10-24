@@ -19,7 +19,7 @@ Python 3.12, uv, Postgres + pgvector via docker compose.
 
 ## Workflow (spec-driven)
 
-1. Write `specs/NNNN-<name>.md` from `specs/0000-template.md`, with numbered AC-n criteria. Open it as its own PR. The human reviews and merges it before any build starts.
+1. Write `specs/NNNN-<name>.md` from `specs/0000-template.md`, with numbered AC-n criteria. Fill in its "Depends on / frozen inputs" table before the ACs. Open it as its own PR. The human reviews and merges it before any build starts.
 2. Build from the merged spec in plan mode. Each plan step cites the AC IDs it covers. Anything not traceable to an AC is scope creep: list it in `docs/follow-ups.md`, and don't build it.
 3. Tests reference the AC IDs they cover.
 4. Before opening a PR, run `make test`, `make lint`, and `/code-review`. Rank the findings by severity.
