@@ -24,7 +24,7 @@ Follow-up to the [accidental paid call](2026-10-22-permissions-build.md#accident
 
 ## Verification
 - `make ask AS=us-ic Q="test"` printed the estimate ($0.0040) and the dry-run line, and no spend log was written.
-- The live hook prompt was seen on the first version: Arun declined it, and a later heredoc false positive showed the same hook was live. The final version is checked live before merge (see the PR).
+- **Correction:** two prompts earlier in the session were taken as the hook firing, and they weren't. A probe with an exact paid name ran with no prompt, while the script, run by hand on the same payload, returned `ask`. The likely cause is that Claude Code reads hooks at session start, and `.claude/settings.json` was created mid-session. The earlier prompts were ordinary permission prompts, probably triggered by an `rm -rf` in the same command. Live verification needs a session restart (see the PR).
 - Clean room: see the PR.
 
 ## Limitations
