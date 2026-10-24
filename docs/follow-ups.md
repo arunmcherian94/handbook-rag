@@ -119,4 +119,11 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 ## From spec 0007 Part B (2026-10-24)
 
 - **HNSW parameter sweep:** Part B ran pgvector's defaults only (m 16, ef_construction 64, ef_search 40). Admin's unfiltered HNSW ceiling was 0.981 ANN recall@20. Sweep `ef_search` (and `max_scan_tuples` for the narrow persona) against latency before any production ANN index. The saved query vectors make it free.
+- **Reading to do, filtered ANN** (from Part B; takeaways go in the week's reading log, in Arun's words):
+  - [pgvector README, iterative index scans](https://github.com/pgvector/pgvector#iterative-index-scans): the settings, the re-sort CTE, `max_scan_tuples` and `scan_mem_multiplier`. Also confirm how strict_order drops out-of-order candidates (the journal's account is unverified).
+  - [pgvector 0.8.0 release notes](https://www.postgresql.org/about/news/pgvector-080-released-2952/): why iterative scans were added, and the planner changes for filtered queries.
+  - Malkov and Yashunin, *Efficient and robust approximate nearest neighbor search using HNSW graphs* ([arXiv 1603.09320](https://arxiv.org/abs/1603.09320)): what `m`, `ef_construction` and `ef_search` trade, before the sweep.
+  - Patel et al., *ACORN: Performant and Predicate-Agnostic Search Over Vector Embeddings and Structured Data* ([arXiv 2403.04871](https://arxiv.org/abs/2403.04871)): filter-aware graph traversal, the alternative to post-filtering plus iterative scans.
+  - [Qdrant, filterable HNSW](https://qdrant.tech/articles/filtrable-hnsw/) and [Weaviate, filtering](https://weaviate.io/developers/weaviate/concepts/filtering): how dedicated vector DBs handle restrictive filters (extra graph links per payload value, switching to flat search below a threshold).
+  - Gollapudi et al., *Filtered-DiskANN* (WWW 2023): label-aware graph indexes, relevant if groups ever become partitions.
 - **Exact-search latency:** about 100–225 ms p50 for the ~98% personas on the laptop DB (a full scan and sort of 22k vectors). This is the cost an ANN index would remove. It matters in week 7 (the service) more than now.
