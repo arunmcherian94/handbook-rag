@@ -4,7 +4,7 @@ Index of the project notes. The notes themselves live in `docs/`.
 
 | What | Where |
 |---|---|
-| Weekly summaries | [docs/weekly/](docs/weekly/): [week 1](docs/weekly/week-01.md) |
+| Weekly summaries | [docs/weekly/](docs/weekly/): [week 1](docs/weekly/week-01.md), [week 2](docs/weekly/week-02.md) |
 | Decisions (one ADR each) | [docs/decisions/](docs/decisions/), listed below |
 | Dated log: gate catches, findings, limitations | [docs/journal/](docs/journal/), listed below |
 | Follow-ups (not built) | [docs/follow-ups.md](docs/follow-ups.md) |
