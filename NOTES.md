@@ -10,6 +10,7 @@ Index of the project notes. The notes themselves live in `docs/`.
 | Follow-ups (not built) | [docs/follow-ups.md](docs/follow-ups.md) |
 | Corpus: git behaviors, limitations, assumptions | [docs/corpus.md](docs/corpus.md) |
 | Reading log | [docs/reading/](docs/reading/): [week 1](docs/reading/week-01.md), [week 2](docs/reading/week-02.md) |
+| Error analysis: seed traces | [docs/error-analysis/](docs/error-analysis/) |
 | Eval set, results, metric definitions | [docs/eval/](docs/eval/), [results/metrics.md](docs/eval/results/metrics.md) |
 
 Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) → [0016](docs/decisions/0016-code-checks-before-judges.md); (b) → [0012](docs/decisions/0012-eval-versioning.md); (e) → [0011](docs/decisions/0011-acls-deferred-from-quality-set.md); metric questions Q1–Q3 → [0013](docs/decisions/0013-retrieval-metrics.md).
@@ -19,7 +20,7 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) �
 - [0001. Whole handbook at a pinned SHA, blobless sparse clone](docs/decisions/0001-corpus-scope-and-pin.md)
 - [0002. Ingest mirrors the snapshot; keep redirect stubs, skip drafts](docs/decisions/0002-ingest-mirrors-snapshot.md)
 - [0003. Fixed 512-token chunks with 64 overlap for the baseline](docs/decisions/0003-baseline-chunking-512-64.md)
-- [0004. text-embedding-3-small; embeddings keyed (chunk_id, model)](docs/decisions/0004-embedding-model-and-schema.md)
+- [0004. text-embedding-3-small; embeddings keyed (chunk_id, model)](docs/decisions/0004-embedding-model-and-schema.md) (model superseded by 0022; schema stands)
 - [0005. gpt-5.4-mini via Chat Completions, frozen through week 3](docs/decisions/0005-answer-model-and-api.md)
 - [0006. Strict grounding prompt with two fixed abstention strings](docs/decisions/0006-grounding-prompt-fixed-abstentions.md)
 - [0007. Layered embedding failure handling, cheapest isolation first](docs/decisions/0007-embedding-failure-handling.md)
@@ -63,3 +64,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) �
 - [2026-10-22: permission-aware retrieval build, spec 0007 Part A](docs/journal/2026-10-22-permissions-build.md)
 - [2026-10-24: paid-call guardrails, spec 0009](docs/journal/2026-10-24-guardrails.md)
 - [2026-10-24: recall starvation on an HNSW path, spec 0007 Part B](docs/journal/2026-10-24-part-b.md)
+- [2026-10-26: week 2 docs consistency audit](docs/journal/2026-10-26-week2-audit.md)

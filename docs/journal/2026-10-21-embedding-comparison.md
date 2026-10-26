@@ -28,6 +28,7 @@ Build and runs for [spec 0008](../../specs/0008-embedding-model-comparison.md). 
 - Why: the retrieval-only runs never called the answer model, so they say nothing about answers. Arun overrode the 15:55 stop to finish today and decide on answer quality too.
 - 3-small was re-run the same day as the noise floor and the baseline for this comparison, because `3748df5b` lacks `eval_depth`. Retrieval is identical to `2026-10-19-d2625d91` (recall@5 0.495).
 - 52 rows, gpt-5.4-mini, k = 5, harness `26808da`, clean tree, about $0.21 each, approved by Arun. Retrieval reproduces the morning runs exactly (exact search, deterministic).
+  - **Correction (2026-10-26):** exact for the two OpenAI models only. Qwen's recall@5 matches (0.586), but its rank metrics differ from the morning run: MRR 0.522 in `c5d62f36`, 0.553 in `9719cae6`. Likely query-embedding variance at the provider.
 
 | model | run | recall@5 | mrr | false abstention (n = 33) | correct ooc abstention (n = 19) |
 |---|---|---|---|---|---|
@@ -38,6 +39,7 @@ Build and runs for [spec 0008](../../specs/0008-embedding-model-comparison.md). 
 - Flips vs 3-small, paired: 3-large −0.030 ± 0.053 (rows 99, 5 now answer; 53 now abstains). Qwen −0.030 ± 0.081 (rows 8, 55, 100, 92 now answer; 53, 44, 35 now abstain).
 - Code checks pass on every non-abstaining row for all three. They say nothing about content.
 - ooc: Qwen row 47 (France statutory PTO) asserts "20 statutory vacation days". That phrase is in the corpus only on `bv-benefits-belgium.md`: a wrong-entity hallucination (verified). Qwen row 112 answers "Yes" from a distractor page. 3-large row 47 says the excerpt states no minimum, a de facto abstention in non-standard wording. 3-small answered no ooc row.
+  - **Correction (2026-10-26):** Qwen is only the embedder in these runs. On row 47 of the Qwen-embedding run, the generator (gpt-5.4-mini) answered with Belgium's figure from a retrieved page. Likewise row 112: the generator answered "Yes" from a distractor page that Qwen's embeddings retrieved.
 - Judged by reading answers against the reference facts (Claude's judgment, not yet reviewed by Arun; directional, one run per model, no generator-variance estimate; on the 16 rows where abstention or recall differs, plus 44 and 49): 3-large vs 3-small 5 better / 2 worse / 9 tie; Qwen vs 3-small 6 / 4 / 6; 3-large vs Qwen 5 / 4 / 7.
 - Row 49: all three abstain, and 3-small had recall@5 1.0, so that is generator over-abstention, not retrieval. Row 44: 3-small and 3-large are about equal, and Qwen abstains (recall 0).
 - Most false abstention is generator behaviour (rows 49, 100, 58 abstain with full or high recall), so better retrieval barely moves it.
@@ -47,11 +49,12 @@ Build and runs for [spec 0008](../../specs/0008-embedding-model-comparison.md). 
 - Departs from AC-9: 1.97 SE is under 2. The rule was a pre-commitment against moving the bar after seeing numbers, and this moves it. Keeping 3-small is the choice that keeps the rule.
 - For: every retrieval metric up (recall@5 bootstrap 95% CI [+0.004, +0.178]; recall@10 2.42 SE and MRR 2.51 SE, post-hoc), no measured answer harm, same provider and key, vectors already stored, reversible by a constant change.
 - Against Qwen: same mean gain, double the variance, an ooc hallucination, a second provider, 4× slower embedding, and `make ask` would need query mode.
+  - **Correction (2026-10-26):** "ooc hallucination" is row 47: the generator answered with Belgium's figure in the Qwen-embedding run.
 - At n = 32 the eval can't reliably detect about +0.09: "probably better, cheap, reversible", not "proven better".
 
 ## Lessons (Arun)
 - **The eval set is too small for model choices.** At n = 32 a gain of about +0.09 sits on the 2-SE bar, and both candidates landed there. From today's per-row spread (paired sd 0.25 for 3-large, 0.43 for Qwen), detecting +0.05 needs about 105–300 rows to reach the bar half the time and about 210–600 for 80%. Model comparisons need a few hundred rows: the synthetic retrieval set ([follow-ups](../follow-ups.md)), reported apart from the human-authored v1.
-- **Models will keep changing, so switching must be cheap.** Ports and adapters, the factory on the name string, the name as storage key, the untyped vector column and coexisting configs already carry most of it ([ADR-0008](../decisions/0008-design-patterns.md), [ADR-0020](../decisions/0020-chunk-configs-coexist.md)). This comparison still needed query/document kinds, dims in the name and a price table. The target: adding or switching a model is one adapter file, one table entry and one constant, plus a re-embed and an eval run, with no schema change. Gaps are in [follow-ups](../follow-ups.md#model-switching).
+- **Models will keep changing, so switching must be cheap.** Ports and adapters, the factory on the name string, the name as storage key, the untyped vector column and coexisting configs already carry most of it ([ADR-0008](../decisions/0008-design-patterns.md), [ADR-0020](../decisions/0020-chunk-configs-coexist.md)). This comparison still needed query/document kinds, dims in the name and a price table. The target: adding or switching a model is one adapter file, one table entry and one constant, plus a re-embed and an eval run, with no schema change. Gaps are in [follow-ups](../follow-ups.md#model-switching-2026-10-21).
 - **An LLM gateway may make sense** for answer models (one API, fallbacks, routing, central keys and spend). It does not remove the main cost of an embedding switch, the re-embed. Decide in week 7.
 - **We measured retrieval closely and answers barely.** The harness scores abstention and citation form, not correctness or grounding. Answer evaluation is scheduled for week 3, before hybrid search ([follow-ups](../follow-ups.md)).
 
@@ -72,6 +75,7 @@ Decisions, all Arun's, 21 Oct:
 1. **3-large@1536 adopted** (ADR-0022 accepted by merging PR #31). `DEFAULT_EMBED_MODEL` is now `openai:text-embedding-3-large@1536`. ADR-0004's model choice is superseded; its schema stands.
 2. **Heading-path prefix not adopted.** The default config stays unprefixed `fixed-512-64`. Run `2026-10-21-586b1635` vs `d83f3edc`: +0.031 ± 0.059 (0.51 SE); page_hit@1 +0.156 (2.40 SE) but recall@10 −0.062 (−1.68 SE), from same-page crowding (rows 10, 48, 34). Decided on the evidence, not a pre-set threshold (Arun chose that before the run). Re-test after the week-3 reranker ([follow-ups](../follow-ups.md)).
 3. **P-097 and P-098 marked invalid** in permissions-v1 under AC-11, not re-targeted. Re-check under 3-large: 50 of 52 valid; the row-61 controls lose `time-off-types.md` and `global-expansion.md` from admin's top 20. 3-small reproduced 52 of 52. Cost about $0.00008. Whether the dropped controls (rows 15, 22, 39, 92, 109) would now be valid was not reported: my target selection didn't reproduce the original drop list.
+   - **Correction (2026-10-26):** rows 15, 33, 39, 61 and 109 are cut rows; only 5, 22 and 92 are v1.2 rows ([2026-10-22 amendment](2026-10-22-spec-0007-amendment.md)).
 4. **Contextual retrieval** moved off the week-2 roadmap to an optional end-of-plan item, for cost ([follow-ups](../follow-ups.md)).
 
 Notes:

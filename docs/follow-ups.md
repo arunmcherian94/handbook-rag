@@ -3,10 +3,10 @@
 - **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts.
 - **Synthetic retrieval set (week 2):** questions generated from sections (not chunks), labelled synthetic, scored for retrieval only and always reported apart from v1. Gives chunking and embedding comparisons more statistical power than 33 rows. Size from spec 0008's paired spread (sd 0.25 for 3-large, 0.43 for Qwen): to clear 2 paired SEs on a true +0.05, about 105–300 rows for even odds and 210–600 for 80%; on +0.09, about 30–90 and 65–190. Aim for a few hundred (Arun, 21 Oct).
 - **Graded nDCG:** gains 2/1/0 from required/alternate page tiers, after the tiers are reviewed as relevance labels.
-- **Answer evaluation, week 3 before hybrid search (spec 0009; Arun, 21 Oct):** the harness scores abstention and citation form, not correctness or grounding ([ADR-0016](decisions/0016-code-checks-before-judges.md) deferred judges; its binary fact checks were never built). Week 3's retrieval changes should be judged on answers too, and it must exist before the answer model unfreezes in week 4. Fallback: first day of week 4. In cost order:
-  1. Generator abstention, code only: rows whose top 5 hold the required facts but the answer abstains (49, 100, 58 on 21 Oct). Splits false abstention into retrieval misses and generator refusals.
+- **Answer evaluation, week 3 before hybrid search (spec 0010; Arun, 21 Oct. Earmarked as 0009 on 21 Oct; that number went to the paid-call guardrails on 24 Oct):** the harness scores abstention and citation form, not correctness or grounding ([ADR-0016](decisions/0016-code-checks-before-judges.md) deferred judges; its binary fact checks were never built). Week 3's retrieval changes should be judged on answers too, and it must exist before the answer model unfreezes in week 4. Fallback: first day of week 4. In cost order:
+  1. Generator abstention, code only: rows whose top 5 hold the required facts but the answer abstains (49, 100, 58 on 21 Oct). Splits false abstention into retrieval misses and generator refusals. The baseline run (17 Oct) had 39% of answerable rows abstaining; coding them against what was retrieved decides the answer-model check below.
   2. Answer fact recall, binary judge per `[required]` fact ("does the answer state this?"). Against chunk_fact_recall it measures what generation loses. Claude judge, cross-family from gpt-5.4-mini.
-  3. Groundedness, binary: every claim supported by the chunk it cites (would catch Qwen's row 47, Belgium's figure given for France).
+  3. Groundedness, binary: every claim supported by the chunk it cites (would catch row 47 in the Qwen-embedding run, where the generator answered with Belgium's figure for France).
   4. Validation per ADR-0016 (c): Arun labels answers, a held-out test portion, each judge reported as "checked against N labels, TPR x, TNR y".
   5. Answer-model comparison on identical retrieved chunks (the answer-model check below).
 - **False-premise rows:** add 2–3 out-of-corpus false-premise questions in a later eval version.
@@ -17,11 +17,11 @@
   4. Record a sync-run log (old SHA → new SHA, counts).
 - **Chunk-level hashes** plus pipeline version columns for incremental re-embedding. A content-hash embedding cache, keyed by (model, input text), would also stop identical text in two chunk configs from being embedded twice ([ADR-0020](decisions/0020-chunk-configs-coexist.md)).
 - **Semantic chunking:** revisit only if structure-aware chunking leaves the right-page-wrong-chunk rows (52, 53, 8, 10, 99, 38, 89) unfixed. The corpus has heading structure, so boundaries come free ([ADR-0019](decisions/0019-structural-first-recursive-inside-chunking.md)).
-- **Partition chunks and embeddings when an ANN index arrives:** LIST-partition by `config_id` and model, with a typed HNSW index per partition, to avoid filtered-HNSW recall loss ([ADR-0020](decisions/0020-chunk-configs-coexist.md)). Updated 24 Oct (spec 0007 Part B): the ACL filter doesn't need group partitions, because `relaxed_order` iterative scans recover recall at 1.15% selectivity. The config and model filters are equality filters, and partitioning still fits them better than a shared index.
-- **Contextual retrieval, optional, end of plan if needed (Arun, 21 Oct):** before embedding, an LLM writes 50–100 tokens placing each chunk in its document (Anthropic, Sep 2024: top-20 retrieval failures −35% with contextual embeddings, −49% with contextual BM25, −67% with reranking). It targets our wrong-entity misses (row 58's five "Time Off Policies" chunks; Qwen's row 47). Cost: one LLM call per chunk with its document in the prompt, about 162M input tokens for `fixed-512-64` (22,378 chunks; characters ÷ 4) and 1.7M output, tens of dollars uncached, plus a re-embed. Prompt caching or a section-plus-intro window cuts it. The heading-path prefix is the free version; test that first. Moved off the week-2 roadmap.
+- **Partition chunks and embeddings when an ANN index arrives:** LIST-partition by `config_id` and model, with a typed HNSW index per partition, to avoid filtered-HNSW recall loss ([ADR-0020](decisions/0020-chunk-configs-coexist.md)). Updated 24 Oct (spec 0007 Part B): the ACL filter doesn't need group partitions, because `relaxed_order` iterative scans recover recall at 1.15% selectivity (22k chunks, ef_search 40, on a measurement copy; production stays on exact search). The config and model filters are equality filters, and partitioning still fits them better than a shared index.
+- **Contextual retrieval, optional, end of plan if needed (Arun, 21 Oct):** before embedding, an LLM writes 50–100 tokens placing each chunk in its document (Anthropic, Sep 2024: top-20 retrieval failures −35% with contextual embeddings, −49% with contextual BM25, −67% with reranking). It targets our wrong-entity misses (row 58's five "Time Off Policies" chunks; row 47 in the Qwen-embedding run, where the generator answered with Belgium's figure). Cost: one LLM call per chunk with its document in the prompt, about 162M input tokens for `fixed-512-64` (22,378 chunks; characters ÷ 4) and 1.7M output, tens of dollars uncached, plus a re-embed. Prompt caching or a section-plus-intro window cuts it. The heading-path prefix is the free version; test that first. Moved off the week-2 roadmap.
 - **Review agents** for spec conformance and architecture.
-- **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the week 3 freeze.
-- **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer.
+- **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the answer model unfreezes in week 4. Also item 5 of answer evaluation above.
+- **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer. A candidate for the synthesis rows (baseline-run entry below).
 - **Production observability** (PR #7 review):
   - Replace or augment the JSONL traces (spec 0003, AC-8) with a tracing tool that has nested spans (retrieve → prompt → LLM), cost and latency dashboards, and a link from traces to eval runs.
   - Candidates to brainstorm:
@@ -35,17 +35,17 @@
 
 ## From the baseline run (2026-10-17)
 
-- **False abstention:** 39% of answerable rows abstain. Code these rows against what was retrieved: did retrieval miss, or did the model refuse with the evidence in context? That decides the answer-model check above, which has to happen before the week 3 freeze.
-- **Synthesis:** chunk_all_required@5 is 0.00 (n=8). No single top-5 set covers all the facts a synthesis row needs. Candidates: larger k, parent-child chunks, hybrid search.
+- **False abstention:** 39% of answerable rows abstain. Code these rows against what was retrieved: did retrieval miss, or did the model refuse with the evidence in context? Merged into answer evaluation item 1 above (26 Oct).
+- **Synthesis:** chunk_all_required@5 is 0.00 (n=8). No single top-5 set covers all the facts a synthesis row needs. Candidates: larger k, parent-child chunks (entry above), hybrid search.
 - **Recency:** chunk_fact_recall@5 is 0.35. This is the target for the chunk-dates follow-up.
-- **Page hit, chunk miss:** rows 52, 53, 8, 10, 99, 38, 89 found the right page but not the right chunk. These are a chunking signal for week 2.
+- ~~**Page hit, chunk miss:** rows 52, 53, 8, 10, 99, 38, 89 found the right page but not the right chunk. These are a chunking signal for week 2.~~ Done in specs 0005 and 0006 (#21–#26): structure-aware chunking was tested against it and rejected ([ADR-0019](decisions/0019-structural-first-recursive-inside-chunking.md)).
 
 ## From the spec 0005 build review (2026-10-19)
 
 Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in [the build journal](journal/2026-10-19-chunker-build.md).
 
-- **Heading-only parent chunks:** a heading followed directly by a child heading becomes a chunk of a few tokens, since AC-8 forbids merging with a child. Excluding them at query time (19 Oct preview) moved recall@5 only from 0.358 to 0.374 and page_hit@5 not at all, so they are not the main cause. Small heading-plus-teaser sections are. Size and overlap sweeps are dropped under the stop rule ([journal](journal/2026-10-19-chunker-build.md)).
-- **Merged heading paths read like nesting:** a merged chunk stores the first path plus each sibling's heading (AC-9), so `Per diem > France > Germany` looks nested. Store or render merged siblings distinctly.
+- **Heading-only parent chunks:** a heading followed directly by a child heading becomes a chunk of a few tokens, since AC-8 forbids merging with a child. Excluding them at query time (19 Oct preview) moved recall@5 only from 0.358 to 0.374 and page_hit@5 not at all, so they are not the main cause. Small heading-plus-teaser sections are. Structural size and overlap sweeps are dropped under the stop rule ([journal](journal/2026-10-19-chunker-build.md)); the fixed-512 sweep moved to week 4 (below).
+- ~~**Merged heading paths read like nesting:** a merged chunk stores the first path plus each sibling's heading (AC-9), so `Per diem > France > Germany` looks nested. Store or render merged siblings distinctly.~~ Superseded by spec 0006 AC-4 (#25): the packed configs drop sibling appending, and only the rejected `structural-v1` keeps it.
 - **Mostly-overlap windows:** `pack` can emit a window that is nearly all overlap when the only cut sits just past the previous end. Rare; costs a near-duplicate chunk.
 - **Front-matter line count:** `chunk.run` re-reads each source file to count front-matter lines. Ingest could store the count instead.
 - **Embed cost query:** the cost SQL repeats the pending-chunks predicate; derive it from `PENDING`.
@@ -100,7 +100,7 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 
 ## Permissions switch (2026-10-23)
 
-- **`PERMISSIONS=on|off` flag, default on (Arun, 23 Oct; Arun writes the spec when time frees up):** with it off, the whole pipeline behaves as if there were no synthetic permissions. It needs its own spec: it amends spec 0007 AC-8 ("no unfiltered overload") and the unfiltered path [ADR-0021](decisions/0021-permission-model.md) rejected, so it also needs an ADR. Spec 0009 is earmarked for answer evaluation (above), so take the next free number. Draft design:
+- **`PERMISSIONS=on|off` flag, default on (Arun, 23 Oct; Arun writes the spec when time frees up):** with it off, the whole pipeline behaves as if there were no synthetic permissions. It needs its own spec: it amends spec 0007 AC-8 ("no unfiltered overload") and the unfiltered path [ADR-0021](decisions/0021-permission-model.md) rejected, so it also needs an ADR. Spec 0010 is earmarked for answer evaluation (above), so take the next free number (0011 or later; corrected 26 Oct, was "0009"). Draft design:
   - One reader, `acl.permissions_enabled()`. Any other value is an error.
   - `identity.UNRESTRICTED`, a Principal with no groups. Every retrieval path still takes a required principal. `ask.search()` switches to a second literal, `SEARCH_UNRESTRICTED`: the same SQL without the `allowed_groups &&` line, with the same order and `chunk_id` tiebreak. The AC-8 predicate-scan test exempts only that literal.
   - `make ask`: skips the policy load and the stale check, `--as` becomes optional, and it prints `permissions: off`.
@@ -118,7 +118,7 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 
 ## From spec 0007 Part B (2026-10-24)
 
-- **HNSW parameter sweep:** Part B ran pgvector's defaults only (m 16, ef_construction 64, ef_search 40). Admin's unfiltered HNSW ceiling was 0.981 ANN recall@20. Sweep `ef_search` (and `max_scan_tuples` for the narrow persona) against latency before any production ANN index. The saved query vectors make it free.
+- **HNSW parameter sweep:** Part B ran pgvector's defaults only (m 16, ef_construction 64, ef_search 40) on a 22k-chunk copy; production stays on exact search. Admin's unfiltered HNSW ceiling was 0.981 ANN recall@20. Sweep `ef_search` (and `max_scan_tuples` for the narrow persona) against latency before any production ANN index. The saved query vectors make it free.
 - **Reading to do, filtered ANN** (from Part B; takeaways go in the week's reading log, in Arun's words):
   - [pgvector README, iterative index scans](https://github.com/pgvector/pgvector#iterative-index-scans): the settings, the re-sort CTE, `max_scan_tuples` and `scan_mem_multiplier`. Also confirm how strict_order drops out-of-order candidates (the journal's account is unverified).
   - [pgvector 0.8.0 release notes](https://www.postgresql.org/about/news/pgvector-080-released-2952/): why iterative scans were added, and the planner changes for filtered queries.
@@ -130,4 +130,8 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 
 ## From the #39 deferred review items (2026-10-24)
 
-- **One `spend.logged(target, usd, …)` context manager** in place of the five try/finally spend blocks (ask, embed, eval, permissions, ann). Do it when the next paid target lands (the week 3 reranker), after spec 0007 Part B merges, so it doesn't conflict with that branch.
+- **One `spend.logged(target, usd, …)` context manager** in place of the five try/finally spend blocks (ask, embed, eval, permissions, ann). Do it when the next paid target lands (the week 3 reranker). (Spec 0007 Part B, the earlier blocker, merged in #40.)
+
+## From the week 2 docs audit (2026-10-26)
+
+- **`make ann-build` empty-source hint:** `src/handbook_rag/evaluation/ann.py:759` says "run `make embed`", which only dry-runs now. Match the other hints: "run `make embed` for the cost, then `make paid-embed`".

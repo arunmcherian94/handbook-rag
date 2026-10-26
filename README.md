@@ -10,11 +10,11 @@ A permission-aware RAG assistant over the [GitLab public handbook](https://handb
 - **Chunks:** fixed 512-token chunks with 64-token overlap ([ADR-0003](docs/decisions/0003-baseline-chunking-512-64.md)). Other chunk configs live in the same table, keyed by `config_id`, for comparison ([ADR-0020](docs/decisions/0020-chunk-configs-coexist.md)).
 - **Embeddings and search:** `text-embedding-3-large` at 1,536 dims, searched by exact cosine distance in pgvector ([ADR-0022](docs/decisions/0022-adopt-text-embedding-3-large-1536.md)).
 - **Answers:** gpt-5.4-mini, using a strict grounding prompt that gives a fixed reply when the excerpts don't hold the answer ([ADR-0005](docs/decisions/0005-answer-model-and-api.md), [ADR-0006](docs/decisions/0006-grounding-prompt-fixed-abstentions.md)).
-- **Permissions:** [`acl/policy-v1.yaml`](acl/policy-v1.yaml) maps handbook paths to the groups allowed to see them ([ADR-0021](docs/decisions/0021-permission-model.md), [spec 0007](specs/0007-permission-aware-retrieval.md)).
+- **Permissions:** a synthetic policy, [`acl/policy-v1.yaml`](acl/policy-v1.yaml), maps handbook paths to the groups allowed to see them ([ADR-0021](docs/decisions/0021-permission-model.md), [spec 0007](specs/0007-permission-aware-retrieval.md)).
   - `make acl` copies each document's allow-list onto its chunks. Redirect stubs take their target's allow-list.
   - Search filters on the user's groups in SQL before ranking. A chunk with no ACL is hidden, never public.
   - The six users are fixtures in [`acl/identities-v1.yaml`](acl/identities-v1.yaml). Their groups are resolved in code from their attributes.
-- **Evaluation:** a human-authored eval set ([docs/eval/](docs/eval/)) scored by chunk-level fact recall@k ([ADR-0013](docs/decisions/0013-retrieval-metrics.md)). A separate suite, [permissions-v1](docs/eval/permissions-v1.md), measures leak and over-blocking for each user.
+- **Evaluation:** a human-authored eval set ([docs/eval/](docs/eval/)) scored by chunk-level fact recall@k ([ADR-0013](docs/decisions/0013-retrieval-metrics.md)). A separate suite, [permissions-v1](docs/eval/permissions-v1.md), measures leak and over-blocking for each user. Its cases were LLM-drafted from the pin and the policy, with outcomes computed by code.
 
 ## Quickstart
 
