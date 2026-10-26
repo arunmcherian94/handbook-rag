@@ -1,6 +1,6 @@
-# Week 2 (19–24 Oct 2026): chunking rejected, 3-large adopted, permission-aware retrieval, paid-call guardrails
+# Week 2 (17–26 Oct 2026): chunking rejected, 3-large adopted, permission-aware retrieval, paid-call guardrails
 
-**Outcome:** production retrieval is `fixed-512-64` chunks, text-embedding-3-large at 1,536 dims, exact cosine search, and a SQL pre-filter on synthetic ACLs. Structure-aware chunking was tested and rejected. 3-large was adopted as a documented exception to the pre-set bar. Filtered-HNSW recall starvation was measured on a separate copy, and production stays on exact search. Paid calls now need a separate `make paid-<target>` and a hook approval. PRs #19–#43.
+**Outcome:** production retrieval is `fixed-512-64` chunks, text-embedding-3-large at 1,536 dims, exact cosine search, and a SQL pre-filter on synthetic ACLs. Structure-aware chunking was tested and rejected. 3-large was adopted as a documented exception to the pre-set bar. Filtered-HNSW recall starvation was measured on a separate copy, and production stays on exact search. Paid calls now need a separate `make paid-<target>`; inside Claude Code, a hook also asks for a human's approval. The build ran 19–24 Oct, and this summary covers PRs #18–#43: #18, the NOTES split, merged on 17 Oct, and #43, the docs audit, on 26 Oct.
 
 ## 1. Decisions
 
@@ -74,18 +74,18 @@
 
 ### Paid-call guardrails: #39 and #42 → [spec 0009](../../specs/0009-paid-call-guardrails.md)
 - **#39:**
-  - Plain `make ask | embed | eval | permissions | ann` only dry-run and print an estimate. `make paid-<target>` spends.
+  - Plain `make ask | embed | eval | permissions` only dry-run and print an estimate. `make paid-<target>` spends. Part B (#40) added `make ann` / `make paid-ann` on the same pattern.
   - The Python mains also require `HANDBOOK_PAID_RUN=1`, which only the `paid-*` recipes set.
   - A PreToolUse hook asks for a human click on any `paid-*` name or assignment of that variable. It reads the target list from the Makefile and fails closed.
   - Every paid run appends a line to `runs/spend.jsonl`.
-- **#42:** a failed eval, permissions or ann run now creates its run folder before spending, so its spend line names the partial folder (`new_run_dir`).
+- **#42:** a failed eval or permissions run now creates its run folder before spending, so its spend line names the partial folder (`new_run_dir`). The ann runner got the same fix in #40.
 - **Verified live:** the hook prompted on `make paid-permissions` (086eca8a). A live decline, with the spend log unchanged, has not been run yet.
 
 ## 2. Learnings
 - **Heading-only chunks were the wrong diagnosis; token budget was the confound.**
   - At fixed k = 5, structural chunks are smaller, so the model sees fewer tokens.
   - Dropping heading-only chunks moved v1's recall@5 only from 0.358 to 0.374.
-  - At a matched 2,335-token budget, the gap shrank from −0.137 to −0.037.
+  - In the 19 Oct preview (a scratch script, not committed), cutting each list at the baseline's 2,335 tokens shrank v1's gap from −0.137 to −0.037. The committed matched-k run (f06df047, k = 13) put it at −0.074.
   - What remained were short "heading plus teaser" sections whose heading matches the question's wording and outranks the section that holds the fact.
   - Since then, chunking comparisons report recall at matched retrieved tokens, not only at fixed k.
 - **Specs need their frozen inputs listed against open decisions.** Spec 0007 froze its AC-9 baseline on 3-small while the embedding decision was still open, so ADR-0022 moved it mid-flight to `d83f3edc`. Its control rows also rested on cut eval rows, caught at two gates (#33, #34). The spec template now has a "Depends on / frozen inputs" table, filled before the ACs (#41).

@@ -27,13 +27,13 @@ A permission-aware RAG assistant over the [GitLab public handbook](https://handb
 
 ## Headline numbers
 
-The retrieval and answer rows come from the current configuration and are compared with the same pipeline on text-embedding-3-small, the model it replaced, over the same eval rows. The permissions suite has no earlier run to compare with. It checks each persona against entitlements computed by code from the policy, and checks over-blocking against admin's unfiltered top k.
+The retrieval and answer rows come from the current configuration and are compared with the same pipeline on text-embedding-3-small, the model it replaced, over the same eval rows. The permissions suite has no earlier run to compare with. It checks each persona against entitlements computed by code from the policy, and checks over-blocking against admin's top k (admin's allow-lists cover every chunk, so its results equal an unfiltered search).
 
 | What | Run | Result | Compared with |
 |---|---|---|---|
 | Retrieval, chunk_fact_recall@5 (n = 32 scored answerable rows) | `2026-10-21-d83f3edc` | 0.583 ± 0.075 | 3-small, `2026-10-19-d2625d91`: 0.495 ± 0.081 (paired +0.088 ± 0.045) |
 | Answers, false abstention (n = 33 answerable rows) | `2026-10-21-e602bd95` | 10/33, 0.303 ± 0.080 | 3-small, `2026-10-21-18f10293`: 11/33 (paired −0.030 ± 0.053) |
-| Answers, correct out-of-corpus abstention (n = 19) | `2026-10-21-e602bd95` | 17/19 | 3-small: 17/19 |
+| Answers, correct out-of-corpus abstention (n = 19) | `2026-10-21-e602bd95` | 17/19 | 3-small, `2026-10-21-18f10293`: 17/19 |
 | Permissions, leaked chunks / over-block (n = 50 scored cases, k = 5 and 20) | `2026-10-24-086eca8a` | 0 / 0 | Leak 0 holds by construction under the SQL pre-filter; it is not an empirical result |
 | Permissions, authorized recall@5 (n = 26 cases with an authorized target) | `2026-10-24-086eca8a` | 0.878 (1.000 at k = 20) | In the four cases below 1.0, the persona's top 5 equals admin's: the targets rank lower, and nothing was filtered out |
 
