@@ -4,7 +4,7 @@
 
 ## 1. Decisions
 
-### Chunking: structure-aware rejected, `fixed-512-64` stays → [ADR-0019](../decisions/0019-structural-first-recursive-inside-chunking.md) (rejected), specs [0005](../../specs/0005-structure-aware-chunking.md), [0006](../../specs/0006-packed-sections-and-heading-prefix.md)
+### Chunking: structure-aware rejected, `fixed-512-64` stays → [ADR-0019](../decisions/0019-structural-first-recursive-inside-chunking.md) (rejected), specs [0005](../../specs/0005-structure-aware-chunking.md), [0006](../../specs/0006-packed-sections-and-heading-prefix.md); journal [19 Oct, spec 0005 build](../journal/2026-10-19-chunker-build.md), [19 Oct, spec 0006 build and runs](../journal/2026-10-19-packed-build.md)
 - **Fixed-k loss.** `structural-v1` (run `2026-10-19-62a52a83`) fell from 0.495 to 0.358 chunk_fact_recall@5. The baseline is `fixed-512-64` on text-embedding-3-small, 32 scored rows.
 - **Matched-k comparison.** Spec 0006 compared each config at the k whose mean retrieved tokens match the baseline's 2,335. The baseline is `2026-10-19-d2625d91`, with recall@5 0.495 ± 0.081.
 
@@ -19,7 +19,7 @@
 - **Heading prefix.** Not adopted (+0.036; 3 rows won, 1 lost). It was carried into the embedding comparison, where it was rejected again on 3-large: run `2026-10-21-586b1635`, +0.031 ± 0.059, 0.51 SE.
 - **Sweeps.** The structural size and overlap sweeps were dropped. The fixed-512 size and overlap sweep moved to week 4, with context assembly.
 
-### Embedding model: text-embedding-3-large@1536, a documented exception → [ADR-0022](../decisions/0022-adopt-text-embedding-3-large-1536.md), [spec 0008](../../specs/0008-embedding-model-comparison.md)
+### Embedding model: text-embedding-3-large@1536, a documented exception → [ADR-0022](../decisions/0022-adopt-text-embedding-3-large-1536.md), [spec 0008](../../specs/0008-embedding-model-comparison.md); journal [21 Oct](../journal/2026-10-21-embedding-comparison.md)
 - **Pre-set rule (AC-9).** Adopt only if the mean paired delta in chunk_fact_recall at the matched k exceeds 2 paired SEs.
 - **3-large@1536,** run `2026-10-21-d83f3edc` (retrieval-only, matched k = 5):
   - recall@5: 0.583 ± 0.075, against 0.495 ± 0.081 for 3-small
@@ -32,14 +32,14 @@
   - Keeping 3-small was the choice that kept the rule. At n = 32 this is "probably better, cheap, reversible", not "proven better".
 - **New comparison baselines:** `2026-10-21-d83f3edc` (retrieval-only) and `2026-10-21-e602bd95` (full).
 
-### Permission-aware retrieval → [ADR-0021](../decisions/0021-permission-model.md), [spec 0007](../../specs/0007-permission-aware-retrieval.md) Part A (#35)
+### Permission-aware retrieval → [ADR-0021](../decisions/0021-permission-model.md), [spec 0007](../../specs/0007-permission-aware-retrieval.md) Part A (#35); journal [20 Oct, spec](../journal/2026-10-20-permissions-spec.md), [22 Oct, amendment](../journal/2026-10-22-spec-0007-amendment.md), [22 Oct, build](../journal/2026-10-22-permissions-build.md)
 - **Synthetic ACLs.** The handbook is public, so `acl/policy-v1.yaml` assigns group allow-lists by path from audience signals in the content. 46 docs (379 of 22,378 chunks, 1.7%) are restricted from staff. Six fixture personas see between 1.15% (narrow) and 100% (admin) of `fixed-512-64`.
 - **Pre-filter in SQL.** `make acl` copies each document's allow-list onto its chunks (`allowed_groups text[]`, GIN index). Every retrieval goes through one `SEARCH` that filters on `allowed_groups && :groups` before the cosine order. There is no unfiltered path.
 - **Fail-closed.** A chunk with no ACL is hidden, never public. A principal with no groups is an error, never an unfiltered search. A stale ACL fails the run before retrieval. An ambiguous or bad redirect target stops `make acl`.
 - **Typed `Principal`.** The identity module is the only place one is built, and its groups are resolved in code from the user's attributes, never from the question. `retrieve`, `ask` and the eval runner require one, with no default. Admin sees everything through explicit allow-lists, not a bypass.
 - **Admin regression (AC-9).** Run `2026-10-22-7ff9d687` has the same top 5 as `d83f3edc` on 33 of 33 rows. Ordering is now `distance, chunk_id`, because duplicate pages tie exactly.
 
-### Permissions suite run `2026-10-24-086eca8a`
+### Permissions suite run `2026-10-24-086eca8a` → journal [24 Oct](../journal/2026-10-24-guardrails.md#permissions-suite-run-later-on-24-oct-recorded-2026-10-26), per-case breakdown [26 Oct](../journal/2026-10-26-week2-audit.md#week-2-summary-and-readme)
 - permissions-v1: 52 cases, LLM-drafted from the pin and the policy, with outcomes computed by code. 50 were scored; P-097 and P-098 are invalid under 3-large.
 - Config: `fixed-512-64`, 3-large@1536, harness `c7c14798`, clean tree.
 - Leaked chunks 0 and over-block 0, at k = 5 and k = 20. Leak 0 holds by construction under the SQL pre-filter; it is not an empirical result.
@@ -53,7 +53,7 @@
   | P-087 | admin, control | 0.333 | scored on facts: both target docs are in the top 5, but the chunk holding 2 of the 3 facts is at rank 6 |
   | P-093 | manager, cut-row target | 0.5 | one target is at rank 3 and the other at rank 7 |
 
-### Part B: recall starvation on a separate HNSW path, run `2026-10-24-ddf4a2dc` (#40)
+### Part B: recall starvation on a separate HNSW path, run `2026-10-24-ddf4a2dc` (#40) → journal [24 Oct](../journal/2026-10-24-part-b.md)
 22k chunks, ef_search 40, on a measurement copy (`ann.hnsw_chunks`, pgvector defaults m 16, ef_construction 64). Production stays on exact search.
 
 | persona (visible) | ANN recall@20, iterative scans off | returned of 20 | relaxed_order |
@@ -74,7 +74,7 @@
   - a log line when fewer than k rows come back
 - No partitioning by group is needed at these selectivities.
 
-### Paid-call guardrails: #39 and #42 → [spec 0009](../../specs/0009-paid-call-guardrails.md)
+### Paid-call guardrails: #39 and #42 → [spec 0009](../../specs/0009-paid-call-guardrails.md); journal [24 Oct](../journal/2026-10-24-guardrails.md)
 - **#39:**
   - Plain `make ask | embed | eval | permissions` only dry-run and print an estimate. `make paid-<target>` spends. Part B (#40) added `make ann` / `make paid-ann` on the same pattern.
   - The Python mains also require `HANDBOOK_PAID_RUN=1`, which only the `paid-*` recipes set.
@@ -84,22 +84,22 @@
 - **Verified live:** the hook prompted on `make paid-permissions` (086eca8a). A live decline, with the spend log unchanged, has not been run yet.
 
 ## 2. Learnings
-- **Heading-only chunks were the wrong diagnosis; token budget was the confound.**
+- **Heading-only chunks were the wrong diagnosis; token budget was the confound.** ([journal](../journal/2026-10-19-chunker-build.md))
   - At fixed k = 5, structural chunks are smaller, so the model sees fewer tokens.
   - Dropping heading-only chunks moved v1's recall@5 only from 0.358 to 0.374.
   - In the 19 Oct preview (a scratch script, not committed), cutting each list at the baseline's 2,335 tokens shrank v1's gap from −0.137 to −0.037. The committed matched-k run (f06df047, k = 13) put it at −0.074.
   - What remained were short "heading plus teaser" sections whose heading matches the question's wording and outranks the section that holds the fact.
   - Since then, chunking comparisons report recall at matched retrieved tokens, not only at fixed k.
-- **Specs need their frozen inputs listed against open decisions.** Spec 0007 froze its AC-9 baseline on 3-small while the embedding decision was still open, so ADR-0022 moved it mid-flight to `d83f3edc`. Its control rows also rested on cut eval rows, caught at two gates (#33, #34). The spec template now has a "Depends on / frozen inputs" table, filled before the ACs (#41).
-- **A rule in a prompt didn't stop an unapproved paid call; a hook does.** On 22 Oct, Claude appended `make ask` to a test command with its output hidden. It cost about $0.001, with no approval, and Arun rated it serious.
+- **Specs need their frozen inputs listed against open decisions.** Spec 0007 froze its AC-9 baseline on 3-small while the embedding decision was still open, so ADR-0022 moved it mid-flight to `d83f3edc`. Its control rows also rested on cut eval rows, caught at two gates (#33, #34). The spec template now has a "Depends on / frozen inputs" table, filled before the ACs (#41). ([journal](../journal/2026-10-22-spec-0007-amendment.md))
+- **A rule in a prompt didn't stop an unapproved paid call; a hook does.** On 22 Oct, Claude appended `make ask` to a test command with its output hidden. It cost about $0.001, with no approval, and Arun rated it serious. ([incident](../journal/2026-10-22-permissions-build.md#accidental-paid-call), [fix](../journal/2026-10-24-guardrails.md))
   - "Paid needs CONFIRM" lived in instructions and habit. `make ask` was the one paid target without a dry run, so neither fired.
   - The fix moved the check outside the model: dry-run by default, separate `paid-*` names, an env var only those recipes set, a hook that asks, and a spend log.
   - Two caveats were found while building it. Hooks probably load at session start: the prompts seen before a restart weren't the hook. The hook matches command text, so it stops accidents, not a determined bypass.
-- **Save query vectors; re-embedding moves near-ties.**
+- **Save query vectors; re-embedding moves near-ties.** ([journal](../journal/2026-10-24-part-b.md#exact-path-vs-d83f3edc))
   - Part B's exact admin path matched `d83f3edc` on 31 of 33 rows. The two misses were near-ties: distances 0.49978 vs 0.49986, and 0.60781 vs 0.60987. This is consistent with OpenAI query vectors varying slightly between calls.
   - Qwen's rank metrics also drifted between two runs, with MRR 0.522 against 0.553 and recall@5 unchanged.
   - Saving the vectors made the Part B rerun cost $0 and made it reproducible. An HNSW rebuild adds about ±0.01 of noise on top.
-- **Local selectivity, not corpus share, predicts starvation.** us-ic sees 98.6% of chunks, yet with iterative scans off it got fewer than 20 results on 15 of 61 questions. The suite asks about restricted pages, and their neighbourhoods are mostly restricted. A filtered-ANN test needs queries aimed at the restricted content.
+- **Local selectivity, not corpus share, predicts starvation.** us-ic sees 98.6% of chunks, yet with iterative scans off it got fewer than 20 results on 15 of 61 questions. The suite asks about restricted pages, and their neighbourhoods are mostly restricted. A filtered-ANN test needs queries aimed at the restricted content. ([journal](../journal/2026-10-24-part-b.md#takeaways))
 
 ## 3. Week 2 takeaway
 Week 2's results came from retrieval measurement rather than new retrieval machinery. The chunking track ended in a clean negative result once the token budget was controlled for. The embedding switch was taken knowingly below the pre-set bar and recorded as an exception, because the eval set is too small to detect a +0.09 gain reliably. The permission filter was built so that a leak is impossible by construction, with fail-closed defaults. Part B showed what would break if production moved to ANN, and what fixes it. The process lessons were about enforcement: rules held in prompts gave way to hooks, frozen-inputs tables and saved vectors.
