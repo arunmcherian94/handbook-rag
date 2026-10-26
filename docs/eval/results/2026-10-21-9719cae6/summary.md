@@ -4,6 +4,7 @@
 
 - **Qwen3-8B@1536 vs 3-small baseline `2026-10-21-18f10293`.** recall@5 0.586 and mrr 0.553. False abstention 10 of 33 (0.303 ± 0.080), paired −0.030 ± 0.081: rows 8, 55, 100, 92 now answer; 53, 44, 35 now abstain. Correct ooc abstention 15 of 19, two worse than 3-small.
 - **Wrong answers on ooc rows:** row 47 asserts "20 statutory vacation days", a phrase in the corpus only on the Belgium page (wrong-entity hallucination); row 112 answers "Yes" from a distractor page.
+  - Correction (2026-10-26): row 47: the generator (gpt-5.4-mini) answered with Belgium's figure from a retrieved page. Qwen is only the embedder here. Likewise row 112: the generator answered "Yes" from a distractor page that Qwen's embeddings retrieved.
 - **Row 44:** Qwen abstains with recall 0, where 3-small and 3-large answer. Judged against 3-small: 6 better, 4 worse, 6 tie.
 - **Next:** not adopted; see ADR-0022.
 

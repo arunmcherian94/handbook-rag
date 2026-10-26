@@ -160,7 +160,9 @@ Profile at the pin (simulated, cl100k_base):
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass (PR #25)
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human (PR #25)
+- [x] Clean-room verified (PR #25)
+- [x] docs updated: journal entry, an ADR for any decision, follow-ups (PR #25)
+
+Boxes ticked 2026-10-26 from the #25 PR body (283 unit and 36 integration passed, lint clean, clean room passed); they had been left unticked.

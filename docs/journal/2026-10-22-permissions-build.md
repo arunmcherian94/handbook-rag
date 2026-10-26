@@ -18,7 +18,7 @@ Build of [spec 0007](../../specs/0007-permission-aware-retrieval.md) Part A (AC-
 - **Gate catch, exact ties:** the free proxy test (stored chunk vectors as queries) failed at rank 1. `build/merge_requests.md` and `distribution/merge_requests.md` are duplicate pages, so their chunks tie at exactly the same distance for every query, and Postgres ordered the tie differently once the filter changed the plan. Ranking was never reproducible across plans. Fixed with `ORDER BY distance, c.chunk_id` (Arun). No `d83f3edc` row has a tie inside its top 5, so AC-9 was unaffected.
 
 ## Gate catch: rows 33 and 61 are cut rows
-- The suite builder couldn't parse rows 33 and 61 as v1.2 rows: they are in the eval set's § 5 Cut, like 15, 39 and 109. Spec PR #33 had called row 33 a valid control. Corrected in PR #34: row 5 is the only v1.2 control; P-093, P-094, P-097 and P-098 are scored on their target docs (Arun). The 22 Oct check had parsed only the rows it was re-checking, not the rows the existing controls stood on.
+- The suite builder couldn't parse rows 33 and 61 as v1.2 rows: they are in the eval set's § 5 Cut, like 15, 39 and 109. Spec PR #33 had called row 33 a valid control. Corrected in PR #34 (merged 23 Oct IST): row 5 is the only v1.2 control; P-093, P-094, P-097 and P-098 are scored on their target docs (Arun). The 22 Oct check had parsed only the rows it was re-checking, not the rows the existing controls stood on.
 - Permissions-suite dry run: 52 cases, 50 valid, 0 intent disagreements, about $0.00007.
 
 ## Review (`/code-review`, two passes)

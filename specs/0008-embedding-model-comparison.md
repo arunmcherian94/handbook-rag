@@ -126,6 +126,10 @@ Candidates, in order (Arun, 21 Oct):
 | Decision threshold | > 2 paired SEs | **Larger of the two run SEs (spec 0006):** unpaired, so it ignores that both runs score the same rows. |
 | Prefix arm | Only for an adopted model | Running it for every model loses only a model × prefix interaction that 32 rows can't detect (prep journal). |
 
+## History
+
+- 2026-10-21, after the AC-9 runs: text-embedding-3-large@1536 was adopted although the AC-9 rule says 3-small stays. The paired delta was +0.088 ± 0.045, 1.97 SE, just under the pre-set 2-SE bar. The adoption is a documented exception ([ADR-0022](../docs/decisions/0022-adopt-text-embedding-3-large-1536.md), PRs #31 and #32). It is a retrieval gain, not an answer-quality gain. Recorded 2026-10-26.
+
 ## Open questions
 
 1. **Qwen via DeepInfra:** needs a new `DEEPINFRA_API_KEY` in `.env`, no new dependency. Approve before the stretch is built?

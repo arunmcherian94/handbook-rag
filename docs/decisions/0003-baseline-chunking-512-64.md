@@ -38,6 +38,7 @@ Chunking ladder, from simplest: fixed tokens → recursive (paragraph, then sent
 
 ## Consequences
 - Overlap is a week 2 sweep candidate (0 / 32 / 64 / 100).
+  - Correction (2026-10-26): on 2026-10-19 the size and overlap sweep moved to week 4, with context assembly ([follow-ups](../follow-ups.md#from-the-spec-0006-runs-2026-10-19)).
 - **k=5:** recall@5 is the standard operating point. 5×512 ≈ 2.6k tokens of context. k is coupled to chunk size (k × size = context budget), and the eval can sweep k without re-embedding.
 
 ## Informed by

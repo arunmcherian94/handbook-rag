@@ -36,6 +36,7 @@ Accepted risk: the hook matches command text, so indirection (a wrapper script, 
 
 - `tests/unit/test_ask.py` (AC-1 to AC-3), `tests/unit/test_spend.py` (AC-1 to AC-3), `tests/unit/test_paid_guard.py` (AC-2). No test calls an API.
 - Live: the hook prompts on a paid target and is declined. `make ask AS=us-ic Q="test"` prints the estimate and the dry-run line, and `runs/spend.jsonl` is unchanged.
+  - Correction (2026-10-26): on 24 Oct, after the PR, in a restarted session, `make paid-permissions` (run `2026-10-24-086eca8a`) made the hook prompt live, and Arun approved it (Arun confirmed on 26 Oct). That shows the prompt fires; the decline path in this check (declined, `runs/spend.jsonl` unchanged) has not been run live.
 
 Before the implementation PR:
 

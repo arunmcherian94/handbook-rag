@@ -25,6 +25,7 @@ Follow-up to the [accidental paid call](2026-10-22-permissions-build.md#accident
 ## Verification
 - `make ask AS=us-ic Q="test"` printed the estimate ($0.0040) and the dry-run line, and no spend log was written.
 - **Correction:** two prompts earlier in the session were taken as the hook firing, and they weren't. A probe with an exact paid name ran with no prompt, while the script, run by hand on the same payload, returned `ask`. The likely cause is that Claude Code reads hooks at session start, and `.claude/settings.json` was created mid-session. The earlier prompts were ordinary permission prompts, probably triggered by an `rm -rf` in the same command. Live verification needs a session restart (see the PR).
+  - **Correction (2026-10-26):** later on 24 Oct, after a restart, `make paid-permissions` (run `2026-10-24-086eca8a`) prompted live, and Arun approved it. That shows the prompt fires; a live decline (spend log unchanged) has not been run.
 - Clean room: see the PR.
 
 ## Limitations
@@ -37,7 +38,7 @@ Follow-up to the [accidental paid call](2026-10-22-permissions-build.md#accident
 
 ## Deferred review items, decided later on 24 Oct
 Arun handed the 7 lower-priority items to a fresh-agent review, which checked each claim against main.
-- **Fixed** (PR `fix/spend-log-run-id`; `ann.py` in #40): a failed eval or permissions run logged `run_id: null` even when its partial folder existed. `main` now creates the folder (`new_run_dir`) before spending and passes it to `run()`, so the spend line always names it. An existing folder name raises instead of being reused. /code-review on the first version (pass a name, then check whether a folder exists) caught that the check couldn't tell this run's folder from an older one with the same name.
+- **Fixed** (PR #42, `fix/spend-log-run-id`; `ann.py` in #40): a failed eval or permissions run logged `run_id: null` even when its partial folder existed. `main` now creates the folder (`new_run_dir`) before spending and passes it to `run()`, so the spend line always names it. An existing folder name raises instead of being reused. /code-review on the first version (pass a name, then check whether a folder exists) caught that the check couldn't tell this run's folder from an older one with the same name.
 - **Follow-ups:**
   - `ask`'s document-kind embed: the spec 0008 entry already covers it.
   - `ask.estimate` skipping `prepare()`: added to that entry.
@@ -47,3 +48,10 @@ Arun handed the 7 lower-priority items to a fresh-agent review, which checked ea
   - **An unknown `ANSWER_MODEL` passes the dry run.** An unknown provider fails before any spend, and a mistyped model name wastes at most one query embed. Checking it would need an answer-model registry.
   - **The duplicated estimate formula.** It's two lines with different multipliers, and sharing it would make `ask` import from `evaluation`, which already imports `ask`.
 - **Same class as item 4, no action:** eval and permissions check that stored embeddings exist only after the paid gate. A dry run can pass and the paid run then stop, but nothing is spent.
+
+## Permissions suite run, later on 24 Oct (recorded 2026-10-26)
+- Run `2026-10-24-086eca8a`: permissions-v1 on `fixed-512-64`, `openai:text-embedding-3-large@1536`, harness `c7c14798`, clean tree, k 5 and 20. Est $0.000066 (spend log). The first paid run through the hook.
+- 52 cases: 50 scored, 2 invalid (P-097, P-098, as marked on 21 Oct).
+- Leaked chunks 0 and over-block 0 at both k. Leak 0 holds by construction under the SQL pre-filter; it is not an empirical result. The ACLs are synthetic.
+- Authorized recall@5 0.878 (n = 26; 24 cases n/a), @20 1.000.
+- The run folder is under `runs/`, which isn't committed.

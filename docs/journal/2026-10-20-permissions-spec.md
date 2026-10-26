@@ -16,6 +16,7 @@
     | narrow | `new-contractor` | 257 (1.15%) |
 
   - **v1.2 answerable rows with an expected doc in a restricted set:** 5, 15, 22, 33, 39, 61, 92, 109. The quality set runs as admin, so they're unaffected (AC-9).
+    - **Correction (2026-10-26):** rows 15, 33, 39, 61 and 109 are cut rows; only 5, 22 and 92 are v1.2 rows ([2026-10-22 amendment](2026-10-22-spec-0007-amendment.md)).
 - **Judgment calls** (plan gate, approved by Arun):
   - **Contractor Benefits is a section, not a page.** It sits at L424 of `general-and-entity-benefits/_index.md`. Under document-level ACLs that whole page stays open, and only the per-entity pages under it are restricted. The provisional rule in ADR-0011 ("entity-specific benefits") would have hidden it.
   - **`people-ops` is on every rule**, so the admin sees everything through the policy, never a code bypass.
@@ -42,6 +43,7 @@
   - **Part B scope** is revisited on Friday.
   - **YAML stays:** `pyyaml` is approved, loaded with `safe_load`, and every value must be a string.
   - **More cases (AC-15):** at least 26 denied, spread across cross-entity, manager, employee-only and narrow. Plus at least 5 same-question sets, at least 3 partial-entitlement cases, at least 6 claimed-identity cases, and entitled and denied controls on the 8 restricted v1.2 rows. The narrow persona supplies denied targets from the open corpus, which offsets the small restricted set (46 docs).
+    - **Correction (2026-10-26):** of the 8 rows, only 5, 22 and 92 are v1.2 rows ([2026-10-22 amendment](2026-10-22-spec-0007-amendment.md)).
   - **Narrow persona list checked and kept:**
     - Temporary Service Provider onboarding goes through Procurement (`general-onboarding/_index.md`).
     - Contractors are reimbursed via iiPay (`finance/expenses.md` L693, L729).
