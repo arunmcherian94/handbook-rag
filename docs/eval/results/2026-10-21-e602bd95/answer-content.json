@@ -1,0 +1,656 @@
+{
+  "assertions_sha256": "8530e04f95e55eef3da8ff043e15bb93f23065a28255e4e6c6c16b53535a7860",
+  "counts": {
+    "eligible_not_in_file": [],
+    "expressible_facts": 66,
+    "not_expressible_facts": 7,
+    "rows_scored": 31
+  },
+  "eval_sha256": "995acb3b974d2c6aa7427fb089d9a9e133ab0aaf7879dff184c83071d6f8e725",
+  "eval_version": "v1.2",
+  "metrics": {
+    "answer_content_fact_pass": {
+      "mean": 0.40291858678955456,
+      "n": 31,
+      "se": 0.07869032491814389
+    },
+    "answer_content_row_pass": {
+      "mean": 0.25806451612903225,
+      "n": 31,
+      "se": 0.07858983387512676
+    }
+  },
+  "rows": [
+    {
+      "abstained": false,
+      "fact_pass": 0.6666666666666666,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F5",
+          "passed": true
+        }
+      ],
+      "row": 11,
+      "row_pass": false
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": false
+        }
+      ],
+      "row": 49,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": true
+        }
+      ],
+      "row": 51,
+      "row_pass": true
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.5,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        }
+      ],
+      "row": 52,
+      "row_pass": false
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        }
+      ],
+      "row": 53,
+      "row_pass": false
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": false
+        }
+      ],
+      "row": 8,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F3",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F5",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F6",
+          "passed": false
+        }
+      ],
+      "row": 32,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.8571428571428571,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F3",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F5",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F6",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F8",
+          "passed": false
+        }
+      ],
+      "row": 10,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.5,
+      "facts": [
+        {
+          "expressible": false,
+          "fact": "F1",
+          "passed": null
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F5",
+          "passed": true
+        }
+      ],
+      "row": 50,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F3",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": false
+        }
+      ],
+      "row": 59,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": false,
+          "fact": "F1",
+          "passed": null
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": true
+        }
+      ],
+      "row": 13,
+      "row_pass": true
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F5",
+          "passed": false
+        }
+      ],
+      "row": 48,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.8,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F3",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F5",
+          "passed": true
+        }
+      ],
+      "row": 44,
+      "row_pass": false
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        }
+      ],
+      "row": 55,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        }
+      ],
+      "row": 46,
+      "row_pass": true
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": false,
+          "fact": "F1",
+          "passed": null
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F3",
+          "passed": false
+        }
+      ],
+      "row": 58,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        },
+        {
+          "expressible": false,
+          "fact": "F2",
+          "passed": null
+        }
+      ],
+      "row": 99,
+      "row_pass": true
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        }
+      ],
+      "row": 100,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": false,
+          "fact": "F1",
+          "passed": null
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        }
+      ],
+      "row": 87,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.3333333333333333,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": true
+        }
+      ],
+      "row": 5,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        }
+      ],
+      "row": 9,
+      "row_pass": true
+    },
+    {
+      "abstained": true,
+      "fact_pass": null,
+      "facts": [
+        {
+          "expressible": false,
+          "fact": "F1",
+          "passed": null
+        }
+      ],
+      "row": 22,
+      "row_pass": null
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        }
+      ],
+      "row": 23,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": null,
+      "facts": [
+        {
+          "expressible": false,
+          "fact": "F1",
+          "passed": null
+        }
+      ],
+      "row": 26,
+      "row_pass": null
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.3333333333333333,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F3",
+          "passed": false
+        }
+      ],
+      "row": 34,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.5,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F3",
+          "passed": true
+        }
+      ],
+      "row": 35,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        }
+      ],
+      "row": 38,
+      "row_pass": false
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        }
+      ],
+      "row": 65,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        }
+      ],
+      "row": 88,
+      "row_pass": true
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F2",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": false
+        }
+      ],
+      "row": 89,
+      "row_pass": false
+    },
+    {
+      "abstained": true,
+      "fact_pass": 0.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": false
+        },
+        {
+          "expressible": true,
+          "fact": "F4",
+          "passed": false
+        }
+      ],
+      "row": 92,
+      "row_pass": false
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        }
+      ],
+      "row": 93,
+      "row_pass": true
+    },
+    {
+      "abstained": false,
+      "fact_pass": 1.0,
+      "facts": [
+        {
+          "expressible": true,
+          "fact": "F1",
+          "passed": true
+        }
+      ],
+      "row": 96,
+      "row_pass": true
+    }
+  ],
+  "run_id": "2026-10-21-e602bd95",
+  "run_override": false
+}

@@ -1,0 +1,386 @@
+{
+  "counts": {
+    "generator_refusal": 2,
+    "not_classifiable": 1,
+    "partial_retrieval": 3,
+    "retrieval_miss": 4
+  },
+  "eval_sha256": "995acb3b974d2c6aa7427fb089d9a9e133ab0aaf7879dff184c83071d6f8e725",
+  "eval_version": "v1.2",
+  "n": 10,
+  "rows": [
+    {
+      "chunks": [
+        {
+          "chunk_id": "6bdc2a5a-6dd6-5416-bbc1-2c3c965fea3b",
+          "facts": []
+        },
+        {
+          "chunk_id": "e369aa2f-1937-51f8-ae57-74b6de14c9f3",
+          "facts": []
+        },
+        {
+          "chunk_id": "af377eae-da13-506c-87a3-897a4f9b7ddc",
+          "facts": [
+            "F4"
+          ]
+        },
+        {
+          "chunk_id": "bbf35654-8079-5f2f-b7c2-61e2b4afb2d6",
+          "facts": []
+        },
+        {
+          "chunk_id": "2460cb47-f21c-5d49-b40f-604ceb017dc2",
+          "facts": []
+        }
+      ],
+      "class": "partial_retrieval",
+      "conflict_unscored": false,
+      "found": [
+        "F4"
+      ],
+      "found_count": 1,
+      "missing": [
+        "F1"
+      ],
+      "recency_basis": "history-only",
+      "row": 49,
+      "total": 2,
+      "type": "contradiction"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "e5c2c095-26b8-5b33-a86c-1c93c37c4cb0",
+          "facts": []
+        },
+        {
+          "chunk_id": "0ad6fd23-db82-55e8-a3d8-2868f06a5c6f",
+          "facts": []
+        },
+        {
+          "chunk_id": "2fe037c0-e058-507c-a0be-6c8a8c22b009",
+          "facts": []
+        },
+        {
+          "chunk_id": "fac5d3e5-51ee-548c-9b12-44ba8fd76d63",
+          "facts": []
+        },
+        {
+          "chunk_id": "66e0b05c-3a3e-5059-8157-2b03acc9c78a",
+          "facts": []
+        }
+      ],
+      "class": "retrieval_miss",
+      "conflict_unscored": true,
+      "found": [],
+      "found_count": 0,
+      "missing": [
+        "F1"
+      ],
+      "recency_basis": "history-only",
+      "row": 53,
+      "total": 1,
+      "type": "recency"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "5bca07f3-e5d0-52a1-bdd2-3fbba8a9b9ee",
+          "facts": []
+        },
+        {
+          "chunk_id": "1c0fcba0-2b24-558f-a236-1ea9f65ba3ab",
+          "facts": [
+            "F4"
+          ]
+        },
+        {
+          "chunk_id": "5049607c-0800-5ffe-8b17-6569a6315151",
+          "facts": []
+        },
+        {
+          "chunk_id": "866b69e6-dc27-5875-87b0-202fd39485e9",
+          "facts": []
+        },
+        {
+          "chunk_id": "36e03277-12f5-5989-b831-e1ea242075c8",
+          "facts": []
+        }
+      ],
+      "class": "partial_retrieval",
+      "conflict_unscored": false,
+      "found": [
+        "F4"
+      ],
+      "found_count": 1,
+      "missing": [
+        "F1"
+      ],
+      "recency_basis": "in-page",
+      "row": 8,
+      "total": 2,
+      "type": "contradiction"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "fce3e797-8b6a-5ee7-9b6b-3c837b526e67",
+          "facts": []
+        },
+        {
+          "chunk_id": "8e92cbfa-a363-5459-a686-ab1c498599bc",
+          "facts": []
+        },
+        {
+          "chunk_id": "90398fce-7802-5728-b72b-e39dff6e70ad",
+          "facts": []
+        },
+        {
+          "chunk_id": "fd2f1d4e-7c81-5a4b-ad17-346411d176b1",
+          "facts": []
+        },
+        {
+          "chunk_id": "14f9533b-3a0b-5659-83bd-05210ec53c7b",
+          "facts": []
+        }
+      ],
+      "class": "retrieval_miss",
+      "conflict_unscored": false,
+      "found": [],
+      "found_count": 0,
+      "missing": [
+        "F1"
+      ],
+      "recency_basis": "history-only",
+      "row": 55,
+      "total": 1,
+      "type": "recency"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "9c57367a-de80-59e7-ad63-a7a051374d0e",
+          "facts": [
+            "F2"
+          ]
+        },
+        {
+          "chunk_id": "bbf1a59b-08de-517a-a8a4-4d8671e27b29",
+          "facts": []
+        },
+        {
+          "chunk_id": "cba913e5-74a7-55de-8cf7-f6b9ff701da4",
+          "facts": [
+            "F3"
+          ]
+        },
+        {
+          "chunk_id": "607e8730-af72-5a27-bc81-3dd0ff66c629",
+          "facts": []
+        },
+        {
+          "chunk_id": "8fdf558c-16ef-5a5a-b020-9224258bed96",
+          "facts": []
+        }
+      ],
+      "class": "generator_refusal",
+      "conflict_unscored": true,
+      "found": [
+        "F2",
+        "F3"
+      ],
+      "found_count": 2,
+      "missing": [],
+      "recency_basis": "in-page",
+      "row": 58,
+      "total": 2,
+      "type": "recency"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "9c57367a-de80-59e7-ad63-a7a051374d0e",
+          "facts": [
+            "F1"
+          ]
+        },
+        {
+          "chunk_id": "cba913e5-74a7-55de-8cf7-f6b9ff701da4",
+          "facts": [
+            "F2"
+          ]
+        },
+        {
+          "chunk_id": "be00284c-dc61-500a-8801-b56d48f4b1d4",
+          "facts": []
+        },
+        {
+          "chunk_id": "8d045edf-8d6e-5c36-b237-7882aacebeb0",
+          "facts": []
+        },
+        {
+          "chunk_id": "8fdf558c-16ef-5a5a-b020-9224258bed96",
+          "facts": []
+        }
+      ],
+      "class": "generator_refusal",
+      "conflict_unscored": false,
+      "found": [
+        "F1",
+        "F2"
+      ],
+      "found_count": 2,
+      "missing": [],
+      "recency_basis": "in-page",
+      "row": 100,
+      "total": 2,
+      "type": "contradiction"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "fa5d52ac-30d4-5623-952a-860624172695",
+          "facts": []
+        },
+        {
+          "chunk_id": "dc2e40b4-7842-5c69-b884-fa260d96206f",
+          "facts": []
+        },
+        {
+          "chunk_id": "d9ba21b4-90a1-591f-aff6-155ef8d31ddd",
+          "facts": []
+        },
+        {
+          "chunk_id": "e686ee73-27d3-5ac3-bb9e-2c49fc489680",
+          "facts": []
+        },
+        {
+          "chunk_id": "81b98874-f705-5b31-977f-333be4d68731",
+          "facts": []
+        }
+      ],
+      "class": "not_classifiable",
+      "conflict_unscored": false,
+      "found": [],
+      "found_count": 0,
+      "missing": [],
+      "recency_basis": null,
+      "row": 22,
+      "total": 0,
+      "type": "lookup"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "8371a8da-7476-5540-85be-2e596d66e848",
+          "facts": []
+        },
+        {
+          "chunk_id": "14066539-8566-5189-aba0-132950edd130",
+          "facts": []
+        },
+        {
+          "chunk_id": "004a6315-e893-52b1-b019-643ad70649ff",
+          "facts": []
+        },
+        {
+          "chunk_id": "b496fefc-929a-500b-a673-e9cd943dedb6",
+          "facts": []
+        },
+        {
+          "chunk_id": "766e4251-9317-5e43-ae19-b12ef5fa4179",
+          "facts": []
+        }
+      ],
+      "class": "retrieval_miss",
+      "conflict_unscored": false,
+      "found": [],
+      "found_count": 0,
+      "missing": [
+        "F1"
+      ],
+      "recency_basis": null,
+      "row": 65,
+      "total": 1,
+      "type": "lookup"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "9fc4e798-1286-55f0-be23-e5df1e6e2f95",
+          "facts": []
+        },
+        {
+          "chunk_id": "78b12e6b-beeb-5efe-bb27-b875cee268a8",
+          "facts": []
+        },
+        {
+          "chunk_id": "ce85f0f5-8680-5eb3-8da4-1d3dd5c275ab",
+          "facts": []
+        },
+        {
+          "chunk_id": "a632b578-bad2-5c9b-8089-675349bd8654",
+          "facts": []
+        },
+        {
+          "chunk_id": "3eb825ad-6049-536d-a669-e805e5263f50",
+          "facts": [
+            "F2"
+          ]
+        }
+      ],
+      "class": "partial_retrieval",
+      "conflict_unscored": false,
+      "found": [
+        "F2"
+      ],
+      "found_count": 1,
+      "missing": [
+        "F4"
+      ],
+      "recency_basis": null,
+      "row": 89,
+      "total": 2,
+      "type": "synthesis"
+    },
+    {
+      "chunks": [
+        {
+          "chunk_id": "ca658fa2-7ae8-5593-aa56-0cea266bbf1b",
+          "facts": []
+        },
+        {
+          "chunk_id": "2e8148f0-833e-5d80-9636-3b0a78181acd",
+          "facts": []
+        },
+        {
+          "chunk_id": "7202e31b-5504-5139-b246-b23be232b77a",
+          "facts": []
+        },
+        {
+          "chunk_id": "4aae9317-0b73-5450-80bd-7a1da4ee24c8",
+          "facts": []
+        },
+        {
+          "chunk_id": "e99b52f0-48f1-5c83-823e-017470cb5ef9",
+          "facts": []
+        }
+      ],
+      "class": "retrieval_miss",
+      "conflict_unscored": false,
+      "found": [],
+      "found_count": 0,
+      "missing": [
+        "F1",
+        "F4"
+      ],
+      "recency_basis": null,
+      "row": 92,
+      "total": 2,
+      "type": "lookup"
+    }
+  ],
+  "run_id": "2026-10-21-e602bd95",
+  "run_override": false
+}

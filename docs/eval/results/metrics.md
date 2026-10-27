@@ -28,6 +28,13 @@ A chunk is *relevant* to a fact if it comes from a cited page and contains a cit
 - `no_url`: the answer contains no URL.
 - `truncated`: the answer hit the output token limit.
 
+## Answer content (spec 0010)
+
+An answer-content check: per-fact must-contain assertions (numbers, terms) run against the stored answer, for eligible rows only. It does not measure paraphrase the rules miss, extra or wrong claims, or whether the cited chunks support the answer. Facts the rules can't express are counted as `expressible: false` and left to the week 6 judge. Results are in each run's `answer-eval.md`.
+
+- `answer_content_fact_pass`: per row, the share of expressible required facts whose assertion passes; the mean over rows with at least one, n = rows.
+- `answer_content_row_pass`: 1 if every expressible required fact in the row passes, else 0.
+
 ## Reading the tables
 
 - **± SE** is the standard error of the mean; **n** is the number of rows the metric applies to. With n = 8 per row type, differences between types are directional only.

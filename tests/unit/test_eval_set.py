@@ -212,3 +212,43 @@ def test_real_eval_set():
     row11 = next(r for r in es.rows if r.id == 11)
     laptop = "eta/corporate-it/end-user-services/laptop-management/laptop-ordering/_index.md"
     assert row11.facts[2].cites == {laptop: (11, 99, 100, 101)}
+
+
+@pytest.mark.parametrize(
+    ("fact", "text"),
+    [
+        ('GitLab issues it. — a/laptop.md § "Ordering" L24', "GitLab issues it."),
+        ("[variant: Brazil] Self-procure. — a/b.md L11", "Self-procure."),
+        ("[rewording: which entity] GSI. — a/b.md L1", "GSI."),
+        ("Depends on the entity. — framing derived from F2–F6", "Depends on the entity."),
+        ("A — B. — a/b.md L1", "A — B."),
+        ("Belgium: no carryover (a/b.md L217).", "Belgium: no carryover (a/b.md L217)."),
+    ],
+)
+def test_fact_text(fact, text):
+    """Spec 0010 AC-7: the statement is the reference text; the citation is cut off."""
+    row = one(f"### Row 1 — lookup · single-fact\nQ: q?\nfacts:\n- F1. [required] {fact}\n")
+    assert row.facts[0].text == text
+
+
+def test_ref_source():
+    """Spec 0010 AC-6: ref_source is parsed for answerable and ooc rows."""
+    body = (
+        ANSWERABLE
+        + "ref_source: llm-draft, reviewed\n\n"
+        + OOC
+        + "ref_source: llm-draft, auto-reviewed\n"
+    )
+    rows = parse(HEADER + body).rows
+    assert [r.ref_source for r in rows] == ["llm-draft, reviewed", "llm-draft, auto-reviewed"]
+
+
+def test_real_eval_set_text_and_ref_source():
+    """Spec 0010 AC-6, AC-7: every required fact has a statement; 26 reviewed, 26 auto-reviewed."""
+    path = Path(__file__).resolve().parents[2] / "docs/eval/eval-set-v1.md"
+    es = parse(path.read_text())
+    required = [f for r in es.rows for f in r.facts if f.required]
+    assert all(f.text and "§" not in f.text for f in required)
+    sources = [r.ref_source for r in es.rows]
+    counts = sources.count("llm-draft, reviewed"), sources.count("llm-draft, auto-reviewed")
+    assert counts == (26, 26)

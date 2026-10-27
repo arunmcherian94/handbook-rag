@@ -1,0 +1,112 @@
+# Answer-content assertions: per-fact must-contain checks on stored answers (spec 0010).
+# Drafted only for eligible rows, from the fact text and the fact list; Arun reviews each one.
+# An answer-content check, not a measure of whether an answer is right or supported.
+eval_version: v1.2
+eval_sha256: 995acb3b974d2c6aa7427fb089d9a9e133ab0aaf7879dff184c83071d6f8e725
+rows:
+  11:
+    F1: {expressible: true, assert: {all_of: [{term: request form, variants: [laptop request, request a laptop]}, {term: welcome email, variants: [welcome e-mail]}]}}
+    F4: {expressible: true, assert: {all_of: [{number: 1500, unit: USD}, {term: stipend}]}}
+    F5: {expressible: true, assert: {all_of: [{term: Navan}, {term: New Hire Stipend}, {term: own funds, variants: [own money, personal funds, out of pocket]}]}}
+  49:
+    F1: {expressible: true, assert: {all_of: [{term: request form, variants: [laptop request, request a laptop]}, {term: welcome email, variants: [welcome e-mail]}]}}
+    F4: {expressible: true, assert: {all_of: [{term: own funds, variants: [own money, personal funds, out of pocket]}, {number: 1500, unit: USD}, {term: Navan}]}}
+  51:
+    F1: {expressible: true, assert: {term: own funds, variants: [own money, personal funds, personal payment, personal card, out of pocket]}}
+    F2: {expressible: true, assert: {all_of: [{term: Navan}, {term: New Hire Stipend}]}}
+  52:
+    F1: {expressible: true, assert: {term: Compass}}
+    F2: {expressible: true, assert: {term: Lumos}}
+  53:
+    F1: {expressible: true, assert: {all_of: [{term: Lumos}, {term: approver, variants: [approve, approves]}]}}
+  8:
+    F1: {expressible: true, assert: {all_of: [{term: Navan}, {any_of: [{number: 7, unit: business days}, {number: 7, unit: working days}]}]}}
+    F4: {expressible: true, assert: {all_of: [{term: 1-4, variants: ["1–4", "1 – 4", "1 - 4", 1 to 4, one to four]}, {term: business days, variants: [working days]}]}}
+  32:
+    F1: {expressible: true, assert: {all_of: [{term: Navan}, {term: receipts, variants: [receipt]}, {number: 50, unit: USD}]}}
+    F3: {expressible: true, assert: {all_of: [{term: fiscal quarter, variants: [end of the quarter, end of quarter, quarter end]}, {number: 90, unit: days}, {term: manager approval, variants: [manager's approval, manager must approve, manager approves]}]}}
+    F5: {expressible: true, assert: {all_of: [{term: manager}, {term: Accounts Payable, variants: [AP]}, {term: final approved, variants: [final approval, finally approved]}]}}
+    F6: {expressible: true, assert: {all_of: [{term: Navan}, {any_of: [{number: 7, unit: business days}, {number: 7, unit: working days}]}, {term: Monday}]}}
+  10:
+    F1: {expressible: true, assert: {term: Collaboration}}
+    F2: {expressible: true, assert: {term: Results, variants: [Results for Customers]}}
+    F3: {expressible: true, assert: {term: Efficiency}}
+    F4: {expressible: true, assert: {term: "Diversity, Inclusion & Belonging", variants: ["Diversity, Inclusion and Belonging", "Diversity, Inclusion, and Belonging"]}}
+    F5: {expressible: true, assert: {term: Iteration}}
+    F6: {expressible: true, assert: {term: Transparency}}
+    F8: {expressible: true, assert: {all_of: [{term: Speed with Quality}, {term: Ownership Mindset}, {term: Customer Outcomes}, {term: CREDIT}]}}
+  50:
+    F1: {expressible: false, reason: "conceptual (commit once decided, question while acting in line); its key word 'commit' is in the question"}
+    F4: {expressible: true, assert: {term: facts, variants: [fact-based, fact based, factual]}}
+    F5: {expressible: true, assert: {all_of: [{term: DRI}, {term: best intent, variants: [positive intent, good intent]}]}}
+  59:
+    F1: {expressible: true, assert: {all_of: [{term: Speed with Quality}, {term: Ownership Mindset}, {term: Customer Outcomes}, {term: Culture of Excellence}]}}
+    F2: {expressible: true, assert: {any_of: [{term: two-way door, variants: [two-way-door, two way door]}, {term: fail fast, variants: [failing fast]}, {term: bureaucracy}]}}
+    F3: {expressible: true, assert: {any_of: [{term: "never someone else's problem", variants: ["never someone else’s problem"]}, {term: closest to the work}]}}
+    F4: {expressible: true, assert: {any_of: [{term: changes for the customer}, {term: connects to a customer outcome}]}}
+  13:
+    F1: {expressible: false, reason: "the claim is the distinction (company-wide yes, entity-specific no); an inverted answer uses the same terms"}
+    F2: {expressible: true, assert: {all_of: [{term: health insurance}, {term: social security}, {term: payroll}]}}
+  48:
+    F1: {expressible: true, assert: {all_of: [{term: payroll@gitlab.com}, {term: template}]}}
+    F5: {expressible: true, assert: {term: GitLab Services Inc, variants: [GitLab Services, GSI]}}
+  44:
+    F1: {expressible: true, assert: {term: Customer Experience}}
+    F2: {expressible: true, assert: {term: Customer Success Manager, variants: [CSM]}}
+    F3: {expressible: true, assert: {term: Customer Success Engineer, variants: [CSE]}}
+    F4: {expressible: true, assert: {term: Customer Success Architect, variants: [CSA]}}
+    F5: {expressible: true, assert: {term: Renewals Manager, variants: [Renewal Manager]}}
+  55:
+    F1: {expressible: true, assert: {term: Sherrod Patching}}
+  46:
+    F1: {expressible: true, assert: {all_of: [{term: manager}, {term: twice as many, variants: [double, twice the]}]}}
+  58:
+    F1: {expressible: false, reason: "conditional framing (depends on the entity; ask or give the general policy); rules can't tell asking from answering"}
+    F2: {expressible: true, assert: {all_of: [{term: Flexible PTO}, {number: 25}]}}
+    F3: {expressible: true, assert: {all_of: [{term: statutory}, {term: entity, variants: [entities, location-specific, country-specific]}]}}
+  99:
+    F1: {expressible: true, assert: {all_of: [{term: manager}, {term: Workday}]}}
+    F2: {expressible: false, reason: "a negative claim (no waiting period); its key term is in the question, so a term check passes either way"}
+  100:
+    F1: {expressible: true, assert: {any_of: [{term: Flexible PTO}, {term: no annual limit, variants: [no set annual limit, unlimited]}, {term: does not accrue, variants: ["doesn't accrue", not accrue]}]}}
+    F2: {expressible: true, assert: {all_of: [{term: statutory}, {term: entity, variants: [entities, location, country]}]}}
+  87:
+    F1: {expressible: false, reason: "structural claim (no single company-wide list; listed per category); not a term or number"}
+    F2: {expressible: true, assert: {all_of: [{term: GitHub}, {term: Atlassian}]}}
+  5:
+    F1: {expressible: true, assert: {all_of: [{term: Out Sick}, {term: leaves@gitlab.com}]}}
+    F2: {expressible: true, assert: {all_of: [{term: private insurance, variants: [privately insured, private health insurance]}, {term: AU certificate, variants: [AU]}]}}
+    F4: {expressible: true, assert: {all_of: [{number: 6}, {term: consecutive}]}}
+  9:
+    F1: {expressible: true, assert: {number: 100, unit: USD}}
+  22:
+    F1: {expressible: false, reason: "conditional framing (depends on the entity; ask or give the variants); rules can't tell asking from answering"}
+  23:
+    F1: {expressible: true, assert: {all_of: [{term: Planning}, {term: Calibration}, {term: Processing}, {term: Workday}]}}
+    F2: {expressible: true, assert: {all_of: [{term: Department}, {term: Division}, {term: E-Group, variants: [E Group, EGroup]}]}}
+  26:
+    F1: {expressible: false, reason: "a yes/no claim; 'disk encryption' is in the question, and a yes-word check can't see negation"}
+  34:
+    F1: {expressible: true, assert: {all_of: [{number: 1, unit: years}, {term: tenure}]}}
+    F2: {expressible: true, assert: {all_of: [{term: entity}, {term: hiring}]}}
+    F3: {expressible: true, assert: {all_of: [{term: right to work, variants: [eligible to work, work authorization, work permit]}, {term: sponsorship, variants: [sponsor, sponsors]}]}}
+  35:
+    F1: {expressible: true, assert: {all_of: [{term: Workday}, {term: Terminate Employee, variants: [termination, terminate]}]}}
+    F3: {expressible: true, assert: {all_of: [{term: Compass}, {term: Child Case, variants: [Child Cases]}]}}
+  38:
+    F1: {expressible: true, assert: {term: Communications Lead, variants: [Communication Lead]}}
+    F2: {expressible: true, assert: {all_of: [{term: CMOC, variants: [Communications Manager On Call]}, {term: Support}]}}
+  65:
+    F1: {expressible: true, assert: {term: all-remote, variants: [all remote, fully remote, no offices]}}
+  88:
+    F1: {expressible: true, assert: {all_of: [{term: Talent Assessment}, {term: once a year, variants: [once per year, annual, annually, yearly]}]}}
+  89:
+    F2: {expressible: true, assert: {all_of: [{term: Workday}, {term: resign, variants: [resignation, resigning, resigns]}]}}
+    F4: {expressible: true, assert: {term: Team Member Relations, variants: [TMR]}}
+  92:
+    F1: {expressible: true, assert: {all_of: [{term: Sexual Harassment}, {term: India}]}}
+    F4: {expressible: true, assert: {term: Internal Committee}}
+  93:
+    F1: {expressible: true, assert: {number: 9, unit: months}}
+  96:
+    F1: {expressible: true, assert: {all_of: [{term: Workday}, {term: balance}]}}

@@ -575,3 +575,5 @@ Adopt only if mean / SE > 2 on the matched-k row (spec 0008 AC-9).
 | 87 | page_hit@5 | 0.000 | 1.000 |
 | 87 | chunk_fact_recall@matched | 0.000 | 0.000 |
 | 87 | best relevant chunk | — | — |
+
+Answer evaluation: [answer-eval.md](answer-eval.md)
