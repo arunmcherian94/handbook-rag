@@ -12,6 +12,8 @@ ROW = re.compile(r"^### Row (\d+)\b(.*)$")
 FACT = re.compile(r"^- (F\d+)\.\s")
 MARKER = re.compile(r"\[(required|optional)\]")
 RECENCY = re.compile(r"^recency_basis:\s*(in-page|history-only)\b")
+TAGS = re.compile(r"^(?:\s*\[(?:variant|rewording):[^\]]*\])+")  # editorial tags, not statement
+DASH = " — "  # separates a fact's statement from its citation
 # One scan, in order: a path token (a/b.md, _index.md) or a line ref (L5, L5–9, L5-9).
 CITE = re.compile(
     r"(?<![\w/.-])(?P<path>(?:[\w.-]+/)*[\w.-]+\.md)\b"
@@ -30,6 +32,10 @@ class Fact:
     # path (relative to content/handbook/) -> cited 1-based line numbers, ranges expanded, in
     # citation order. Empty: an answer-only fact (no citation), outside the retrieval metrics.
     cites: dict[str, tuple[int, ...]] = field(default_factory=dict)
+    # The statement: after the marker and any [variant: ...] / [rewording: ...] tag, before the
+    # " — " citation.
+    # The reference text an answer-content assertion must pass on (spec 0010, AC-7).
+    text: str = ""
 
     @property
     def answer_only(self) -> bool:
@@ -46,6 +52,7 @@ class Row:
     expected: str | None = None  # the fixed reply, ooc rows only
     recency_basis: str | None = None  # "in-page" | "history-only" | None
     conflict_unscored: bool = False  # the recency_basis line says the conflict is not scored
+    ref_source: str | None = None  # "llm-draft, reviewed" | "llm-draft, auto-reviewed" | ...
 
     @property
     def answerable(self) -> bool:
@@ -102,6 +109,7 @@ def _row(row_id: int, header: str, lines: list[str]) -> Row:
     docs: tuple[str, ...] = ()
     facts: list[Fact] = []
     unscored = False
+    ref_source = None
     for line in lines:
         if line.startswith("Q:"):
             question = line[2:].strip()
@@ -114,6 +122,8 @@ def _row(row_id: int, header: str, lines: list[str]) -> Row:
                 raise fail(f"recency_basis is neither in-page nor history-only: {line!r}")
             basis = m[1]
             unscored = "not scored" in line.lower()
+        elif line.startswith("ref_source:"):
+            ref_source = line.split(":", 1)[1].strip()
         elif m := FACT.match(line):
             if any(f.id == m[1] for f in facts):
                 raise fail(f"duplicate fact id {m[1]}")
@@ -123,10 +133,10 @@ def _row(row_id: int, header: str, lines: list[str]) -> Row:
     if row_type in FIXED_STRING_TYPES:
         if expected is None:
             raise fail("ooc row has no expected: line")
-        return Row(row_id, row_type, question, expected=expected)
+        return Row(row_id, row_type, question, expected=expected, ref_source=ref_source)
     if not any(f.required for f in facts):
         raise fail("no [required] fact")
-    return Row(row_id, row_type, question, docs, tuple(facts), None, basis, unscored)
+    return Row(row_id, row_type, question, docs, tuple(facts), None, basis, unscored, ref_source)
 
 
 def _fact(fact_id: str, line: str, fail) -> Fact:
@@ -134,10 +144,13 @@ def _fact(fact_id: str, line: str, fail) -> Fact:
     if not marker:
         raise fail(f"{fact_id} has neither [required] nor [optional]")
     cites: dict[str, list[int]] = {}
+    first_path: int | None = None
     path = None
     path_has_ref = True  # whether the latest path has been followed by a line ref yet
     for m in CITE.finditer(line, marker.end()):
         if m["path"]:
+            if first_path is None:
+                first_path = m.start()
             if not path_has_ref:
                 raise fail(f"{fact_id} cites {path} with no L<n> line ref")
             path, path_has_ref = m["path"], False
@@ -153,4 +166,13 @@ def _fact(fact_id: str, line: str, fail) -> Fact:
     if not path_has_ref:
         raise fail(f"{fact_id} cites {path} with no L<n> line ref")
     # Empty cites only when the fact line names no .md path: an answer-only fact.
-    return Fact(fact_id, marker[1] == "required", {p: tuple(ns) for p, ns in cites.items()})
+    cited = {p: tuple(ns) for p, ns in cites.items()}
+    head = line[marker.end() : first_path]  # up to the first cited path, or the whole line
+    return Fact(fact_id, marker[1] == "required", cited, _text(line[marker.end() :], head))
+
+
+def _text(rest: str, head: str) -> str:
+    """The statement: rest up to the last " — " in head (rest starts where head does). No dash
+    there (inline cites in parentheses) keeps all of rest."""
+    cut = head.rfind(DASH)
+    return TAGS.sub("", rest[:cut] if cut >= 0 else rest).strip()

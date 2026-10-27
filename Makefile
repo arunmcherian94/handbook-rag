@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval permissions paid-permissions ann-build ann paid-ann test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval answer-eval permissions paid-permissions ann-build ann paid-ann test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -55,6 +55,9 @@ eval: ## Dry run: the eval set's rows and cost; LIMIT=n, RETRIEVAL_ONLY=1, CONFI
 
 paid-eval: ## Spend: run the eval set, same options as `make eval`
 	$(SPEND) $(EVAL) --confirm
+
+answer-eval: ## Answer-content check + false-abstention classes over the baseline run (no spend); RUN=<id>
+	PYTHONPATH=src uv run python -m handbook_rag.evaluation.answer_eval $(if $(RUN),--run $(RUN))
 
 permissions: ## Dry run: permissions-v1 cases and cost (retrieval-only); CONFIG=
 	$(PERMISSIONS)

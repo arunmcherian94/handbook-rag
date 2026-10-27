@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from handbook_rag.evaluation.assertions import FACT_PASS, ROW_PASS
 from handbook_rag.evaluation.metrics import row_metrics
 from handbook_rag.evaluation.report import (
     is_binary,
@@ -190,7 +191,7 @@ def test_render_md():
 
 
 def test_every_metric_is_defined_in_metrics_md():
-    """AC-7: docs/eval/results/metrics.md defines every reported metric, and no entry is stale."""
+    """AC-7, spec 0010 AC-10: metrics.md defines every reported metric, and no entry is stale."""
     summary = summarize(records(), META, NOTES)
     keys = row_metrics(
         chunk_facts=[{"f1"}, set()],
@@ -200,7 +201,7 @@ def test_every_metric_is_defined_in_metrics_md():
         n_relevant_chunks=1,
         token_counts=[10, 20],
     )
-    names = set(keys) | set(summary["groups"]["overall"]) - {"labels"}
+    names = set(keys) | set(summary["groups"]["overall"]) - {"labels"} | {FACT_PASS, ROW_PASS}
     text = (Path(__file__).parents[2] / "docs/eval/results/metrics.md").read_text()
     defined = set(re.findall(r"^- `([a-z_]+(?:@k)?)`:", text, re.M))
     assert {re.sub(r"@\d+$", "@k", n) for n in names} == defined

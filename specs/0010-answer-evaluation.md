@@ -1,6 +1,6 @@
 # 0010: Answer evaluation, code-first (false-abstention classes, answer-content assertions)
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-27
 
 ## Problem
@@ -16,7 +16,7 @@ This spec adds two code-only measures over stored run data. It makes no API call
 | Baseline answer run | A new full answer run, or an answer-model or embed-model change | **Write as a rule** (AC-1). Today it resolves to `2026-10-21-e602bd95`. Without the embed-model filter it would resolve to the Qwen run `2026-10-21-9719cae6`, which is 45 ms newer. |
 | Fact lists in eval set v1.2 (`eval_sha256 995acb3b…`) | Arun's hand-check of the 26 auto-reviewed rows (today). Any changed fact means v1.3, done by Arun | **Decided** (Arun, 27 Oct). Assertions only for eligible rows (AC-6). A row Arun changes stays `checked=n` until v1.3 lands. The assertions file pins `eval_sha256`, so a v1.3 bump makes the loader refuse the file until it is re-reviewed (AC-6). |
 | Retrieved chunks and their matched facts, per row | None in week 3 (retrieval is frozen for this run) | **Read from the run folder**: `rows.jsonl` → `retrieved[]` (rank, `chunk_id`, `facts`). The harness wrote `facts` at run time with its path + heading + line-range matcher, so nothing is recomputed. |
-| Fixed abstention strings | None (`prompts.py` is frozen) | `checks.FIXED_STRINGS` (`NOT_FOUND`, `OUT_OF_SCOPE`), imported, not copied. |
+| Fixed abstention strings | None (`prompts.py` is frozen) | `NOT_FOUND` and `OUT_OF_SCOPE`, imported from `prompts.py`, not copied. **Correction (2026-10-27, Arun):** this row said `checks.FIXED_STRINGS`; `checks.py` imports `ask.py`, which loads the model clients and would break AC-2. `checks.py` takes the same two strings from `prompts.py`. |
 | Reference text an assertion must pass on | Eval set v1.2 has no reference-answer field | **Decided** (Arun, 27 Oct): the fact's own statement (Decisions, row 1). |
 | Which rows are eligible for assertions | Whether the 23 owner-reviewed answerable rows count as checked | **Decided** (Arun, 27 Oct): owner-reviewed rows are eligible, and auto-reviewed rows become eligible once checked (AC-6). |
 
