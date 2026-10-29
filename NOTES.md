@@ -9,7 +9,7 @@ Index of the project notes. The notes themselves live in `docs/`.
 | Dated log: gate catches, findings, limitations | [docs/journal/](docs/journal/), listed below |
 | Follow-ups (not built) | [docs/follow-ups.md](docs/follow-ups.md) |
 | Corpus: git behaviors, limitations, assumptions | [docs/corpus.md](docs/corpus.md) |
-| Reading log | [docs/reading/](docs/reading/): [week 1](docs/reading/week-01.md), [week 2](docs/reading/week-02.md) |
+| Reading log | [docs/reading/](docs/reading/): [week 1](docs/reading/week-01.md), [week 2](docs/reading/week-02.md), [week 3](docs/reading/week-03.md) |
 | Error analysis: seed traces | [docs/error-analysis/](docs/error-analysis/) |
 | Eval set, results, metric definitions | [docs/eval/](docs/eval/), [results/metrics.md](docs/eval/results/metrics.md) |
 
