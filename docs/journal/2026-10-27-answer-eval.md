@@ -21,6 +21,7 @@ Baseline run `2026-10-21-e602bd95` (3-large@1536, `fixed-512-64`, gpt-5.4-mini).
 - **Scores:** `answer_content_fact_pass` 0.403 ± 0.079 and `answer_content_row_pass` 0.258 ± 0.079, both n = 31. That is 66 expressible facts across 33 eligible rows. Rows 22 and 26 have no expressible fact.
 - **What drives the score:**
   - The 11 rows that abstained fail every assertion.
+    - **Correction (2026-10-29):** 10 rows abstained on `e602bd95`, not 11; 11 is the 3-small baseline (`18f10293`). 9 of the 10 are scored; row 22 has no expressible fact.
   - Most failures on answered rows are real misses. Rows 32, 59, 38 and 23 answered another path or question, and rows 10 F8, 44 F1 and 52 F2 leave out the newer fact.
 - **One known false fail:** row 11 F1. The answer says "request a GitLab-issued laptop", which no variant covers. It was not added, because variants taken from the answers being scored would inflate the score.
 - **Limits:**
