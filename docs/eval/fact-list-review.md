@@ -1,6 +1,6 @@
 # Fact-list review (spec 0010, AC-11)
 
-Arun fills this in. `checked=y` means he hand-checked the row's facts against the cited excerpts; `changed=y` means a fact needs changing, which is a v1.3 bump done by Arun, and the row stays ineligible.
+Arun fills this in. `checked=y` means the row's facts were checked against the cited excerpts (by Arun, or by an agent with Arun's acceptance); `changed=y` means a fact needs changing, which is a v1.3 bump done by Arun, and the row stays ineligible.
 Only answerable rows can get assertions.
 
 | row | type | checked | changed | note |
