@@ -1,13 +1,17 @@
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from fakes import make_principal
+from fakes import FakeEmbedder, make_principal
 
+from handbook_rag import hybrid
 from handbook_rag.constants import PERMISSIONS_KS, PERMISSIONS_SUITE, POLICY_PATH
 from handbook_rag.evaluation import permissions as p
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evalset import parse as parse_evalset
-from handbook_rag.evaluation.permissions import Case, SuiteError
+from handbook_rag.evaluation.evidence import Evidence
+from handbook_rag.evaluation.permissions import Case, Entitlement, SuiteError
 from handbook_rag.policy import parse as parse_policy
 
 ACLS = {
@@ -368,3 +372,107 @@ def test_control_row_missing_from_eval_set_fails():
     suite = p.parse_suite(Path(PERMISSIONS_SUITE).read_text(encoding="utf-8"))
     with pytest.raises(SuiteError, match="P-087: control row 5"):
         p.plan_cases(suite, {}, policy, eval_rows={})
+
+
+# --- spec 0011: the retriever (AC-6, AC-8, AC-11)
+
+
+def test_retriever_flag_defaults_to_dense_and_rejects_unknown():
+    """Spec 0011, AC-8: dense unless asked; a bad choice is refused."""
+    ap = p.build_parser()
+    assert ap.parse_args([]).retriever == "dense"
+    assert ap.parse_args(["--retriever", "hybrid"]).retriever == "hybrid"
+    with pytest.raises(SystemExit):
+        ap.parse_args(["--retriever", "bm25"])
+
+
+def _meta(monkeypatch, **kw):
+    monkeypatch.setattr(p, "_git", lambda *a: "abc123\n")
+    policy = type("P", (), {"version": "policy-v1", "sha256": "f" * 64})()
+    return p.metadata(p.Suite("v1", ()), b"s", policy, "sha", "fixed-512-64", "model@1536", **kw)
+
+
+def test_metadata_records_the_retriever(monkeypatch):
+    """Spec 0011, AC-11: retriever always; rrf_k, fusion_depth and fts only where they apply."""
+    dense = _meta(monkeypatch)
+    assert dense["retriever"] == "dense"
+    assert not {"rrf_k", "fusion_depth", "fts"} & set(dense)
+    fts = _meta(monkeypatch, retriever="fts")
+    assert fts["retriever"] == "fts" and fts["fts"] == hybrid.FTS_SETTINGS
+    assert "rrf_k" not in fts
+    hyb = _meta(monkeypatch, retriever="hybrid")
+    assert hyb["retriever"] == "hybrid" and hyb["fts"] == hybrid.FTS_SETTINGS
+    assert hyb["rrf_k"] == 60 and hyb["fusion_depth"] == 50
+
+
+def test_render_md_names_the_retriever_and_renders_older_summaries():
+    """Spec 0011, AC-11: the config line names the retriever; a meta without it still renders."""
+    older = p.render_md(p.summarize([rec("P-1", "denied", True, 0, None)], META))
+    assert "retriever dense" in older
+    s = p.summarize([rec("P-1", "denied", True, 0, None)], {**META, "retriever": "hybrid"})
+    assert "retriever hybrid" in p.render_md(s)
+
+
+def test_fts_estimate_is_free():
+    """Spec 0011, AC-9, AC-11: fts embeds nothing, so the dry run costs $0."""
+    est = p.estimate(["hello world"], 1_000_000.0, retriever="fts")
+    assert est == {"embed_tokens": 0, "embed_usd": 0.0}
+    assert p.estimate(["hello world"], 1_000_000.0, retriever="hybrid")["embed_tokens"] > 0
+
+
+def _drive(tmp_path, monkeypatch, retriever, embedder):
+    """run() on one case with hybrid.search recorded and the DB lookups stubbed out."""
+    calls = []
+
+    def fake_search(conn, mode, q, question, model, principal, k, config_id):
+        calls.append((mode, q, question, model, principal, k, config_id))
+        return [SimpleNamespace(n=1, chunk_id="c1", doc_id="d1")]
+
+    monkeypatch.setattr(p.hybrid, "search", fake_search)
+    monkeypatch.setattr(
+        p, "_doc_paths", lambda conn, retrieved, cache: ["open.md"] * len(retrieved)
+    )
+    suite = p.Suite("v1", (case(),))
+    plan = p.Plan(
+        suite,
+        {"us-ic": US, p.ADMIN: UK_MGR},
+        {"P-900": Entitlement(("open.md",), "allowed", ())},
+    )
+    meta = {**META, "retriever": retriever}
+    out = tmp_path / "run"
+    out.mkdir()
+    p.run(None, plan, ACLS, Evidence(), embedder, meta=meta, retriever=retriever, out=out)
+    return calls, out
+
+
+def test_run_passes_retriever_and_both_principals_through(tmp_path, monkeypatch):
+    """Spec 0011, AC-11: persona and admin are each searched in the chosen mode, with the
+    question's vector, to the scored depth; one embedding per unique question."""
+    emb = FakeEmbedder(kind="query")
+    calls, out = _drive(tmp_path, monkeypatch, "hybrid", emb)
+    assert [c[0] for c in calls] == ["hybrid", "hybrid"]
+    assert [c[4] for c in calls] == [US, UK_MGR]
+    assert all(c[1] and c[2] == "q?" and c[3] == emb.name and c[5] == 20 for c in calls)
+    assert len(emb.calls) == 1
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert summary["meta"]["retriever"] == "hybrid"
+
+
+def test_run_fts_never_embeds(tmp_path, monkeypatch):
+    """Spec 0011, AC-9: fts mode needs no embedder and sends no vector."""
+    calls, _ = _drive(tmp_path, monkeypatch, "fts", None)
+    assert [(c[0], c[1], c[3]) for c in calls] == [("fts", None, "")] * 2
+    emb = FakeEmbedder(kind="query")
+    (tmp_path / "again").mkdir()
+    _drive(tmp_path / "again", monkeypatch, "fts", emb)
+    assert emb.calls == []
+
+
+def test_estimate_fts_never_tokenizes():
+    """Spec 0011 AC-9: fts embeds nothing; sent is never called."""
+
+    def boom(_):
+        raise AssertionError("sent called")
+
+    est = p.estimate(["hello"], 1.0, sent=boom, retriever="fts")
+    assert est == {"embed_tokens": 0, "embed_usd": 0.0}

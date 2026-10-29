@@ -1,6 +1,6 @@
 # 0011: Hybrid search (Postgres FTS + dense, fused with RRF)
 
-- Status: draft
+- Status: implemented
 - Date: 2026-10-29
 
 ## Problem
@@ -176,10 +176,10 @@ All runs are retrieval-only, as `admin`, on `fixed-512-64`, eval v1.2.
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
+- [x] Clean-room verified
+- [x] docs updated: journal entry, an ADR for any decision, follow-ups
 
 ## References
 

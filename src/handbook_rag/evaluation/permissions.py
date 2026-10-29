@@ -5,6 +5,10 @@ stored ACLs are fresh (AC-5), parse the suite, compute each case's entitlement f
 and the fixture, print the counts and the query-embedding cost; spend (embed) only with
 --confirm; write the run folder. Leak and entitlement come from the policy file's allow-lists,
 never from chunks.allowed_groups.
+
+--retriever dense|fts|hybrid (spec 0011, AC-8, AC-11) picks the retrieval path; the stale-FTS
+check (AC-6) runs after the ACL check for fts and hybrid, the dry run included. fts embeds
+nothing: $0 and no embedder.
 """
 
 import argparse
@@ -22,15 +26,19 @@ from pathlib import Path
 
 import tiktoken
 
-from handbook_rag import acl, ask, identity
+from handbook_rag import acl, ask, hybrid, identity
 from handbook_rag.constants import (
     BASELINE_CONFIG,
     CORPUS_PREFIX,
+    DEFAULT_RETRIEVER,
     EVAL_SET,
+    FUSION_DEPTH,
     IDENTITIES_PATH,
     PERMISSIONS_KS,
     PERMISSIONS_RUNS,
     PERMISSIONS_SUITE,
+    RETRIEVERS,
+    RRF_K,
     TOKENIZER,
 )
 from handbook_rag.corpus import read_manifest, verify
@@ -363,7 +371,9 @@ def render_md(summary: dict, ks: Sequence[int] = PERMISSIONS_KS) -> str:
     lines = [
         f"# Permissions {meta['suite_version']} ({meta['timestamp'][:10]})",
         "",
-        f"- config {meta['config_id']}, embed model {meta['embed_model']}, ks {list(ks)}",
+        # a literal: runs before spec 0011 were dense, whatever DEFAULT_RETRIEVER becomes
+        f"- config {meta['config_id']}, retriever {meta.get('retriever', 'dense')}, "
+        f"embed model {meta['embed_model']}, ks {list(ks)}",
         f"- policy {meta['policy_version']} ({meta['policy_sha256'][:12]}), identities "
         f"{meta['identity_version']} ({meta['identity_sha256'][:12]}), suite "
         f"{meta['suite_sha256'][:12]}",
@@ -410,9 +420,15 @@ def metadata(
     embed_model: str,
     ks: Sequence[int] = PERMISSIONS_KS,
     identities_path: Path = IDENTITIES_PATH,
+    retriever: str = DEFAULT_RETRIEVER,
 ) -> dict:
-    """AC-13 run metadata."""
+    """AC-13 run metadata; spec 0011 AC-11 adds the retriever and its settings."""
     identity_version, identity_sha = identity.fixture_version(identities_path)
+    extra: dict = {"retriever": retriever}
+    if retriever == "hybrid":
+        extra |= {"rrf_k": RRF_K, "fusion_depth": FUSION_DEPTH}
+    if retriever != "dense":
+        extra["fts"] = hybrid.FTS_SETTINGS
     return {
         "suite_version": suite.version,
         "suite_sha256": hashlib.sha256(suite_bytes).hexdigest(),
@@ -428,6 +444,7 @@ def metadata(
         "ks": list(ks),
         "cases": len(suite.cases),
         "timestamp": datetime.now(UTC).isoformat(),
+        **extra,
     }
 
 
@@ -470,9 +487,13 @@ def plan_cases(
     )
 
 
-def estimate(questions: Sequence[str], usd_per_1m: float, sent=str) -> dict:
+def estimate(
+    questions: Sequence[str], usd_per_1m: float, sent=str, retriever: str = DEFAULT_RETRIEVER
+) -> dict:
     """AC-13: query-embedding cost of the unique questions (one embed each, shared by the acting
-    persona and admin)."""
+    persona and admin). Spec 0011, AC-9: fts embeds nothing, so 0 tokens and $0."""
+    if retriever == "fts":
+        return {"embed_tokens": 0, "embed_usd": 0.0}
     enc = tiktoken.get_encoding(TOKENIZER)
     tokens = sum(len(enc.encode(sent(q), disallowed_special=())) for q in questions)
     return {"embed_tokens": tokens, "embed_usd": tokens * usd_per_1m / 1_000_000}
@@ -497,6 +518,7 @@ def run(
     embedder,
     *,
     meta: dict,
+    retriever: str = DEFAULT_RETRIEVER,
     out_root: Path = PERMISSIONS_RUNS,
     config_id: str = BASELINE_CONFIG,
     sleep=time.sleep,
@@ -504,8 +526,8 @@ def run(
     out: Path | None = None,
 ) -> Path:
     """Retrieve every case's top 20 as its persona and as admin (one query embedding per unique
-    question); write the run folder (AC-13): out, from new_run_dir() (one is created under
-    out_root if None). Returns the folder."""
+    question; none in fts mode, where embedder may be None); write the run folder (AC-13): out,
+    from new_run_dir() (one is created under out_root if None). Returns the folder."""
     out = out if out is not None else new_run_dir(out_root, meta)
     vectors: dict[str, str] = {}
     searched: dict[tuple[str, str], list[ask.Retrieved]] = {}
@@ -513,13 +535,20 @@ def run(
     depth = max(meta["ks"])
 
     def search(persona: str, question: str) -> list[ask.Retrieved]:
-        if question not in vectors:
+        if retriever != "fts" and question not in vectors:
             vectors[question] = vector_literal(
                 embed_with_retry(embedder, [question], sleep, rand)[0]
             )
         if (persona, question) not in searched:
-            searched[persona, question] = ask.search(
-                conn, vectors[question], embedder.name, plan.principals[persona], depth, config_id
+            searched[persona, question] = hybrid.search(
+                conn,
+                retriever,
+                vectors.get(question),
+                question,
+                embedder.name if embedder else "",
+                plan.principals[persona],
+                depth,
+                config_id,
             )
         return searched[persona, question]
 
@@ -586,11 +615,18 @@ def run(
     return out
 
 
-def main(argv=None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Run the permissions suite (spec 0007).")
     ap.add_argument("--confirm", action="store_true", help="spend: embed the questions")
     ap.add_argument("--config", default=BASELINE_CONFIG, help="chunk config to evaluate")
-    args = ap.parse_args(argv)
+    ap.add_argument(  # spec 0011, AC-8
+        "--retriever", choices=RETRIEVERS, default=DEFAULT_RETRIEVER, help="retrieval path"
+    )
+    return ap
+
+
+def main(argv=None) -> int:
+    args = build_parser().parse_args(argv)
 
     m = read_manifest()
     error = verify(m)
@@ -617,6 +653,11 @@ def main(argv=None) -> int:
             acl.check_stale(conn, policy)
         except (acl.StaleACL, acl.AclError) as e:
             raise SystemExit(str(e)) from None
+        if args.retriever != "dense":
+            try:  # spec 0011, AC-6: after the ACL check, the dry run included
+                hybrid.check_fts(conn, args.config)
+            except hybrid.StaleFTS as e:
+                raise SystemExit(str(e)) from None
         acls = acl.expected_acls(conn, policy)
         try:
             plan = plan_cases(suite, acls, policy, eval_rows)
@@ -629,15 +670,19 @@ def main(argv=None) -> int:
             raise SystemExit(str(e)) from None
 
         questions = list(dict.fromkeys(c.question for c in suite.cases))
-        try:  # every query as sent is within the limit before anything is spent
-            query_embedder.prepare(questions)
-        except InputTooLong as e:
-            raise SystemExit(str(e)) from None
-        cost = estimate(questions, usd_per_1m, lambda q: query_embedder.prepare([q])[0])
+        if args.retriever != "fts":  # fts embeds nothing
+            try:  # every query as sent is within the limit before anything is spent
+                query_embedder.prepare(questions)
+            except InputTooLong as e:
+                raise SystemExit(str(e)) from None
+        cost = estimate(
+            questions, usd_per_1m, lambda q: query_embedder.prepare([q])[0], args.retriever
+        )
         flagged = [c.id for c in suite.cases if plan.entitlements[c.id].disagreements]
         stored_valid = sum(c.stored_valid is True for c in suite.cases)
         print(
-            f"permissions {suite.version}, config {args.config}: {len(suite.cases)} cases, "
+            f"permissions {suite.version}, config {args.config}, retriever {args.retriever}: "
+            f"{len(suite.cases)} cases, "
             f"{stored_valid} valid by stored field, {len(flagged)} intent disagreements"
             + (f" ({', '.join(flagged)})" if flagged else "")
         )
@@ -645,32 +690,51 @@ def main(argv=None) -> int:
             f"estimated cost: ${cost['embed_usd']:.6f} (embed ~{cost['embed_tokens']} tokens, "
             f"{len(questions)} unique questions)"
         )
-        meta = metadata(suite, suite_bytes, policy, corpus_sha, chunk_params["config_id"], spec)
+        meta = metadata(
+            suite,
+            suite_bytes,
+            policy,
+            corpus_sha,
+            chunk_params["config_id"],
+            spec,
+            retriever=args.retriever,
+        )
         if not paid(args.confirm, "permissions"):  # spec 0009
             return 0
 
         # Built only after confirm, so a dry run needs no API key.
-        embedder = make_embedder(spec, kind="query")
-        (has_embeddings,) = conn.execute(
-            "SELECT EXISTS (SELECT 1 FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
-            "WHERE c.config_id = %s AND e.model = %s)",
-            (args.config, embedder.name),
-        ).fetchone()
-        if not has_embeddings:
-            raise SystemExit(
-                f"config {args.config!r} has no embeddings for {embedder.name}; "
-                f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
-            )
+        embedder = None if args.retriever == "fts" else make_embedder(spec, kind="query")
+        if embedder:
+            (has_embeddings,) = conn.execute(
+                "SELECT EXISTS (SELECT 1 FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
+                "WHERE c.config_id = %s AND e.model = %s)",
+                (args.config, embedder.name),
+            ).fetchone()
+            if not has_embeddings:
+                raise SystemExit(
+                    f"config {args.config!r} has no embeddings for {embedder.name}; "
+                    f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
+                )
         out, status = new_run_dir(PERMISSIONS_RUNS, meta), "failed"
         try:
-            run(conn, plan, acls, ev, embedder, meta=meta, config_id=args.config, out=out)
+            run(
+                conn,
+                plan,
+                acls,
+                ev,
+                embedder,
+                meta=meta,
+                retriever=args.retriever,
+                config_id=args.config,
+                out=out,
+            )
             status = "ok"
         finally:  # spec 0009, AC-3: logged even when the run fails after spending
             log_spend(
                 "permissions",
                 cost["embed_usd"],
                 run_id=out.name,
-                embed_model=embedder.name,
+                embed_model=embedder.name if embedder else None,
                 answer_model=None,
                 status=status,
             )

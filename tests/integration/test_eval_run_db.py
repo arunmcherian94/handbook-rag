@@ -11,7 +11,7 @@ import psycopg
 import pytest
 from fakes import FakeAnswerer, FakeEmbedder, bow_vector
 
-from handbook_rag import acl, identity
+from handbook_rag import acl, hybrid, identity
 from handbook_rag.constants import (
     BASELINE_CONFIG,
     CHECKOUT,
@@ -33,6 +33,7 @@ META_KEYS = {
     "eval_version", "eval_sha256", "harness_sha", "harness_dirty", "corpus_sha", "chunk_params",
     "embed_model", "answer_model", "system_prompt_sha256", "k", "timestamp", "rows", "mode",
     "limit", "config_id", "eval_depth", "user_id", "policy_version", "policy_sha256",
+    "retriever",
 }  # fmt: skip
 MISSING = "zzqx this line is in no stored chunk qxzz"
 
@@ -389,3 +390,85 @@ def test_stale_acl_aborts_dry_run(monkeypatch):
     monkeypatch.setattr(run_mod, "make_embedder", boom)
     with pytest.raises(SystemExit, match="make acl"):
         run_mod.main(["--limit", "2"])
+
+
+def _retrieval_run(setup, tmp_path, retriever, embedder):
+    conn, checkout, path_a, path_b, question = setup
+    rows = _rows(path_a, path_b, question)
+    ev = evidence.check(rows, conn, BASELINE_CONFIG, checkout)
+    meta = _meta(None, 2) | {"retriever": retriever}
+    out = run_mod.run(
+        conn,
+        rows,
+        ev,
+        embedder,
+        None,
+        principal=_admin(conn),
+        meta=meta,
+        out_root=tmp_path,
+        checkout=checkout,
+        retriever=retriever,
+    )
+    return _read(out)[0]
+
+
+RANK_KEYS = {"dense_rank", "fts_rank", "rrf_score"}
+
+
+def test_hybrid_run_records_ranks_and_query_flag(setup, tmp_path):
+    """Spec 0011 AC-9: hybrid entries (retrieved and deep) carry both ranks and the RRF score,
+    and each row records whether its FTS query was empty."""
+    embedder = FakeEmbedder(name=MODEL)
+    records = _retrieval_run(setup, tmp_path, "hybrid", embedder)
+    r = records[1]
+    assert r["fts_query_empty"] is False
+    for entry in r["retrieved"] + r["deep"]:
+        assert RANK_KEYS <= set(entry)
+        assert entry["dense_rank"] is not None or entry["fts_rank"] is not None
+        assert entry["rrf_score"] > 0
+    assert len(embedder.calls) == 4  # hybrid still embeds the question twice per answerable row
+
+
+def test_hybrid_run_refuses_when_dense_finds_nothing(setup, tmp_path):
+    """Spec 0011 AC-9 (review fix): a hybrid row whose dense list is empty (no embeddings for
+    the model) stops the run instead of recording an FTS-only list labelled hybrid."""
+    with pytest.raises(SystemExit, match="no embeddings for fake:no-vectors"):
+        _retrieval_run(setup, tmp_path, "hybrid", FakeEmbedder(name="fake:no-vectors"))
+
+
+def test_fts_run_embeds_nothing(setup, tmp_path):
+    """Spec 0011 AC-9: fts mode with no embedder runs, and its entries carry fts_rank only."""
+    records = _retrieval_run(setup, tmp_path, "fts", None)
+    r = records[1]
+    assert r["fts_query_empty"] is False
+    assert [e["fts_rank"] for e in r["retrieved"]] == list(range(1, len(r["retrieved"]) + 1))
+    assert all(e["dense_rank"] is None and e["distance"] is None for e in r["retrieved"])
+    assert all(e["fts_rank"] is not None for e in r["deep"])
+
+
+def test_dense_run_rows_keep_their_shape(setup, tmp_path):
+    """Spec 0011 AC-9: a dense run has none of the new keys."""
+    records = _retrieval_run(setup, tmp_path, "dense", FakeEmbedder(name=MODEL))
+    for r in records.values():
+        assert "fts_query_empty" not in r
+        assert not any(RANK_KEYS & set(e) for e in r["retrieved"] + r["deep"])
+
+
+def test_dry_run_checks_fts_only_for_non_dense(monkeypatch):
+    """Spec 0011 AC-6: dense never calls check_fts; fts and hybrid call it in the dry run, and a
+    StaleFTS aborts with its message."""
+    calls = []
+
+    def stale(conn, config_id):
+        calls.append(config_id)
+        raise hybrid.StaleFTS("column chunks.fts is missing. Run `make chunk`.")
+
+    if not (CHECKOUT / ".git").exists():
+        pytest.fail("Corpus checkout missing. Run `make corpus` first.")
+    monkeypatch.setattr(hybrid, "check_fts", stale)
+    assert run_mod.main(["--limit", "1"]) == 0
+    assert calls == []
+    for retriever in ("fts", "hybrid"):
+        with pytest.raises(SystemExit, match="make chunk"):
+            run_mod.main(["--limit", "1", "--retrieval-only", "--retriever", retriever])
+    assert calls == [BASELINE_CONFIG] * 2

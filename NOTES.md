@@ -66,3 +66,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-24: recall starvation on an HNSW path, spec 0007 Part B](docs/journal/2026-10-24-part-b.md)
 - [2026-10-26: week 2 docs consistency audit](docs/journal/2026-10-26-week2-audit.md)
 - [2026-10-27: answer evaluation, spec 0010](docs/journal/2026-10-27-answer-eval.md)
+- [2026-10-29: hybrid search build, spec 0011](docs/journal/2026-10-29-hybrid-build.md)

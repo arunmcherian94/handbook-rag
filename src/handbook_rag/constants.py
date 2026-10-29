@@ -121,6 +121,12 @@ COMPARE_ROWS = (52, 53, 8, 10, 99, 38, 89)
 # The structural-v1 regressions vs the baseline (run 62a52a83), shown per row (spec 0006, AC-7).
 REGRESSION_ROWS = (11, 34, 44, 49, 51, 58, 88, 100)
 
+# Retrieval modes (spec 0011). Fixed before any run, not tuned on v1.2.
+RETRIEVERS = ("dense", "fts", "hybrid")
+DEFAULT_RETRIEVER = "dense"  # AC-8: hybrid is off until an ADR adopts it
+RRF_K = 60  # AC-5: Cormack et al. 2009, fixed in their pilot
+FUSION_DEPTH = 50  # AC-5: each list's depth before fusion, beyond the scored depth of 20
+
 # Recall starvation on a separate HNSW path (spec 0007 Part B, AC-17, AC-18)
 ANN_RUNS = Path("runs/ann")
 ANN_VECTORS = ANN_RUNS / "query-vectors.jsonl"  # query embeddings, keyed by (model, question)

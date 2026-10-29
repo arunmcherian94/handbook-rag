@@ -4,6 +4,8 @@ Order: verify the corpus pin, check the stored chunks match it, parse the eval s
 evidence check, print the row count,
 mode and estimated cost; spend (embed, answer) only with --confirm; write the run folder.
 run() takes the connection, embedder and answerer as ports, so tests drive it with fakes.
+Spec 0011: --retriever dense|fts|hybrid picks the retrieval mode (dense by default; the others
+are retrieval-only, since hybrid enters the answer path only by ADR). fts embeds nothing.
 """
 
 import argparse
@@ -19,19 +21,23 @@ from pathlib import Path
 
 import tiktoken
 
-from handbook_rag import acl, ask, identity
+from handbook_rag import acl, ask, hybrid, identity
 from handbook_rag.constants import (
     BASELINE_CONFIG,
     CHECKOUT,
     COMPARE_ROWS,
     CORPUS_PREFIX,
+    DEFAULT_RETRIEVER,
     EST_ANSWER_USD_PER_ROW,
     EVAL_DEPTH,
     EVAL_KS,
     EVAL_RUNS,
     EVAL_SET,
+    FUSION_DEPTH,
     QUALITY_SET_USER,
     REGRESSION_ROWS,
+    RETRIEVERS,
+    RRF_K,
     TOKENIZER,
     TOP_K,
 )
@@ -68,16 +74,23 @@ def to_run(rows: list[Row], retrieval_only: bool) -> list[Row]:
 
 
 def estimate(
-    rows: list[Row], retrieval_only: bool, usd_per_1m: float, sent: Callable[[str], str] = str
+    rows: list[Row],
+    retrieval_only: bool,
+    usd_per_1m: float,
+    sent: Callable[[str], str] = str,
+    embeds: bool = True,
 ) -> dict:
     """AC-8, spec 0006 AC-10, spec 0008 AC-5: tokens of each question as sent (sent(), e.g. with a
     query instruction) for the embedding cost at the given price (twice for an answerable row:
-    the k=5 and the depth-20 query); a flat per-row answer cost."""
-    enc = tiktoken.get_encoding(TOKENIZER)
-    tokens = sum(
-        len(enc.encode(sent(r.question), disallowed_special=())) * (2 if r.answerable else 1)
-        for r in rows
-    )
+    the k=5 and the depth-20 query); a flat per-row answer cost. Spec 0011 AC-9: embeds=False
+    (fts) embeds nothing, so no tokens and $0."""
+    tokens = 0
+    if embeds:
+        enc = tiktoken.get_encoding(TOKENIZER)
+        tokens = sum(
+            len(enc.encode(sent(r.question), disallowed_special=())) * (2 if r.answerable else 1)
+            for r in rows
+        )
     embed_usd = tokens * usd_per_1m / 1_000_000
     answer_usd = 0.0 if retrieval_only else len(rows) * EST_ANSWER_USD_PER_ROW
     return {
@@ -145,11 +158,13 @@ def metadata(
     user_id: str | None = None,
     policy_version: str | None = None,
     policy_sha256: str | None = None,
+    retriever: str = DEFAULT_RETRIEVER,
 ) -> dict:
     """AC-6, AC-12 run metadata. corpus_sha and chunk_params (the stored config) come from
     stored_chunk_params (the DB); chunk_params in the output is the config's params.
     answer_model None means retrieval-only. Spec 0007, AC-9: user_id and the policy version and
-    sha256 record who the run was."""
+    sha256 record who the run was. Spec 0011, AC-9: the retriever, for hybrid the fusion
+    settings, for fts and hybrid the FTS settings."""
     return {
         "eval_version": version,
         "eval_sha256": hashlib.sha256(eval_bytes).hexdigest(),
@@ -174,11 +189,15 @@ def metadata(
         "user_id": user_id,
         "policy_version": policy_version,
         "policy_sha256": policy_sha256,
+        "retriever": retriever,
+        **({"rrf_k": RRF_K, "fusion_depth": FUSION_DEPTH} if retriever == "hybrid" else {}),
+        **({"fts": hybrid.FTS_SETTINGS} if retriever != "dense" else {}),
     }
 
 
-# A baseline comparison holds everything fixed except ONE of the chunk config or the embed model
-# (spec 0005 AC-11, 0006 AC-6, 0008 AC-6); changing both at once is reported separately.
+# A baseline comparison holds everything fixed except ONE of the chunk config, the embed model or
+# the retriever (spec 0005 AC-11, 0006 AC-6, 0008 AC-6, 0011 AC-10); changing several at once is
+# reported separately. A baseline without a retriever key is dense.
 SAME_AS_BASELINE = ("eval_sha256", "corpus_sha", "k", "eval_depth", "limit")
 SAME_IF_BOTH_ANSWERED = ("answer_model", "system_prompt_sha256")
 
@@ -193,30 +212,45 @@ def baseline_mismatch(base_meta: dict, meta: dict) -> list[str]:
         for k in keys
         if base_meta.get(k) != meta.get(k)
     ]
-    if _config_differs(base_meta, meta) and _model_differs(base_meta, meta):
+    changed = _changed_axes(base_meta, meta)
+    if len(changed) > 1:
         diff.append(
-            "config_id and embed_model both changed: "
-            f"baseline ({base_meta.get('config_id')}, {base_meta.get('embed_model')}), "
-            f"this run ({meta.get('config_id')}, {meta.get('embed_model')}); "
-            "change one at a time (spec 0008 AC-6)"
+            f"{' and '.join(k for k, _, _ in changed)} changed together: baseline "
+            f"({', '.join(str(x) for _, x, _ in changed)}), this run "
+            f"({', '.join(str(x) for _, _, x in changed)}); "
+            "change one at a time (spec 0008 AC-6, spec 0011 AC-10)"
         )
     return diff
 
 
-def _config_differs(base_meta: dict, meta: dict) -> bool:
-    return base_meta.get("config_id") != meta.get("config_id")
+AXES = (
+    ("config_id", "chunk config", None),
+    ("embed_model", "embed model", None),
+    # a literal, not DEFAULT_RETRIEVER: runs before spec 0011 were dense, whatever an ADR sets
+    ("retriever", "retriever", "dense"),
+)
 
 
-def _model_differs(base_meta: dict, meta: dict) -> bool:
-    return base_meta.get("embed_model") != meta.get("embed_model")
+def _changed_axes(base_meta: dict, meta: dict) -> list[tuple[str, object, object]]:
+    """(key, baseline value, this run's value) for each change axis that differs."""
+    out = []
+    no_embed = "fts" in (base_meta.get("retriever", "dense"), meta.get("retriever", "dense"))
+    for key, _, default in AXES:
+        if key == "embed_model" and no_embed:  # AC-10: fts never uses the embedding model
+            continue
+        was, now = base_meta.get(key, default), meta.get(key, default)
+        if was != now:
+            out.append((key, was, now))
+    return out
 
 
 def baseline_change(base_meta: dict, meta: dict) -> str | None:
-    """The one thing that changed against the baseline (spec 0008 AC-6); None if neither or both."""
-    config, model = _config_differs(base_meta, meta), _model_differs(base_meta, meta)
-    if config == model:
+    """The one thing that changed against the baseline (spec 0008 AC-6, spec 0011 AC-10); None if
+    nothing or several things."""
+    changed = _changed_axes(base_meta, meta)
+    if len(changed) != 1:
         return None
-    return "chunk config" if config else "embed model"
+    return next(label for key, label, _ in AXES if key == changed[0][0])
 
 
 def _lookup(
@@ -265,9 +299,12 @@ def record(
     deep: list[ask.Retrieved],
     result: ask.AskResult | None,
     checkout: Path = CHECKOUT,
+    fts_query_empty: bool | None = None,
 ) -> dict:
     """One rows.jsonl line (schema in report.py). chunks is the k=5 list the model saw; deep the
-    depth-20 list ([] for an ooc row). result is None in retrieval-only mode."""
+    depth-20 list ([] for an ooc row). result is None in retrieval-only mode. Spec 0011 AC-9:
+    a hybrid.Ranked entry also carries its dense and fts ranks and RRF score; fts_query_empty
+    (None for dense) is recorded when given."""
     paths, tokens, heading_paths = _lookup(conn, chunks)
     pages = [paths[c.doc_id].removeprefix(CORPUS_PREFIX) for c in chunks]
     relevant = {f.id: ev.relevant[(row.id, f.id)] for f in row.required}
@@ -294,6 +331,12 @@ def record(
             chunk_facts, pages, *args, tokens, ks=tuple(k for k in EVAL_KS if k <= TOP_K)
         )
         metrics = m_deep | m5
+
+    def ranks(c: ask.Retrieved) -> dict:
+        if not isinstance(c, hybrid.Ranked):
+            return {}
+        return {"dense_rank": c.dense_rank, "fts_rank": c.fts_rank, "rrf_score": c.rrf_score}
+
     rec = {
         "row": row.id,
         "type": row.type,
@@ -312,6 +355,7 @@ def record(
                 "tokens": n,
                 "facts": sorted(facts),
                 "page_relevant": page in row.expected_docs,
+                **ranks(c),
             }
             for c, page, n, facts, hp in zip(
                 chunks, pages, tokens, chunk_facts, heading_paths, strict=True
@@ -324,6 +368,7 @@ def record(
                 "tokens": n,
                 "facts": sorted(facts),
                 "page_relevant": page in row.expected_docs,
+                **ranks(c),
             }
             for i, (c, page, n, facts) in enumerate(
                 zip(deep, deep_pages, deep_tokens, deep_facts, strict=True), start=1
@@ -343,6 +388,8 @@ def record(
         "abstention": None,
         "checks": None,
     }
+    if fts_query_empty is not None:
+        rec["fts_query_empty"] = fts_query_empty
     if result is None:
         return rec
     abst = abstention(result.answer, row.expected if not row.answerable else None)
@@ -371,7 +418,7 @@ def run(
     conn,
     rows: list[Row],
     ev: Evidence,
-    embedder: Embedder,
+    embedder: Embedder | None,
     answerer: Answerer | None,
     *,
     principal: Principal,
@@ -381,6 +428,7 @@ def run(
     config_id: str = BASELINE_CONFIG,
     baseline: tuple[str, dict, list[dict]] | None = None,
     out: Path | None = None,
+    retriever: str = DEFAULT_RETRIEVER,
 ) -> Path:
     """Retrieve (and answer, unless answerer is None) every row; write the run folder (AC-7).
     Every retrieval runs as `principal` (spec 0007, AC-8).
@@ -389,7 +437,12 @@ def run(
     called. config_id scopes retrieval; baseline (id, summary, records) adds the AC-14 comparison
     to summary.md. checkout is the pinned corpus the AC-5 heading check reads. out is a folder
     from new_run_dir() (one is created under out_root if None). Returns the folder.
+
+    Spec 0011: retriever picks the mode; fts needs no embedder (None). Full mode (an answerer)
+    is dense only: ask.ask is the answer path (AC-8).
     """
+    if answerer is not None and retriever != "dense":
+        raise ValueError("full mode is dense only; hybrid enters the answer path by ADR (AC-8)")
     out = out if out is not None else new_run_dir(out_root, meta)
     records: list[dict] = []
     # Appended per row, so a crash mid-run keeps what was paid for.
@@ -397,10 +450,15 @@ def run(
         for row in to_run(rows, answerer is None):
             if answerer is None:
                 result = None
-                chunks = ask.retrieve(
-                    conn, embedder, row.question, principal, TOP_K, config_id=config_id
+                chunks = hybrid.retrieve(
+                    conn, retriever, embedder, row.question, principal, TOP_K, config_id
                 )
-                if not chunks:
+                # An empty FTS list is legitimate; a hybrid list the dense side found nothing
+                # for would silently be FTS-only.
+                dense_found = retriever == "dense" or any(
+                    getattr(c, "dense_rank", None) for c in chunks
+                )
+                if retriever != "fts" and not dense_found:
                     raise SystemExit(
                         f"no embeddings for {embedder.name}; run `make embed` for the cost, "
                         "then `make paid-embed`"
@@ -411,13 +469,14 @@ def run(
                 )
                 chunks = result.chunks
             deep = (
-                ask.retrieve(
-                    conn, embedder, row.question, principal, EVAL_DEPTH, config_id=config_id
+                hybrid.retrieve(
+                    conn, retriever, embedder, row.question, principal, EVAL_DEPTH, config_id
                 )
                 if row.answerable
                 else []
             )
-            rec = record(conn, row, ev, chunks, deep, result, checkout)
+            empty = None if retriever == "dense" else hybrid.query_empty(conn, row.question)
+            rec = record(conn, row, ev, chunks, deep, result, checkout, empty)
             records.append(rec)
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             recall = rec["metrics"].get(f"chunk_fact_recall@{TOP_K}")
@@ -456,14 +515,29 @@ def run(
     return out
 
 
-def main(argv=None) -> int:
+def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Run the eval set (spec 0004).")
     ap.add_argument("--confirm", action="store_true", help="spend: call the embed/answer models")
     ap.add_argument("--limit", type=int, help="run only the first n rows")
     ap.add_argument("--retrieval-only", action="store_true", help="skip the answer model")
     ap.add_argument("--config", default=BASELINE_CONFIG, help="chunk config to evaluate")
     ap.add_argument("--baseline", metavar="RUN_ID", help="compare against this earlier run")
-    args = ap.parse_args(argv)
+    ap.add_argument(
+        "--retriever",
+        choices=RETRIEVERS,
+        default=DEFAULT_RETRIEVER,
+        help="retrieval mode (spec 0011); fts and hybrid are retrieval-only",
+    )
+    return ap
+
+
+def main(argv=None) -> int:
+    args = parser().parse_args(argv)
+    if args.retriever != "dense" and not args.retrieval_only:
+        raise SystemExit(
+            f"--retriever {args.retriever} needs --retrieval-only: hybrid enters the answer path "
+            "only by ADR (spec 0011 AC-8)"
+        )
 
     baseline = None
     if args.baseline:
@@ -515,20 +589,33 @@ def main(argv=None) -> int:
         except (acl.StaleACL, acl.AclError) as e:
             raise SystemExit(str(e)) from None
         principal = identity.load(QUALITY_SET_USER, policy)
+        if (
+            args.retriever != "dense"
+        ):  # spec 0011 AC-6: after the ACL check (AC-6), the dry run included
+            try:
+                hybrid.check_fts(conn, args.config)
+            except hybrid.StaleFTS as e:
+                raise SystemExit(str(e)) from None
 
         todo = to_run(rows, args.retrieval_only)
         n_ans = sum(r.answerable for r in todo)
         mode = "retrieval-only" if args.retrieval_only else "full"
-        try:  # AC-4: every query as sent is within the limit before anything is spent
-            query_embedder.prepare([r.question for r in todo])
-        except InputTooLong as e:
-            raise SystemExit(str(e)) from None
+        if args.retriever != "fts":  # fts embeds nothing
+            try:  # AC-4: every query as sent is within the limit before anything is spent
+                query_embedder.prepare([r.question for r in todo])
+            except InputTooLong as e:
+                raise SystemExit(str(e)) from None
         cost = estimate(
-            todo, args.retrieval_only, usd_per_1m, lambda q: query_embedder.prepare([q])[0]
+            todo,
+            args.retrieval_only,
+            usd_per_1m,
+            lambda q: query_embedder.prepare([q])[0],
+            embeds=args.retriever != "fts",
         )
         print(
             f"eval {eval_set.version}, config {args.config}: {len(todo)} rows ({n_ans} answerable, "
-            f"{len(todo) - n_ans} ooc), mode {mode}"
+            f"{len(todo) - n_ans} ooc), mode {mode}, "
+            f"retriever {args.retriever}"
         )
         print(
             f"estimated cost: ${cost['total_usd']:.4f} (embed ~{cost['embed_tokens']} tokens "
@@ -546,28 +633,30 @@ def main(argv=None) -> int:
             user_id=principal.user_id,
             policy_version=policy.version,
             policy_sha256=policy.sha256,
+            retriever=args.retriever,
         )
         # AC-6: a baseline that differs in more than one change fails the dry run.
         if baseline and (diff := baseline_mismatch(baseline[1]["meta"], meta)):
             raise SystemExit(
-                f"baseline {baseline[0]} differs in more than one change (chunk config or "
-                "embed model; spec 0008 AC-6):\n  " + "\n  ".join(diff)
+                f"baseline {baseline[0]} differs in more than one change (chunk config, embed "
+                "model or retriever; spec 0008 AC-6, spec 0011 AC-10):\n  " + "\n  ".join(diff)
             )
         if not paid(args.confirm, "eval"):  # spec 0009
             return 0
 
         # Built only after confirm, so a dry run needs no API key.
-        embedder = make_embedder(spec, kind="query")
-        (has_embeddings,) = conn.execute(
-            "SELECT EXISTS (SELECT 1 FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
-            "WHERE c.config_id = %s AND e.model = %s)",
-            (args.config, embedder.name),
-        ).fetchone()
-        if not has_embeddings:
-            raise SystemExit(
-                f"config {args.config!r} has no embeddings for {embedder.name}; "
-                f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
-            )
+        embedder = None if args.retriever == "fts" else make_embedder(spec, kind="query")
+        if embedder is not None:
+            (has_embeddings,) = conn.execute(
+                "SELECT EXISTS (SELECT 1 FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
+                "WHERE c.config_id = %s AND e.model = %s)",
+                (args.config, embedder.name),
+            ).fetchone()
+            if not has_embeddings:
+                raise SystemExit(
+                    f"config {args.config!r} has no embeddings for {embedder.name}; "
+                    f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
+                )
         answerer = None if args.retrieval_only else make_answerer()
         out, status = new_run_dir(EVAL_RUNS, meta), "failed"
         try:
@@ -582,6 +671,7 @@ def main(argv=None) -> int:
                 config_id=args.config,
                 baseline=baseline,
                 out=out,
+                retriever=args.retriever,
             )
             status = "ok"
         finally:  # spec 0009, AC-3: logged even when the run fails after spending
@@ -589,7 +679,7 @@ def main(argv=None) -> int:
                 "eval",
                 cost["total_usd"],
                 run_id=out.name,
-                embed_model=embedder.name,
+                embed_model=embedder and embedder.name,
                 answer_model=answerer and answerer.name,
                 status=status,
             )

@@ -6,19 +6,22 @@ import uuid
 import pytest
 
 from handbook_rag import ask
-from handbook_rag.constants import EST_ANSWER_USD_PER_ROW, EVAL_DEPTH
+from handbook_rag.constants import EST_ANSWER_USD_PER_ROW, EVAL_DEPTH, FUSION_DEPTH, RRF_K
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evidence import Evidence
 from handbook_rag.evaluation.run import (
     baseline_change,
     baseline_mismatch,
     estimate,
+    main,
     metadata,
     new_run_dir,
+    parser,
     record,
     stored_chunk_params,
     to_run,
 )
+from handbook_rag.hybrid import FTS_SETTINGS
 from handbook_rag.models import InputTooLong, describe_embedder
 
 ROWS = [
@@ -138,8 +141,8 @@ def test_baseline_mismatch_allows_one_change():
     assert len(baseline_mismatch(base, base | {"system_prompt_sha256": "q"})) == 1
     both = baseline_mismatch(base, base | {"config_id": "y", "embed_model": "n"})
     assert both == [
-        "config_id and embed_model both changed: baseline (x, m), this run (y, n); "
-        "change one at a time (spec 0008 AC-6)"
+        "config_id and embed_model changed together: baseline (x, m), this run (y, n); "
+        "change one at a time (spec 0008 AC-6, spec 0011 AC-10)"
     ]
 
 
@@ -249,3 +252,99 @@ def test_run_dir_is_created_dated_and_never_shared(tmp_path, monkeypatch):
     new_run_dir(tmp_path, meta)
     with pytest.raises(FileExistsError):
         new_run_dir(tmp_path, meta)
+
+
+def test_retriever_flag_defaults_to_dense_and_rejects_unknown():
+    """Spec 0011 AC-8: --retriever is dense unless given; an unknown mode is a usage error."""
+    assert parser().parse_args([]).retriever == "dense"
+    assert parser().parse_args(["--retriever", "hybrid"]).retriever == "hybrid"
+    with pytest.raises(SystemExit):
+        parser().parse_args(["--retriever", "bm25"])
+
+
+@pytest.mark.parametrize("retriever", ["fts", "hybrid"])
+def test_full_mode_refused_for_non_dense_retriever(retriever):
+    """Spec 0011 AC-8: hybrid enters the answer path only by ADR, so a non-dense retriever needs
+    --retrieval-only; refused before any DB or model work."""
+    with pytest.raises(SystemExit, match="needs --retrieval-only"):
+        main(["--retriever", retriever])
+
+
+def test_estimate_fts_embeds_nothing():
+    """Spec 0011 AC-9: fts mode costs $0 to embed; dense and hybrid are unchanged."""
+    fts = estimate(ROWS, True, 0.02, embeds=False)
+    assert fts["embed_tokens"] == 0 and fts["embed_usd"] == 0.0 and fts["total_usd"] == 0.0
+    assert estimate(ROWS, True, 0.02)["embed_tokens"] == 5
+
+
+def test_metadata_records_retriever_per_mode():
+    """Spec 0011 AC-9: dense records only the retriever; fts adds the FTS settings; hybrid adds
+    the fusion settings too."""
+    cfg = {"config_id": "c", "strategy": "s", "params": {"a": 1}, "tokenizer": "t"}
+    dense = metadata("v", b"e", "sha", cfg, "m", None, 1, None)
+    assert dense["retriever"] == "dense"
+    assert not {"fts", "rrf_k", "fusion_depth"} & set(dense)
+    fts = metadata("v", b"e", "sha", cfg, "m", None, 1, None, retriever="fts")
+    assert fts["retriever"] == "fts" and fts["fts"] == FTS_SETTINGS
+    assert "rrf_k" not in fts
+    hyb = metadata("v", b"e", "sha", cfg, "m", None, 1, None, retriever="hybrid")
+    assert hyb["retriever"] == "hybrid" and hyb["fts"] == FTS_SETTINGS
+    assert hyb["rrf_k"] == RRF_K and hyb["fusion_depth"] == FUSION_DEPTH
+
+
+def test_baseline_accepts_a_retriever_only_change():
+    """Spec 0011 AC-10: a run differing only in retriever is accepted and named; a baseline
+    without the key reads as dense."""
+    base = {"eval_sha256": "e", "corpus_sha": "c", "embed_model": "m", "k": 5, "limit": None,
+            "config_id": "x"}  # fmt: skip
+    hybrid_run = base | {"retriever": "hybrid"}
+    assert baseline_mismatch(base, hybrid_run) == []
+    assert baseline_change(base, hybrid_run) == "retriever"
+    assert baseline_mismatch(base, base | {"retriever": "dense"}) == []
+    assert baseline_change(base, base | {"retriever": "dense"}) is None
+    assert baseline_change(base | {"retriever": "fts"}, hybrid_run) == "retriever"
+
+
+@pytest.mark.parametrize("other", [{"config_id": "y"}, {"embed_model": "n"}])
+def test_baseline_refuses_retriever_with_another_change(other):
+    """Spec 0011 AC-10: retriever plus the chunk config or the embed model is two changes."""
+    base = {"eval_sha256": "e", "corpus_sha": "c", "embed_model": "m", "k": 5, "limit": None,
+            "config_id": "x"}  # fmt: skip
+    diff = baseline_mismatch(base, base | other | {"retriever": "hybrid"})
+    assert len(diff) == 1
+    assert "retriever" in diff[0] and "dense" in diff[0] and "hybrid" in diff[0]
+    assert "spec 0011 AC-10" in diff[0]
+    assert baseline_change(base, base | other | {"retriever": "hybrid"}) is None
+
+
+def test_embed_model_is_not_an_axis_for_fts():
+    """Spec 0011 AC-10: fts never uses the embedding model, so differing embed specs are not a
+    change when either run is fts."""
+    base = {"eval_sha256": "e", "corpus_sha": "c", "embed_model": "m", "k": 5, "limit": None,
+            "config_id": "x"}  # fmt: skip
+    fts = base | {"retriever": "fts", "embed_model": "n"}
+    assert baseline_mismatch(base, fts) == []
+    assert baseline_change(base, fts) == "retriever"
+    assert baseline_change(fts, base) == "retriever"
+    assert baseline_change(fts, fts | {"embed_model": "o"}) is None
+    hyb = base | {"retriever": "hybrid", "embed_model": "n"}
+    assert baseline_change(base, hyb) is None  # hybrid does embed: two changes
+
+
+def test_keyless_baseline_is_dense_whatever_the_default(monkeypatch):
+    """Spec 0011 AC-10: a baseline without the retriever key is dense, not DEFAULT_RETRIEVER."""
+    import handbook_rag.evaluation.run as run_mod
+
+    monkeypatch.setattr(run_mod, "DEFAULT_RETRIEVER", "hybrid", raising=False)
+    base = {"embed_model": "m", "config_id": "x"}
+    assert baseline_change(base, base | {"retriever": "hybrid"}) == "retriever"
+    assert baseline_change(base, base | {"retriever": "dense"}) is None
+
+
+def test_estimate_without_embeds_never_tokenizes():
+    """Spec 0011 AC-9: embeds=False does not call sent or the tokenizer."""
+
+    def boom(_):
+        raise AssertionError("sent called")
+
+    assert estimate(ROWS, True, 0.02, sent=boom, embeds=False)["embed_tokens"] == 0
