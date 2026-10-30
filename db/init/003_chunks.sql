@@ -67,3 +67,17 @@ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS chunks_allowed_groups_idx ON chunks USING gin (allowed_groups);
+
+-- Spec 0011, AC-1: the FTS vector is generated from content, so it can't go stale or be NULL
+-- in any config, and no code writes it. Two-argument to_tsvector: independent of
+-- default_text_search_config. Guarded like the blocks above (adding it rewrites the table once).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'chunks' AND column_name = 'fts') THEN
+        ALTER TABLE chunks ADD COLUMN fts tsvector
+            GENERATED ALWAYS AS (to_tsvector('english', content)) STORED;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS chunks_fts_idx ON chunks USING gin (fts);

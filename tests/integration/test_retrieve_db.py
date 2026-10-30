@@ -229,12 +229,37 @@ def _sql_literals():
 
 
 def test_every_vector_query_has_the_predicate():
-    """Spec 0007, AC-8: every SQL literal that ranks by a pgvector operator filters on
-    allowed_groups. The scan must find at least the SEARCH query."""
-    found = [(f, t) for f, t in _sql_literals() if re.search(r"<=>|<#>|<->", t)]
+    """Spec 0007, AC-8; spec 0011, AC-4: every SQL literal that ranks by a pgvector operator or
+    ts_rank filters on allowed_groups. The scan must find at least ask.py's and hybrid.py's."""
+    ranks = re.compile(r"<=>|<#>|<->|(?<![a-z_])ts_rank")  # not fts_rank, a field name
+    found = [
+        (f, t) for f, t in _sql_literals() if ranks.search(t) and re.search(r"select\b", t, re.I)
+    ]
     assert any("handbook_rag/ask.py" in str(f) for f, _ in found)
+    assert any("handbook_rag/hybrid.py" in str(f) for f, _ in found)
     for f, t in found:
         assert "allowed_groups &&" in t, f"{f}: vector query without the ACL predicate:\n{t}"
+
+
+def test_every_evaluated_ranking_string_has_the_predicate():
+    """Spec 0011, AC-4: the literal scan sees an f-string as fragments, so also import every
+    module and scan its module-level str attributes (f-strings evaluated whole)."""
+    import importlib
+    import pkgutil
+
+    import handbook_rag
+    from handbook_rag import hybrid
+
+    ranks = re.compile(r"<=>|<#>|<->|(?<![a-z_])ts_rank")
+    found = []
+    for info in pkgutil.walk_packages(handbook_rag.__path__, "handbook_rag."):
+        mod = importlib.import_module(info.name)
+        for name, val in vars(mod).items():
+            if isinstance(val, str) and ranks.search(val) and re.search(r"select\b", val, re.I):
+                found.append((info.name, name, val))
+    assert any(n == "handbook_rag.hybrid" and v == hybrid.FTS_SEARCH for n, _, v in found)
+    for mod_name, name, val in found:
+        assert "allowed_groups &&" in val, f"{mod_name}.{name}: ranking query without predicate"
 
 
 # Chunk text selected outside a user-serving path (spec 0007, AC-8; approved by Arun).

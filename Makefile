@@ -27,9 +27,10 @@ EMBED = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.embed \
 ASK = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.ask --as "$(AS)" "$$Q"
 EVAL = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.run \
 	$(if $(LIMIT),--limit $(LIMIT)) $(if $(filter 1,$(RETRIEVAL_ONLY)),--retrieval-only) \
-	$(if $(CONFIG),--config $(CONFIG)) $(if $(BASELINE),--baseline $(BASELINE))
+	$(if $(CONFIG),--config $(CONFIG)) $(if $(BASELINE),--baseline $(BASELINE)) \
+	$(if $(RETRIEVER),--retriever $(RETRIEVER))
 PERMISSIONS = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.permissions \
-	$(if $(CONFIG),--config $(CONFIG))
+	$(if $(CONFIG),--config $(CONFIG)) $(if $(RETRIEVER),--retriever $(RETRIEVER))
 ANN = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.ann
 ASK_USAGE = @test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make ask AS=<user id> Q="your question"'; exit 2; }
 
@@ -50,7 +51,7 @@ paid-ask: ## Spend: answer as a fixture user, AS= Q= as for `make ask`
 	$(ASK_USAGE)
 	$(SPEND) $(ASK) --confirm
 
-eval: ## Dry run: the eval set's rows and cost; LIMIT=n, RETRIEVAL_ONLY=1, CONFIG=, BASELINE=<run id>
+eval: ## Dry run: the eval set's rows and cost; LIMIT=n, RETRIEVAL_ONLY=1, CONFIG=, BASELINE=<run id>, RETRIEVER=dense|fts|hybrid
 	$(EVAL)
 
 paid-eval: ## Spend: run the eval set, same options as `make eval`
@@ -59,7 +60,7 @@ paid-eval: ## Spend: run the eval set, same options as `make eval`
 answer-eval: ## Answer-content check + false-abstention classes over the baseline run (no spend); RUN=<id>
 	PYTHONPATH=src uv run python -m handbook_rag.evaluation.answer_eval $(if $(RUN),--run $(RUN))
 
-permissions: ## Dry run: permissions-v1 cases and cost (retrieval-only); CONFIG=
+permissions: ## Dry run: permissions-v1 cases and cost (retrieval-only); CONFIG=, RETRIEVER=
 	$(PERMISSIONS)
 
 paid-permissions: ## Spend: run permissions-v1, same options as `make permissions`
