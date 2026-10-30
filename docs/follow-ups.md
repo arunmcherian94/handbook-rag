@@ -10,7 +10,7 @@
   4. Validation per ADR-0016 (c): Arun labels answers, a held-out test portion, each judge reported as "checked against N labels, TPR x, TNR y".
   5. Answer-model comparison on identical retrieved chunks (the answer-model check below).
 - **Eval set v1.3 candidates (Arun's review, 27 Oct; [fact-list-review.md](eval/fact-list-review.md)):** row 22 F1 wording (France and Belgium have no supplementary plan; cite F2–F8), and row 23 F1 cadence (the pin also says calibration happens each quarter at L229, and Sales Development reviews monthly at L102). Neither blocks the assertions: 22 F1 is `expressible: false`, and 23 F1 leaves out the cadence.
-- **fact-list-review.md row order (spec 0010 AC-11):** AC-11 asks for eval-set order; the file lists answerable rows first, then out-of-corpus rows. Reorder at the next edit of the file (found 29 Oct).
+- ~~**fact-list-review.md row order (spec 0010 AC-11):** AC-11 asks for eval-set order; the file lists answerable rows first, then out-of-corpus rows. Reorder at the next edit of the file (found 29 Oct).~~ Not needed: the file already matches eval-set order. The reviewed answerable rows all come before the reviewed ooc rows in `eval-set-v1.md` (checked 30 Oct).
 - **False-premise rows:** add 2–3 out-of-corpus false-premise questions in a later eval version.
 - **Incremental sync:**
   1. `git fetch`.
