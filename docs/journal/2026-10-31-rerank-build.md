@@ -36,6 +36,10 @@ There were ten findings: six fixed by default, one fixed lower-priority item (Ar
   - **Using the stored `token_count` in the truncation guard:** `Retrieved` doesn't carry it, so this needs an extra query, and re-encoding 50 chunks takes milliseconds.
   - **One retry helper shared with `embed.py`** and **one call path through `hybrid.retrieve`:** both are refactors spec 0012 doesn't need, so they're in [follow-ups](../follow-ups.md).
 
+## Clean room
+- **Setup:** a fresh clone under `$HOME` with its own DB on port 5434, the pinned corpus linked, and no API keys in its `.env`. Then ingest, chunk all five configs and `make acl`.
+- **Result:** 747 unit and 102 integration tests passed, and lint is clean, the same as the working copy. The rerank tests use a fake transport and a fake reranker, so they need no key and make no call.
+
 ## Limitations
 - **The truncation guard is an estimate:** cl100k × 1.5 plus ~80 template tokens. In the reading, the longest pair in Qwen3's own tokenizer was 897 tokens, so the margin is wide.
 - **Nothing pins the weights behind the API name.** Each run records the model ID, the date and the provider's token count; this is the risk the spec accepts.
