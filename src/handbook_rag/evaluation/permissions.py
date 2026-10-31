@@ -6,9 +6,10 @@ and the fixture, print the counts and the query-embedding cost; spend (embed) on
 --confirm; write the run folder. Leak and entitlement come from the policy file's allow-lists,
 never from chunks.allowed_groups.
 
---retriever dense|fts|hybrid (spec 0011, AC-8, AC-11) picks the retrieval path; the stale-FTS
-check (AC-6) runs after the ACL check for fts and hybrid, the dry run included. fts embeds
-nothing: $0 and no embedder.
+--retriever dense|fts|hybrid|rerank (spec 0011, AC-8, AC-11; spec 0012) picks the retrieval path;
+the stale-FTS check (AC-6) runs after the ACL check for fts and hybrid, the dry run included. fts
+embeds nothing: $0 and no embedder. rerank scores the dense top RERANK_DEPTH once per unique
+(persona, question) search and needs no FTS.
 """
 
 import argparse
@@ -37,6 +38,7 @@ from handbook_rag.constants import (
     PERMISSIONS_KS,
     PERMISSIONS_RUNS,
     PERMISSIONS_SUITE,
+    RERANK_DEPTH,
     RETRIEVERS,
     RRF_K,
     TOKENIZER,
@@ -49,13 +51,15 @@ from handbook_rag.evaluation.evalset import Row
 from handbook_rag.evaluation.evalset import parse as parse_evalset
 from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import fact_recall_at
-from handbook_rag.evaluation.run import _git, new_run_dir, stored_chunk_params
+from handbook_rag.evaluation.run import _git, new_run_dir, rerank_settings, stored_chunk_params
 from handbook_rag.identity import Principal
 from handbook_rag.models import (
     InputTooLong,
     describe_embedder,
+    describe_reranker,
     embed_usd_per_1m,
     make_embedder,
+    make_reranker,
     resolve_embed_spec,
 )
 from handbook_rag.policy import Policy
@@ -421,14 +425,18 @@ def metadata(
     ks: Sequence[int] = PERMISSIONS_KS,
     identities_path: Path = IDENTITIES_PATH,
     retriever: str = DEFAULT_RETRIEVER,
+    rerank: dict | None = None,
 ) -> dict:
-    """AC-13 run metadata; spec 0011 AC-11 adds the retriever and its settings."""
+    """AC-13 run metadata; spec 0011 AC-11 adds the retriever and its settings; spec 0012 AC-9
+    adds the reranker's settings (describe_reranker) for rerank."""
     identity_version, identity_sha = identity.fixture_version(identities_path)
     extra: dict = {"retriever": retriever}
     if retriever == "hybrid":
         extra |= {"rrf_k": RRF_K, "fusion_depth": FUSION_DEPTH}
-    if retriever != "dense":
+    if retriever in ("fts", "hybrid"):
         extra["fts"] = hybrid.FTS_SETTINGS
+    if retriever == "rerank":
+        extra["rerank"] = rerank_settings(rerank)
     return {
         "suite_version": suite.version,
         "suite_sha256": hashlib.sha256(suite_bytes).hexdigest(),
@@ -487,16 +495,49 @@ def plan_cases(
     )
 
 
+def search_counts(suite: Suite) -> dict[str, int]:
+    """Spec 0012, AC-9: per question, the searches run() makes: one per unique (persona, question),
+    the acting persona and admin per case."""
+    pairs = {(p, c.question) for c in suite.cases for p in (c.persona, ADMIN)}
+    counts: dict[str, int] = defaultdict(int)
+    for _, question in pairs:
+        counts[question] += 1
+    return dict(counts)
+
+
 def estimate(
-    questions: Sequence[str], usd_per_1m: float, sent=str, retriever: str = DEFAULT_RETRIEVER
+    questions: Sequence[str],
+    usd_per_1m: float,
+    sent=str,
+    retriever: str = DEFAULT_RETRIEVER,
+    rerank: dict | None = None,
+    chunk_tokens: int = 0,
+    searches: Mapping[str, int] | None = None,
 ) -> dict:
     """AC-13: query-embedding cost of the unique questions (one embed each, shared by the acting
-    persona and admin). Spec 0011, AC-9: fts embeds nothing, so 0 tokens and $0."""
+    persona and admin). Spec 0011, AC-9: fts embeds nothing, so 0 tokens and $0. Spec 0012, AC-9:
+    rerank (describe_reranker settings) adds rerank_tokens/rerank_usd/total_usd: each search
+    (searches: question -> number of unique persona searches) scores RERANK_DEPTH pairs, each
+    priced at question + chunk_tokens (the config's longest chunk) + template tokens."""
     if retriever == "fts":
         return {"embed_tokens": 0, "embed_usd": 0.0}
     enc = tiktoken.get_encoding(TOKENIZER)
     tokens = sum(len(enc.encode(sent(q), disallowed_special=())) for q in questions)
-    return {"embed_tokens": tokens, "embed_usd": tokens * usd_per_1m / 1_000_000}
+    est = {"embed_tokens": tokens, "embed_usd": tokens * usd_per_1m / 1_000_000}
+    if rerank:
+        rerank_tokens = sum(
+            n
+            * RERANK_DEPTH
+            * (len(enc.encode(q, disallowed_special=())) + chunk_tokens + rerank["template_tokens"])
+            for q, n in (searches or {}).items()
+        )
+        rerank_usd = rerank_tokens * rerank["usd_per_1m"] / 1_000_000
+        est |= {
+            "rerank_tokens": rerank_tokens,
+            "rerank_usd": rerank_usd,
+            "total_usd": est["embed_usd"] + rerank_usd,
+        }
+    return est
 
 
 def _doc_paths(conn, retrieved: list[ask.Retrieved], cache: dict) -> list[str]:
@@ -519,6 +560,7 @@ def run(
     *,
     meta: dict,
     retriever: str = DEFAULT_RETRIEVER,
+    reranker=None,
     out_root: Path = PERMISSIONS_RUNS,
     config_id: str = BASELINE_CONFIG,
     sleep=time.sleep,
@@ -526,8 +568,9 @@ def run(
     out: Path | None = None,
 ) -> Path:
     """Retrieve every case's top 20 as its persona and as admin (one query embedding per unique
-    question; none in fts mode, where embedder may be None); write the run folder (AC-13): out,
-    from new_run_dir() (one is created under out_root if None). Returns the folder."""
+    question; none in fts mode, where embedder may be None; rerank reranks 50 candidates per
+    unique (persona, question) search with reranker and cuts to 20); write the run folder
+    (AC-13): out, from new_run_dir() (one is created under out_root if None). Returns the folder."""
     out = out if out is not None else new_run_dir(out_root, meta)
     vectors: dict[str, str] = {}
     searched: dict[tuple[str, str], list[ask.Retrieved]] = {}
@@ -549,6 +592,7 @@ def run(
                 plan.principals[persona],
                 depth,
                 config_id,
+                reranker,
             )
         return searched[persona, question]
 
@@ -653,7 +697,7 @@ def main(argv=None) -> int:
             acl.check_stale(conn, policy)
         except (acl.StaleACL, acl.AclError) as e:
             raise SystemExit(str(e)) from None
-        if args.retriever != "dense":
+        if args.retriever in ("fts", "hybrid"):
             try:  # spec 0011, AC-6: after the ACL check, the dry run included
                 hybrid.check_fts(conn, args.config)
             except hybrid.StaleFTS as e:
@@ -675,8 +719,19 @@ def main(argv=None) -> int:
                 query_embedder.prepare(questions)
             except InputTooLong as e:
                 raise SystemExit(str(e)) from None
+        # Spec 0012 AC-9: the reranker's settings (no key) price the pairs
+        rerank = describe_reranker() if args.retriever == "rerank" else None
+        (chunk_tokens,) = conn.execute(
+            "SELECT COALESCE(max(token_count), 0) FROM chunks WHERE config_id = %s", (args.config,)
+        ).fetchone()
         cost = estimate(
-            questions, usd_per_1m, lambda q: query_embedder.prepare([q])[0], args.retriever
+            questions,
+            usd_per_1m,
+            lambda q: query_embedder.prepare([q])[0],
+            args.retriever,
+            rerank,
+            chunk_tokens,
+            search_counts(suite),
         )
         flagged = [c.id for c in suite.cases if plan.entitlements[c.id].disagreements]
         stored_valid = sum(c.stored_valid is True for c in suite.cases)
@@ -690,6 +745,12 @@ def main(argv=None) -> int:
             f"estimated cost: ${cost['embed_usd']:.6f} (embed ~{cost['embed_tokens']} tokens, "
             f"{len(questions)} unique questions)"
         )
+        if rerank:
+            print(
+                f"rerank: {rerank['model']}, depth {RERANK_DEPTH}, ~{cost['rerank_tokens']} tokens "
+                f"${cost['rerank_usd']:.4f} at ${rerank['usd_per_1m']}/1M "
+                f"({rerank['price_source']}); no truncation"
+            )
         meta = metadata(
             suite,
             suite_bytes,
@@ -698,12 +759,14 @@ def main(argv=None) -> int:
             chunk_params["config_id"],
             spec,
             retriever=args.retriever,
+            rerank=rerank,
         )
         if not paid(args.confirm, "permissions"):  # spec 0009
             return 0
 
         # Built only after confirm, so a dry run needs no API key.
         embedder = None if args.retriever == "fts" else make_embedder(spec, kind="query")
+        reranker = make_reranker() if rerank else None
         if embedder:
             (has_embeddings,) = conn.execute(
                 "SELECT EXISTS (SELECT 1 FROM chunk_embeddings e JOIN chunks c USING (chunk_id) "
@@ -725,6 +788,7 @@ def main(argv=None) -> int:
                 embedder,
                 meta=meta,
                 retriever=args.retriever,
+                reranker=reranker,
                 config_id=args.config,
                 out=out,
             )
@@ -732,7 +796,7 @@ def main(argv=None) -> int:
         finally:  # spec 0009, AC-3: logged even when the run fails after spending
             log_spend(
                 "permissions",
-                cost["embed_usd"],
+                cost.get("total_usd", cost["embed_usd"]),
                 run_id=out.name,
                 embed_model=embedder.name if embedder else None,
                 answer_model=None,
