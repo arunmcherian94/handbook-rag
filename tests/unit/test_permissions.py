@@ -556,14 +556,32 @@ def test_dense_estimate_is_unchanged_by_the_rerank_params():
     assert set(p.estimate(["hello world"], 1.0)) == {"embed_tokens", "embed_usd"}
 
 
-def test_run_rerank_passes_the_reranker_and_caches_per_persona_question(tmp_path, monkeypatch):
-    """Spec 0012, AC-5: hybrid.search gets the reranker at depth 20; two cases with the same
-    persona and question search once per principal (persona, admin)."""
+def test_run_rerank_reranks_once_per_persona_question_and_records_tokens(tmp_path, monkeypatch):
+    """Spec 0012, AC-5, AC-6, AC-9: rerank goes through hybrid.rerank_lists with the reranker, once
+    per (persona, question): two cases with the same persona and question rerank once per
+    principal (persona, admin), cut to depth 20; the provider's input_tokens total is recorded."""
     rr = FakeReranker()
     emb = FakeEmbedder(kind="query")
+    calls = []
+
+    def fake_lists(conn, reranker, q, question, model, principal, config_id):
+        calls.append((reranker, principal))
+        hits = [SimpleNamespace(n=n, chunk_id=f"c{n}", doc_id="d1") for n in range(1, 31)]
+        return p.hybrid.RerankLists(hits, hits, 1.0, 2.0, 500, 0)
+
+    monkeypatch.setattr(p.hybrid, "rerank_lists", fake_lists)
     cases = [case(cid="P-900"), case(cid="P-901")]
-    calls, _ = _drive(tmp_path, monkeypatch, "rerank", emb, reranker=rr, cases=cases)
-    assert [c[0] for c in calls] == ["rerank", "rerank"]
-    assert [c[4] for c in calls] == [US, UK_MGR]
-    assert all(c[5] == 20 and c[7] is rr for c in calls)
+    searched, out = _drive(tmp_path, monkeypatch, "rerank", emb, reranker=rr, cases=cases)
+    assert searched == []  # hybrid.search is not used for rerank
+    assert [c[1] for c in calls] == [US, UK_MGR] and all(c[0] is rr for c in calls)
     assert len(emb.calls) == 1
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["meta"]["rerank"]["input_tokens"] == 1000
+
+
+def test_run_rerank_without_a_reranker_fails_before_embedding(tmp_path, monkeypatch):
+    """Spec 0012, AC-1 (review fix): rerank with no reranker raises before any embed."""
+    emb = FakeEmbedder(kind="query")
+    with pytest.raises(ValueError, match="needs a reranker"):
+        _drive(tmp_path, monkeypatch, "rerank", emb)
+    assert emb.calls == []

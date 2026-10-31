@@ -160,6 +160,8 @@ def test_exhaustion_after_max_attempts_chains_last_error():
         ok([1.0, None]),
         b"[1, 2]",  # not an object
         b"<html>",  # not JSON
+        b'{"scores": [1.0, NaN]}',  # review fix: json.loads accepts NaN and Infinity
+        b'{"scores": [Infinity, 1.0]}',
     ],
 )
 def test_bad_response_raises_and_is_not_retried(raw):
@@ -217,3 +219,25 @@ def test_describe_reranker_reads_no_env(monkeypatch):
     d = describe_reranker()
     assert d == {"model": spec, **entry}
     assert "api_key" not in d
+
+
+def test_dropped_connection_mid_body_is_a_retried_connection_error(monkeypatch):
+    """Spec 0012 AC-1 (review fix): an http.client.HTTPException while reading the body
+    (IncompleteRead) maps to RerankConnectionError, which the retry loop retries."""
+    import http.client
+
+    from handbook_rag.models.rerankers import deepinfra
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            raise http.client.IncompleteRead(b"partial")
+
+    monkeypatch.setattr(deepinfra.urllib.request, "urlopen", lambda *a, **k: Response())
+    with pytest.raises(deepinfra.RerankConnectionError):
+        deepinfra._urllib_post("https://example.invalid", b"{}", {}, 1.0)

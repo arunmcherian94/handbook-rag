@@ -246,6 +246,15 @@ def rerank_lists(
     return RerankLists(scored, reranked, dense_ms, rerank_ms, res.input_tokens, 0)
 
 
+def worst_pair(questions: list[str], chunk_tokens: int, template_tokens: int) -> float:
+    """Spec 0012, AC-4 (review fix): the dry run's bound on the longest pair, in the guard's units
+    (cl100k x RERANK_TOKEN_MARGIN): the longest question with the config's longest chunk. Checked
+    before any spend, so a pair over the limit can't stop a paid run partway."""
+    enc = tiktoken.get_encoding(TOKENIZER)
+    longest = max((len(enc.encode(q, disallowed_special=())) for q in questions), default=0)
+    return (longest + chunk_tokens + template_tokens) * RERANK_TOKEN_MARGIN
+
+
 def query_empty(conn, question: str) -> bool:
     """AC-9: the question has no lexemes, so the FTS list is empty."""
     (empty,) = conn.execute(QUERY_EMPTY, {"question": question}).fetchone()

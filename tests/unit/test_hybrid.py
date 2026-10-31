@@ -317,3 +317,13 @@ def test_other_modes_ignore_the_reranker(monkeypatch):
     assert ids(hybrid.search(None, "fts", None, "q", "m", p, 2, reranker=fake)) == [cid(2)]
     assert ids(hybrid.search(None, "hybrid", "[1]", "q", "m", p, 2, reranker=fake))[0] == cid(2)
     assert fake.calls == []
+
+
+def test_worst_pair_bounds_the_longest_question_with_the_longest_chunk():
+    """Spec 0012 AC-4 (review fix): the dry-run bound is (longest question + longest chunk +
+    template) x RERANK_TOKEN_MARGIN, in cl100k tokens."""
+    from handbook_rag.constants import RERANK_TOKEN_MARGIN
+
+    short, long = "a", "one two three four five"
+    assert hybrid.worst_pair([short, long], 512, 80) == (5 + 512 + 80) * RERANK_TOKEN_MARGIN
+    assert hybrid.worst_pair([], 512, 80) == (512 + 80) * RERANK_TOKEN_MARGIN

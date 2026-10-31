@@ -525,6 +525,8 @@ def run(
     """
     if answerer is not None and retriever != "dense":
         raise ValueError("full mode is dense only; hybrid enters the answer path by ADR (AC-8)")
+    if retriever == "rerank" and reranker is None:  # before anything is embedded (review fix)
+        raise ValueError("retriever 'rerank' needs a reranker")
     out = out if out is not None else new_run_dir(out_root, meta)
     records: list[dict] = []
     # Appended per row, so a crash mid-run keeps what was paid for.
@@ -739,10 +741,19 @@ def main(argv=None) -> int:
             f"${cost['embed_usd']:.6f}, answers ${cost['answer_usd']:.4f})"
         )
         if rerank:
+            worst = hybrid.worst_pair(
+                [r.question for r in todo], chunk_tokens, rerank["template_tokens"]
+            )
+            if worst > rerank["max_input_tokens"]:  # AC-4: refuse before any spend
+                raise SystemExit(
+                    f"longest rerank pair estimated at {worst:.0f} tokens, over the reranker's "
+                    f"{rerank['max_input_tokens']}; nothing is truncated (spec 0012 AC-4)"
+                )
             print(
                 f"rerank: {rerank['model']}, depth {RERANK_DEPTH}, ~{cost['rerank_tokens']} tokens "
                 f"${cost['rerank_usd']:.4f} at ${rerank['usd_per_1m']}/1M "
-                f"({rerank['price_source']}); no truncation"
+                f"({rerank['price_source']}); longest pair ~{worst:.0f} of "
+                f"{rerank['max_input_tokens']} tokens, no truncation"
             )
         meta = metadata(
             eval_set.version,

@@ -438,3 +438,19 @@ def test_record_rerank_keeps_every_candidate_with_both_ranks():
     assert rec["rerank"] == {"input_tokens": 4800, "pairs": 8, "pairs_over": 0}
     assert all("rerank_score" in e for e in rec["retrieved"] + rec["deep"])
     assert rec["metrics"]["chunk_fact_recall@5"] == 0.0  # F1's chunk fell to rerank rank 8
+
+
+def test_run_rerank_without_a_reranker_fails_before_embedding(tmp_path):
+    """Spec 0012 AC-1, AC-3 (review fix): run() in rerank mode with no reranker raises before
+    anything is embedded or written."""
+    from fakes import FakeEmbedder
+
+    from handbook_rag.evaluation import run as run_mod
+
+    emb = FakeEmbedder()
+    with pytest.raises(ValueError, match="needs a reranker"):
+        run_mod.run(
+            None, ROWS, Evidence({}, []), emb, None, principal=None, meta={},
+            out=tmp_path, retriever="rerank",
+        )  # fmt: skip
+    assert emb.calls == []

@@ -576,12 +576,27 @@ def run(
     searched: dict[tuple[str, str], list[ask.Retrieved]] = {}
     doc_cache: dict = {}
     depth = max(meta["ks"])
+    if retriever == "rerank" and reranker is None:  # before anything is embedded
+        raise ValueError("retriever 'rerank' needs a reranker")
+    rerank_tokens: list[int | None] = []  # spec 0012 AC-6, AC-9: the provider's count per search
 
     def search(persona: str, question: str) -> list[ask.Retrieved]:
         if retriever != "fts" and question not in vectors:
             vectors[question] = vector_literal(
                 embed_with_retry(embedder, [question], sleep, rand)[0]
             )
+        if retriever == "rerank" and (persona, question) not in searched:
+            lists = hybrid.rerank_lists(
+                conn,
+                reranker,
+                vectors[question],
+                question,
+                embedder.name,
+                plan.principals[persona],
+                config_id,
+            )
+            rerank_tokens.append(lists.input_tokens)
+            searched[persona, question] = lists.reranked[:depth]
         if (persona, question) not in searched:
             searched[persona, question] = hybrid.search(
                 conn,
@@ -651,6 +666,9 @@ def run(
             records.append(rec)
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             print(f"{case.id}: {'valid' if valid else 'invalid'}", file=sys.stderr)
+    if retriever == "rerank":  # AC-9: the provider's total, None if any response lacked it
+        total = None if None in rerank_tokens else sum(rerank_tokens)
+        meta = meta | {"rerank": meta.get("rerank", {}) | {"input_tokens": total}}
     summary = summarize(records, meta, meta["ks"])
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -742,14 +760,22 @@ def main(argv=None) -> int:
             + (f" ({', '.join(flagged)})" if flagged else "")
         )
         print(
-            f"estimated cost: ${cost['embed_usd']:.6f} (embed ~{cost['embed_tokens']} tokens, "
+            f"estimated cost: ${cost.get('total_usd', cost['embed_usd']):.6f} (embed "
+            f"~{cost['embed_tokens']} tokens ${cost['embed_usd']:.6f}, "
             f"{len(questions)} unique questions)"
         )
         if rerank:
+            worst = hybrid.worst_pair(questions, chunk_tokens, rerank["template_tokens"])
+            if worst > rerank["max_input_tokens"]:  # AC-4: refuse before any spend
+                raise SystemExit(
+                    f"longest rerank pair estimated at {worst:.0f} tokens, over the reranker's "
+                    f"{rerank['max_input_tokens']}; nothing is truncated (spec 0012 AC-4)"
+                )
             print(
                 f"rerank: {rerank['model']}, depth {RERANK_DEPTH}, ~{cost['rerank_tokens']} tokens "
                 f"${cost['rerank_usd']:.4f} at ${rerank['usd_per_1m']}/1M "
-                f"({rerank['price_source']}); no truncation"
+                f"({rerank['price_source']}); longest pair ~{worst:.0f} of "
+                f"{rerank['max_input_tokens']} tokens, no truncation"
             )
         meta = metadata(
             suite,

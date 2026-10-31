@@ -4,7 +4,9 @@ One POST scores every (question, document) pair. Retries mirror embed.embed_with
 response raises and is never retried or papered over with the dense order.
 """
 
+import http.client
 import json
+import math
 import random
 import time
 import urllib.error
@@ -46,7 +48,8 @@ def _urllib_post(url: str, body: bytes, headers: dict[str, str], timeout: float)
             return response.read()
     except urllib.error.HTTPError as e:
         raise RerankHTTPError(e.code, {k.lower(): v for k, v in e.headers.items()}, e.reason) from e
-    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+    # HTTPException: a connection dropped mid-body (IncompleteRead, BadStatusLine) is transient
+    except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError) as e:
         raise RerankConnectionError(type(e).__name__) from e
 
 
@@ -140,6 +143,8 @@ class DeepInfraReranker:
             raise RerankResponseError(f"got {len(scores)} scores for {expected} documents")
         if any(isinstance(s, bool) or not isinstance(s, int | float) for s in scores):
             raise RerankResponseError("a score is not a number")
+        if not all(math.isfinite(s) for s in scores):  # json.loads accepts NaN and Infinity
+            raise RerankResponseError("a score is not finite")
         tokens = data.get("input_tokens")
         return RerankResult(
             [float(s) for s in scores],
