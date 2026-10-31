@@ -147,6 +147,13 @@ DEFAULT_RERANK_MODEL = "deepinfra:Qwen/Qwen3-Reranker-4B"
 RERANK_DEPTH = 50  # AC-3: dense candidates reranked; where the 0.875 ceiling was measured
 RERANK_TOKEN_MARGIN = 1.5  # AC-4: cl100k -> the reranker's tokenizer, conservatively
 RERANK_TIMEOUT = 120.0  # seconds per HTTP request
+# AC-11: headroom captured = (reranked@5 - floor) / (ceiling - floor), fixed before any run from
+# run 2026-10-21-d83f3edc: its dense chunk_fact_recall@5 and the best top 5 from its dense top 50.
+HEADROOM_FLOOR = 0.583
+HEADROOM_CEILING = 0.875
+# AC-11: the retrieval-side false abstentions with facts at dense ranks 6-8 (spec 0010).
+RERANK_ROWS = (8, 49, 89, 53, 55)
+RERANK_CURVE_KS = tuple(range(3, 11))  # AC-10: recall@k for k = 3..10, both orderings
 
 # Recall starvation on a separate HNSW path (spec 0007 Part B, AC-17, AC-18)
 ANN_RUNS = Path("runs/ann")

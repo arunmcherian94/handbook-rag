@@ -149,6 +149,7 @@ class FakeReranker:
 
     name = "fake:reranker"
     max_input_tokens = 32768
+    template_tokens = 80
 
     def __init__(self, score=None, input_tokens: int | None = 42, fail: Exception | None = None):
         self.score = score or (

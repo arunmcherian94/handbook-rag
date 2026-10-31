@@ -38,6 +38,7 @@ class RerankResult:
 class Reranker(Protocol):
     name: str  # "provider:model"; recorded in run metadata (spec 0012, AC-9)
     max_input_tokens: int  # the provider's limit per query-document pair
+    template_tokens: int  # estimated prompt-template tokens per pair (AC-2, AC-4)
 
     def rerank(self, question: str, documents: list[str]) -> RerankResult: ...
 
