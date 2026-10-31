@@ -143,3 +143,8 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 - **BM25 instead of `ts_rank_cd`:** Postgres FTS has no IDF, so common words ("team", "policy") outweigh rare ones ("POSH"). Candidates: Tiger Data `pg_textsearch` (PostgreSQL licence), ParadeDB `pg_search` (AGPL), VectorChord-bm25, or BM25 weights in pgvector `sparsevec`. Each is a new dependency or pipeline and needs an ADR. Trigger: the spec 0011 FTS-only run shows common words crowding out rare ones ([reading, Q3](reading/week-03.md#hybrid-search-postgres-full-text-search-reciprocal-rank-fusion)).
 - **Weighted RRF or a convex score combination:** both need a tuned weight. Tune it on the synthetic retrieval set, not on v1.2 (n = 32).
 - **Weighting the heading above the body** (`setweight(..., 'A')`) in the `tsvector`.
+
+## From spec 0012 (2026-10-31)
+- **Self-hosted reranker:** `Alibaba-NLP/gte-reranker-modernbert-base` (8192 context, 0% truncation on `fixed-512-64`, Apache-2.0, 600 MB, ~3–6 s CPU per 50 pairs on the M2, estimated). It removes the paid call and pins the weights, but needs torch (sentence-transformers) or onnxruntime as a new dependency. Trigger: the API reranker is adopted and latency or provider drift matters (week 6 observability, week 7 service) ([reading](reading/week-03.md#cross-encoder-reranking-candidate-models-truncation-hosted-apis)).
+- **Smaller or larger Qwen3 reranker (0.6B, 8B):** a latency and cost trade-off against 4B, only once 4B has a measured result.
+- **Rerank depth sweep:** out of scope in spec 0012; depth stays 50, where the ceiling was measured.

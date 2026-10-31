@@ -5,6 +5,92 @@ and what it changes in this project. Newest first within each date.
 
 ---
 
+## Sat 31 Oct 2026
+
+### Cross-encoder reranking: candidate models, truncation, hosted APIs
+
+For spec 0012, a cross-encoder reranker over dense candidates. Max lengths come from each model's card, `config.json` and `tokenizer_config.json`. API prices come from the vendors' own pages. All were read on 31 Oct; Arun reviews.
+
+**Bi-encoder vs cross-encoder in brief.** A bi-encoder (our 3-large retrieval) embeds the query and each chunk separately. Chunk vectors are computed once at ingest, so a query costs one embedding plus a vector search (~100–225 ms exact). A cross-encoder reads the query and one chunk together as one input, with attention across both, and outputs a single relevance score. Nothing can be precomputed, so every query costs one forward pass per candidate. At depth 50 with ~580-token pairs, that is ~29k tokens through the model per query.
+
+Takeaways:
+- **Reranking fixes order, not coverage.** It can only reorder the 50 candidates dense search returns. That matches our diagnosis: the best possible top 5 from dense's top 50 scores 0.875, against 0.583 today (run d83f3edc).
+- **Truncation decides the model.** A 512-token cl100k chunk is 540–615 tokens in other models' tokenizers. Every model capped at 512 truncates 82–88% of our candidate pairs and loses the chunk's last 54–111 tokens. Long-context models (8192) truncate none.
+- **The cost is CPU time, not money, when self-hosted.** Cost grows with depth × pair length (attention is quadratic in length), so reranking will take longer than retrieval. Depth stays at 50, where the ceiling was measured.
+- **Hosted rerank APIs exist and are cheap at our scale**, but they add a paid path, a network hop and a model version the vendor controls (see the API table).
+
+- **Decided (Arun, 31 Oct), with reasons and alternatives in [spec 0012's Decisions table](../../specs/0012-cross-encoder-reranker.md#decisions):**
+  - **Hosting:** the DeepInfra API, on the existing account and key. Self-hosting gte-modernbert is a follow-up.
+  - **Model:** Qwen3-Reranker-4B. It leads 8B on English MTEB-R, costs half as much, and fits every pair (32k).
+  - **Truncation:** none. A pair over the limit fails the run; nothing is silently cut.
+  - **Depth:** 50, where the 0.875 ceiling was measured. No sweep.
+  - **Text sent:** chunk content only, as dense embeds it.
+  - **Instruction:** the model's default, sent explicitly.
+  - **Comparison:** paired within one run, on the same query vectors. `d83f3edc` is for continuity only.
+
+#### Candidate local models
+
+| Model | Max length (source) | Pairs over the cap | Tail lost when over | Params / weights | Licence | Pros | Cons |
+|---|---|---|---|---|---|---|---|
+| [`cross-encoder/ms-marco-MiniLM-L6-v2`](https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2) | 512 (config, tokenizer) | 85.5% | ~69 tok | 22M / 91 MB | Apache-2.0 | Standard baseline; fastest; ONNX available | Truncates most pairs; trained on MS MARCO short passages |
+| [`mixedbread-ai/mxbai-rerank-base-v1`](https://huggingface.co/mixedbread-ai/mxbai-rerank-base-v1) | 512 (config, tokenizer) | 82.5% | ~54 tok | 184M / 369 MB | Apache-2.0 | Strong for its size | Same truncation |
+| [`BAAI/bge-reranker-base`](https://huggingface.co/BAAI/bge-reranker-base) | 512 (tokenizer; config 514) | 87.5% | ~111 tok | 278M / 1.1 GB | MIT | Widely used | Worst truncation; Chinese and English focus |
+| [`BAAI/bge-reranker-v2-m3`](https://huggingface.co/BAAI/bge-reranker-v2-m3) | Card states none; config allows 8192; the card's examples use 512 and 1024 | 0% at 1024 | — | 568M / 2.3 GB | Apache-2.0 | Multilingual, strong | Largest; slow on CPU |
+| [`jinaai/jina-reranker-v1-turbo-en`](https://huggingface.co/jinaai/jina-reranker-v1-turbo-en) | 8192 (card, ALiBi); tokenizer says 512 | 0% at 1024 | — | 38M / 76 MB | Apache-2.0 | Small and long-context | Needs `trust_remote_code=True`; older (v1) |
+| [`Alibaba-NLP/gte-reranker-modernbert-base`](https://huggingface.co/Alibaba-NLP/gte-reranker-modernbert-base) | 8192 (card, config, tokenizer) | 0% at 1024 | — | 149M / 600 MB | Apache-2.0 | All pairs fit; native in transformers ≥ 4.48, no remote code; ONNX available; best MLDR (long-document) score in IBM's comparison table | 5–10× MiniLM's compute |
+| [`ibm-granite/granite-embedding-reranker-english-r2`](https://huggingface.co/ibm-granite/granite-embedding-reranker-english-r2) | Card says 8192; tokenizer says 1124 | 0% at 1024 | — | 149M / 600 MB | Apache-2.0 | Same architecture as gte; trained only on permissively licensed data | Mismatch between card and tokenizer; no ONNX |
+| [`Qwen/Qwen3-Reranker-0.6B`](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B) | 32k (card) | 0% | — | 0.6B / 1.2 GB | Apache-2.0 | Strongest on general benchmarks | Scores through an LLM prompt template, not a classifier head; slowest |
+
+- **Expected CPU time for 50 pairs on this M2** is estimated from the parameter counts, not measured: MiniLM-L6 ~0.5–1.5 s, the 149M ModernBERT models ~3–6 s, bge-v2-m3 ~10–20 s, Qwen3-0.6B ~15–30 s. The chosen model gets benchmarked after download.
+- **How truncation was measured:** with each model's own tokenizer (tokenizer files only, no weights). The pool was the dense top 50 for the 61 cached v1.x question vectors in `runs/ann/query-vectors.jsonl`: 3,050 pairs, no ACL filter, so the real per-user pools differ slightly. Lengths only; no metric was computed. Across all 22,378 `fixed-512-64` chunks the shares are within 3 points of the pool's.
+
+#### Hosted rerank APIs
+
+| Service | Current models | Context per pair | Billing (vendor page, 31 Oct) | Our eval run (~61 queries × 50 docs) |
+|---|---|---|---|---|
+| [Voyage AI](https://docs.voyageai.com/docs/pricing) ([reranker docs](https://docs.voyageai.com/docs/reranker)) | rerank-3, rerank-3-lite (rerank-2.5 still available) | 32,000 | $0.05 per 1M tokens (lite $0.02). Billed tokens = query tokens × docs + all doc tokens. First 200M tokens free | ~29k tokens/query → ~1.8M tokens ≈ $0.09 (lite $0.04), inside the free tier |
+| [Cohere](https://cohere.com/pricing) ([rerank docs](https://docs.cohere.com/docs/rerank)) | Rerank 5 Pro and Fast (4.0 and 3.5 still listed) | 32,768 (v3.5: 4k) | Per "search unit": one query with up to 100 docs, where each doc over 500 tokens (including the query) is split and counted again. The pricing page gives no per-search price, only dedicated instances (Model Vault) | Our ~560-token docs split in two, so 50 docs → 100 → one unit per query. Price unverified; aggregators quote ~$2 per 1k searches → ~$0.12 |
+| [Jina AI](https://jina.ai/reranker/) | jina-reranker-v3.5 (listwise) | 131,072 for the query plus all docs | Token-based; no rate shown on the page | Unverified. The weights are CC BY-NC, so self-hosting it commercially needs a licence |
+| [DeepInfra](https://deepinfra.com/models/reranker) ([0.6B](https://deepinfra.com/Qwen/Qwen3-Reranker-0.6B), [4B](https://deepinfra.com/Qwen/Qwen3-Reranker-4B), [8B](https://deepinfra.com/Qwen/Qwen3-Reranker-8B/api)) | Qwen3-Reranker 0.6B / 4B / 8B; also Nemotron-3.5-Rerank-8B | 32,768 | $0.010 / $0.025 / $0.050 per 1M tokens. One `queries`/`documents` pair per array element; optional `instruction`; the response example includes `input_tokens`. No model revision shown | See the cost estimate below |
+
+- **DeepInfra cost estimate** (Qwen3 tokenizer: median pair 531 tokens, plus ~80 for the prompt template, so ~600 tokens per pair and ~30k per query at depth 50):
+
+  | Run | Reranked queries | Tokens | 0.6B | 4B | 8B |
+  |---|---|---|---|---|---|
+  | Eval (33 answerable rows) | 33 | ~1.0M | $0.010 | $0.025 | $0.050 |
+  | Permissions suite (52 cases; acting persona + admin, upper bound) | ≤104 | ≤3.1M | $0.031 | $0.078 | $0.16 |
+  | One user query | 1 | ~30k | $0.0003 | $0.00075 | $0.0015 |
+
+  - The ~80-token template is an estimate. Whether DeepInfra bills those tokens isn't stated; the response's `input_tokens` field will tell us.
+  - Truncation is 0% at 32k.
+
+- **How the DeepInfra models score** (no independent text-reranker leaderboard ranks them on a common setup; these are the vendors' own numbers):
+
+  | Model | MTEB-R (eng) | MLDR (long docs) | MMTEB-R | FollowIR | Source |
+  |---|---|---|---|---|---|
+  | BGE-reranker-v2-m3 (reference) | 57.03 | 59.51 | 58.36 | −0.01 | Qwen card |
+  | Qwen3-Reranker-0.6B | 65.80 | 67.28 | 66.36 | 5.41 | Qwen card |
+  | Qwen3-Reranker-4B | **69.76** | 69.97 | 72.74 | **14.84** | Qwen card |
+  | Qwen3-Reranker-8B | 69.02 | **70.19** | **72.94** | 8.05 | Qwen card |
+  | Nemotron-3.5-Rerank-8B | — | — | — | — | Its card reports only visual-document benchmarks (ViDoRe v3, MIRACL-VISION), so it can't be compared here |
+
+  - Qwen ran these itself, on the retrieval subsets of MTEB, reranking the top 100 from Qwen3-Embedding-0.6B. Sources: the [Qwen3-Reranker-8B card](https://huggingface.co/Qwen/Qwen3-Reranker-8B) and [the paper](https://arxiv.org/abs/2506.05176).
+  - On English, 4B is 0.74 points ahead of 8B, at half the price. 8B leads on long documents and multilingual by about 0.2. Neither gap tells us which will do better on our 33 rows.
+  - The [Nemotron card](https://huggingface.co/nvidia/Nemotron-3.5-Rerank-8B-BF16) is under the OpenMDW-1.1 licence, and the model is built for multimodal (page-image) retrieval.
+- **Self-hosted vs API:**
+  - **Self-hosted:**
+    - $0 per query.
+    - We pin a weights revision, so runs are reproducible.
+    - No data leaves the machine.
+    - It needs a new dependency (torch through sentence-transformers, or onnxruntime) and costs CPU time.
+  - **API:**
+    - No dependency and no local compute.
+    - It is a paid path behind the `paid-*` guard.
+    - It adds a network hop to the latency.
+    - The vendor can update the model behind its name, which weakens run-to-run comparisons.
+    - Only ACL-pre-filtered candidates would be sent, so permissions aren't affected.
+- **What's commonly used:** Cohere Rerank is the best-known hosted reranker. Among open models, `ms-marco-MiniLM` (speed) and `bge-reranker` (quality) are the usual self-hosted defaults. The 8192-context ModernBERT rerankers (gte, granite) are newer.
+
 ## Thu 29 Oct 2026
 
 ### Hybrid search: Postgres full-text search, Reciprocal Rank Fusion
