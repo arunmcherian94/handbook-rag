@@ -1,21 +1,34 @@
-"""Lexical (Postgres FTS) and hybrid retrieval, fused with RRF (spec 0011).
+"""Lexical (Postgres FTS), hybrid (RRF) and reranked retrieval (specs 0011, 0012).
 
 Beside ask.py, not in it: the dense path and the answer path stay unchanged (AC-7, AC-8).
 search() is the one entry point for the eval harness and the permissions runner; every mode
 filters on the principal's groups before ranking (spec 0007, AC-8; spec 0011, AC-4).
+rerank (spec 0012) scores the dense list's candidates: no SQL of its own, so the reranker
+only ever sees chunks the principal may see.
 """
 
 import random
 import time
 import uuid
-from dataclasses import dataclass, fields
+from collections.abc import Mapping
+from dataclasses import dataclass, fields, replace
+
+import tiktoken
 
 from handbook_rag import ask
-from handbook_rag.constants import BASELINE_CONFIG, FUSION_DEPTH, RETRIEVERS, RRF_K
+from handbook_rag.constants import (
+    BASELINE_CONFIG,
+    FUSION_DEPTH,
+    RERANK_DEPTH,
+    RERANK_TOKEN_MARGIN,
+    RETRIEVERS,
+    RRF_K,
+    TOKENIZER,
+)
 from handbook_rag.db import vector_literal
 from handbook_rag.embed import embed_with_retry
 from handbook_rag.identity import Principal
-from handbook_rag.models import Embedder
+from handbook_rag.models import Embedder, Reranker
 
 # AC-2: an OR of the question's lexemes, each quoted as a literal, so quotes, `or` and `-` carry
 # no operator meaning. No lexemes (stop words only) gives NULL: nothing matches, and no error.
@@ -57,6 +70,34 @@ class Ranked(ask.Retrieved):
     fts_rank: int | None = None
     rrf_score: float | None = None
     fts_score: float | None = None
+    rerank_score: float | None = None  # spec 0012, AC-3
+
+
+class PairTooLong(ValueError):
+    """Spec 0012, AC-4: a query-document pair estimated over the reranker's limit. Raised before
+    any request; the client never truncates."""
+
+    def __init__(self, chunk_id: uuid.UUID, estimate: float, limit: int):
+        super().__init__(
+            f"chunk {chunk_id}: estimated {estimate:.0f} tokens with the question, over the "
+            f"reranker's {limit}; nothing is truncated (spec 0012, AC-4)"
+        )
+        self.chunk_id = chunk_id
+
+
+@dataclass(frozen=True)
+class RerankLists:
+    """Spec 0012, AC-3: one question's dense list to RERANK_DEPTH (dense ranks 1..n) and the same
+    chunks reranked. dense[:k] is the in-run dense top k (AC-11); reranked[:k] is the result.
+    Latencies are wall-clock ms; pairs_over counts pairs over the limit (AC-4: always 0, since one
+    over the limit raises)."""
+
+    dense: list[Ranked]
+    reranked: list[Ranked]
+    dense_ms: float
+    rerank_ms: float
+    input_tokens: int | None
+    pairs_over: int
 
 
 def search_fts(
@@ -111,9 +152,11 @@ def search(
     principal: Principal,
     k: int,
     config_id: str = BASELINE_CONFIG,
+    reranker: Reranker | None = None,
 ) -> list[ask.Retrieved]:
     """Top k in the given mode. q is the embedded question (a vector_literal); fts ignores it.
-    dense is ask.search unchanged (AC-7); hybrid fuses both lists retrieved to FUSION_DEPTH."""
+    dense is ask.search unchanged (AC-7); hybrid fuses both lists retrieved to FUSION_DEPTH;
+    rerank (spec 0012, AC-3) needs a reranker and cuts the reranked dense list to k."""
     if retriever == "dense":
         return ask.search(conn, q, model, principal, k, config_id)
     if retriever == "fts":
@@ -122,6 +165,10 @@ def search(
         depth = max(k, FUSION_DEPTH)
         dense = ask.search(conn, q, model, principal, depth, config_id)
         return fuse(dense, search_fts(conn, question, principal, depth, config_id), k)
+    if retriever == "rerank":
+        if reranker is None:
+            raise ValueError("retriever 'rerank' needs a reranker")
+        return rerank_lists(conn, reranker, q, question, model, principal, config_id).reranked[:k]
     raise ValueError(f"unknown retriever {retriever!r}; one of {', '.join(RETRIEVERS)}")
 
 
@@ -135,6 +182,7 @@ def retrieve(
     config_id: str = BASELINE_CONFIG,
     sleep=time.sleep,
     rand=random.random,
+    reranker: Reranker | None = None,
 ) -> list[ask.Retrieved]:
     """search() for a question: embeds it (same retry policy as ask.retrieve) except in fts
     mode, which embeds nothing (AC-9), so embedder may be None there."""
@@ -144,7 +192,107 @@ def retrieve(
     if retriever != "fts":
         q = vector_literal(embed_with_retry(embedder, [question], sleep, rand)[0])
     return search(
-        conn, retriever, q, question, embedder.name if embedder else "", principal, k, config_id
+        conn,
+        retriever,
+        q,
+        question,
+        embedder.name if embedder else "",
+        principal,
+        k,
+        config_id,
+        reranker,
+    )
+
+
+def rerank_lists(
+    conn,
+    reranker: Reranker,
+    q: str,
+    question: str,
+    model: str,
+    principal: Principal,
+    config_id: str = BASELINE_CONFIG,
+    clock=time.perf_counter,
+) -> RerankLists:
+    """Spec 0012, AC-3, AC-4: the dense list to RERANK_DEPTH (ACL pre-filtered by ask.search),
+    the truncation guard, then one rerank call; sorted by score desc, dense rank, chunk_id.
+    Reranker errors propagate: there is no fallback to the dense order."""
+    t0 = clock()
+    found = ask.search(conn, q, model, principal, RERANK_DEPTH, config_id)
+    dense_ms = (clock() - t0) * 1000
+    if not found:
+        return RerankLists([], [], dense_ms, 0.0, 0, 0)
+    plain = [f.name for f in fields(ask.Retrieved) if f.name != "n"]
+    dense = [
+        Ranked(c.n, **{name: getattr(c, name) for name in plain}, dense_rank=c.n) for c in found
+    ]
+    enc = tiktoken.get_encoding(TOKENIZER)
+    question_tokens = len(enc.encode(question, disallowed_special=()))
+    for c in dense:  # AC-4: before any request; one over the limit stops the run
+        estimate = (
+            question_tokens
+            + len(enc.encode(c.content, disallowed_special=()))
+            + reranker.template_tokens
+        ) * RERANK_TOKEN_MARGIN
+        if estimate > reranker.max_input_tokens:
+            raise PairTooLong(c.chunk_id, estimate, reranker.max_input_tokens)
+    t1 = clock()
+    res = reranker.rerank(question, [c.content for c in dense])
+    rerank_ms = (clock() - t1) * 1000
+    if len(res.scores) != len(dense):
+        raise ValueError(f"reranker returned {len(res.scores)} scores for {len(dense)} documents")
+    scored = [replace(c, rerank_score=s) for c, s in zip(dense, res.scores, strict=True)]
+    order = sorted(scored, key=lambda c: (-c.rerank_score, c.dense_rank, str(c.chunk_id)))
+    reranked = [replace(c, n=n) for n, c in enumerate(order, 1)]
+    return RerankLists(scored, reranked, dense_ms, rerank_ms, res.input_tokens, 0)
+
+
+def rerank_tokens(searches: Mapping[str, int], chunk_tokens: int, template_tokens: int) -> int:
+    """Spec 0012, AC-9: the estimated tokens the reranker is billed for. searches maps each
+    question to its number of reranked searches; each scores RERANK_DEPTH pairs priced at question
+    + chunk_tokens (the config's longest chunk) + template tokens, in cl100k. Shared by the eval
+    harness and the permissions runner so their estimates can't drift."""
+    enc = tiktoken.get_encoding(TOKENIZER)
+    return sum(
+        n
+        * RERANK_DEPTH
+        * (len(enc.encode(q, disallowed_special=())) + chunk_tokens + template_tokens)
+        for q, n in searches.items()
+    )
+
+
+def longest_chunk(conn, config_id: str) -> int:
+    """The config's longest stored chunk (chunks.token_count, cl100k); 0 for an empty config."""
+    (n,) = conn.execute(
+        "SELECT COALESCE(max(token_count), 0) FROM chunks WHERE config_id = %s", (config_id,)
+    ).fetchone()
+    return n
+
+
+def worst_pair(questions: list[str], chunk_tokens: int, template_tokens: int) -> float:
+    """Spec 0012, AC-4 (review fix): the dry run's bound on the longest pair, in the guard's units
+    (cl100k x RERANK_TOKEN_MARGIN): the longest question with the config's longest chunk. Checked
+    before any spend, so a pair over the limit can't stop a paid run partway."""
+    enc = tiktoken.get_encoding(TOKENIZER)
+    longest = max((len(enc.encode(q, disallowed_special=())) for q in questions), default=0)
+    return (longest + chunk_tokens + template_tokens) * RERANK_TOKEN_MARGIN
+
+
+def rerank_preflight(questions: list[str], rerank: dict, chunk_tokens: int, tokens: int) -> str:
+    """Spec 0012, AC-4, AC-9: the dry run's rerank line (model, depth, tokens, cost, longest pair).
+    Exits, before any spend, when the longest pair is over the reranker's limit."""
+    worst = worst_pair(questions, chunk_tokens, rerank["template_tokens"])
+    limit = rerank["max_input_tokens"]
+    if worst > limit:
+        raise SystemExit(
+            f"longest rerank pair estimated at {worst:.0f} tokens, over the reranker's {limit}; "
+            "nothing is truncated (spec 0012 AC-4)"
+        )
+    usd = tokens * rerank["usd_per_1m"] / 1_000_000
+    return (
+        f"rerank: {rerank['model']}, depth {RERANK_DEPTH}, ~{tokens} tokens ${usd:.4f} at "
+        f"${rerank['usd_per_1m']}/1M ({rerank['price_source']}); longest pair ~{worst:.0f} of "
+        f"{limit} tokens, no truncation"
     )
 
 

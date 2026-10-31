@@ -3,6 +3,7 @@
 Relevance is binary. Rank lists are in retrieval order (index 0 = rank 1).
 """
 
+import itertools
 import math
 import statistics
 from collections.abc import Mapping, Sequence
@@ -57,6 +58,26 @@ def fact_recall_at(chunk_facts: Sequence[set[str]], required: set[str], k: int) 
 def all_required_at(chunk_facts: Sequence[set[str]], required: set[str], k: int) -> float:
     """1.0 if every required fact is covered in the top k, else 0.0."""
     return 1.0 if _covered(chunk_facts, required, k) == required else 0.0
+
+
+def best_top_k(chunk_facts: Sequence[set[str]], required: set[str], k: int) -> float | None:
+    """Spec 0012 AC-11, the ceiling: the best fact recall any choice of at most k chunks gives.
+
+    An oracle reorder of chunk_facts (order is ignored). None when required is empty. Exact:
+    chunks are cut to the required facts, empties, duplicates and subsets of another chunk
+    dropped (they never help), then every combination of min(k, n) chunks is tried (a larger
+    choice never covers less), stopping at full recall.
+    """
+    if not required:
+        return None
+    cut = {frozenset(f & required) for f in chunk_facts} - {frozenset()}
+    sets = [s for s in cut if not any(s < o for o in cut)]
+    best = 0
+    for combo in itertools.combinations(sets, min(k, len(sets))):
+        best = max(best, len(frozenset().union(*combo)))
+        if best == len(required):
+            break
+    return best / len(required)
 
 
 def first_page_hits(pages: Sequence[str], targets: set[str]) -> list[bool]:

@@ -1,6 +1,6 @@
 # 0012: Cross-encoder reranker over dense candidates
 
-- Status: draft
+- Status: approved (build in progress; implemented after the runs)
 - Date: 2026-10-31
 
 ## Problem

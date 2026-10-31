@@ -2,7 +2,7 @@ import uuid
 
 import psycopg
 import pytest
-from fakes import bow_vector, make_principal
+from fakes import FakeReranker, bow_vector, make_principal
 
 from handbook_rag import hybrid
 from handbook_rag.constants import BASELINE_CONFIG, CHUNKS_SCHEMA
@@ -168,6 +168,28 @@ def test_restricted_chunk_denied_under_fts_and_hybrid(conn):
         assert (restricted in {g.chunk_id for g in got}) is expect
         got = hybrid.search(conn, "fts", None, question, MODEL, p, 50, DECOY)
         assert (restricted in {g.chunk_id for g in got}) is expect
+
+
+@pytest.mark.parametrize("k", [5, 50])
+def test_restricted_chunk_denied_under_rerank(conn, k):
+    """Spec 0012, AC-5: a reranker that scores the restricted chunk highest still never sees it
+    for a principal without the group, at any k; a principal with the group gets it at rank 1.
+    (No admin principal helper exists in tests; the insider is the positive control.)"""
+    question = f"{TOKEN} restricted"
+    restricted = _add(conn, question, groups=(RESTRICTED,), embed=True)
+    for i in range(1, 4):
+        _add(conn, f"{TOKEN} open {i}", index=i, embed=True)
+    q = vector_literal(bow_vector(question))
+    staff, insider = make_principal("staff", OPEN), make_principal("staff", OPEN, RESTRICTED)
+
+    for p, expect in ((staff, False), (insider, True)):
+        fake = FakeReranker(score=lambda q_, d: 1e9 if question == d else 0.0)
+        got = hybrid.search(conn, "rerank", q, question, MODEL, p, k, DECOY, reranker=fake)
+        assert (restricted in {g.chunk_id for g in got}) is expect
+        assert (got[0].chunk_id == restricted) is expect
+        ((_, shown),) = fake.calls
+        assert (question in shown) is expect
+        assert len(shown) == len(got) == (4 if expect else 3)
 
 
 def test_check_fts_passes_on_real_db(conn):

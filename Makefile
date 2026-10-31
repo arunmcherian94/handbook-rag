@@ -51,7 +51,7 @@ paid-ask: ## Spend: answer as a fixture user, AS= Q= as for `make ask`
 	$(ASK_USAGE)
 	$(SPEND) $(ASK) --confirm
 
-eval: ## Dry run: the eval set's rows and cost; LIMIT=n, RETRIEVAL_ONLY=1, CONFIG=, BASELINE=<run id>, RETRIEVER=dense|fts|hybrid
+eval: ## Dry run: the eval set's rows and cost; LIMIT=n, RETRIEVAL_ONLY=1, CONFIG=, BASELINE=<run id>, RETRIEVER=dense|fts|hybrid|rerank
 	$(EVAL)
 
 paid-eval: ## Spend: run the eval set, same options as `make eval`
