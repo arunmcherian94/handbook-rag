@@ -133,7 +133,7 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 
 ## From the #39 deferred review items (2026-10-24)
 
-- **One `spend.logged(target, usd, …)` context manager** in place of the five try/finally spend blocks (ask, embed, eval, permissions, ann). Do it when the next paid target lands (the week 3 reranker). (Spec 0007 Part B, the earlier blocker, merged in #40.)
+- **One `spend.logged(target, usd, …)` context manager** in place of the five try/finally spend blocks (ask, embed, eval, permissions, ann). Do it as a standalone cleanup PR (Arun, 31 Oct). Spec 0012 adds no new paid target, so it doesn't ride along there. (Spec 0007 Part B, the earlier blocker, merged in #40.)
 
 ## From the week 2 docs audit (2026-10-26)
 

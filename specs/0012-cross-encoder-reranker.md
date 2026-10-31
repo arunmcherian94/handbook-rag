@@ -110,11 +110,12 @@ Each criterion is testable. Tests and plan steps cite them by ID.
   - The report shows:
     - the mean paired delta in `chunk_fact_recall@5`, its paired SE (sd of per-row deltas / √n), and the delta in SEs
     - rows won, lost and tied
-    - headroom captured = (reranked@5 − 0.583) / (0.875 − 0.583)
+    - headroom captured = (reranked@5 − 0.583) / (0.875 − 0.583), the headline, fixed before any run
+    - beside it, headroom within this run = (reranked@5 − this run's dense@5) / (this run's ceiling − this run's dense@5), where the ceiling is the best possible top 5 from this run's dense top 50. If the two figures differ, the report attributes the difference to query-vector drift. Neither one decides adoption
     - for rows 8, 49, 89, 53 and 55: each required fact's dense rank and reranked rank, and whether it enters the top 5
     - rerank latency per query, p50 and p95, next to the in-run dense search p50
     - the truncation share (AC-4)
-  - Unit tests on fixed rows check the delta, the SE, the headroom arithmetic and the won, lost and tied counts.
+  - Unit tests on fixed rows check the delta, the SE, the headroom arithmetic (both figures), the in-run ceiling and the won, lost and tied counts.
 - AC-12: **The continuity comparison.**
   - The same run, with `BASELINE=2026-10-21-d83f3edc`, reports the existing paired comparison against that run.
   - The report states that `d83f3edc` used separately embedded query vectors (the row 32 and 93 drift), so the decision rests on AC-11.
@@ -144,13 +145,13 @@ Each criterion is testable. Tests and plan steps cite them by ID.
 | On API failure | The run fails | **Fall back to the dense order:** a silent mix of two retrievers in one run corrupts the paired comparison |
 | HTTP client | Standard library (`urllib.request`) | **`httpx` or `requests`:** a new or undeclared dependency for one POST. **The openai SDK:** DeepInfra's reranker isn't on its OpenAI-compatible route |
 | Primary comparison | Paired within one run, on identical query vectors | **Against `d83f3edc` only:** separately embedded query vectors drift (rows 32 and 93), which would mix embedding noise into the reranker's delta |
-| **Decision rule** (fixed before any run) | **Adopt at ≥ +2 paired SE** on `chunk_fact_recall@5` (AC-11), through ADR-0023, which also sets `DEFAULT_RETRIEVER`. **At 1–2 SE: not adopted.** Record it in the journal as promising, and re-test on the synthetic retrieval set (larger n). **Below 1 SE: not adopted** | **A documented exception at 1–2 SE, as for 3-large (ADR-0022, 1.97 SE):** that exception cost nothing at query time. A reranker adds a paid external call and seconds of latency to every query, so a gain inside the noise doesn't pay for it. *Proposed; Arun to confirm at the spec review* |
+| **Decision rule** (fixed before any run) | **Adopt at ≥ +2 paired SE** on `chunk_fact_recall@5` (AC-11), through ADR-0023, which also sets `DEFAULT_RETRIEVER`. **At 1–2 SE: not adopted.** Record it in the journal as promising, and re-test on the synthetic retrieval set (larger n). **Below 1 SE: not adopted** | **A documented exception at 1–2 SE, as for 3-large (ADR-0022, 1.97 SE):** that exception cost nothing at query time. A reranker adds a paid external call and seconds of latency to every query, so a gain inside the noise doesn't pay for it. Confirmed by Arun, 31 Oct |
+| Headroom | The fixed formula as the headline, plus headroom within the run beside it (AC-11) (Arun, 31 Oct) | **Fixed formula only:** this run embeds the questions again, so drift would be credited to the reranker. **Within-run only:** loses comparability with the 0.583 and 0.875 figures in spec 0011 and the journal |
 | Default | Off (`dense`) | **On:** changes the frozen answer path before measurement |
 
 ## Open questions
 
-- **The ceiling within the run.** The headroom formula uses `d83f3edc`'s 0.583 and 0.875, as fixed above. Should the report also show the in-run dense@5 and the in-run ceiling (the best top 5 from this run's dense top 50)? They cost nothing extra and remove the drift from the headroom figure. Proposed: yes, as an extra line, with the fixed formula still the headline.
-- **The `spend.logged` follow-up** was due "when the next paid target lands". This spec adds cost to existing targets, not a new target, so it stays deferred unless Arun wants it here.
+None. The headroom figure and the 1–2 SE case are settled in Decisions. The `spend.logged` refactor is a standalone cleanup PR ([follow-ups](../docs/follow-ups.md)).
 
 ## Evaluation plan (each run with Arun's session approval, after a commit)
 
