@@ -14,24 +14,40 @@ from handbook_rag.models.base import (
 )
 from handbook_rag.models.factory import (
     describe_embedder,
+    describe_reranker,
     embed_usd_per_1m,
     make_answerer,
     make_embedder,
+    make_reranker,
     resolve_answer_spec,
     resolve_embed_spec,
+)
+from handbook_rag.models.rerankers.deepinfra import (
+    FatalRerankError,
+    RerankConnectionError,
+    RerankHTTPError,
+    RerankResponseError,
+    RerankRetriesExhausted,
 )
 
 __all__ = [
     "Answerer",
     "Completion",
     "Embedder",
+    "FatalRerankError",
     "InputTooLong",
+    "RerankConnectionError",
+    "RerankHTTPError",
+    "RerankResponseError",
     "RerankResult",
+    "RerankRetriesExhausted",
     "Reranker",
     "describe_embedder",
+    "describe_reranker",
     "embed_usd_per_1m",
     "make_answerer",
     "make_embedder",
+    "make_reranker",
     "resolve_answer_spec",
     "resolve_embed_spec",
 ]

@@ -5,6 +5,7 @@ import pytest
 from handbook_rag.evaluation.metrics import (
     Stat,
     all_required_at,
+    best_top_k,
     fact_recall_at,
     first_page_hits,
     hit_at,
@@ -271,3 +272,20 @@ def test_paired_empty_and_single():
     assert paired([]) is None
     s = paired([0.3])
     assert s.mean == 0.3 and s.se == 0.0 and s.n == 1
+
+
+def test_best_top_k_greedy_suboptimal():
+    """Spec 0012 AC-11: the largest set first (greedy) gives 3/4; two smaller sets give 4/4."""
+    sets = [{"a", "b", "c"}, {"a", "b"}, {"c", "d"}]
+    assert best_top_k(sets, {"a", "b", "c", "d"}, 2) == 1.0
+    assert best_top_k(sets, {"a", "b", "c", "d"}, 1) == 3 / 4
+
+
+def test_best_top_k_edges():
+    """Spec 0012 AC-11: empty required -> None; k > n; irrelevant and dominated sets; no cover."""
+    assert best_top_k([{"a"}], set(), 5) is None
+    assert best_top_k([{"a"}, {"b"}], {"a", "b", "c"}, 10) == 2 / 3
+    assert best_top_k([{"a"}, {"a", "b"}, set(), {"z"}], {"a", "b"}, 1) == 1.0
+    assert best_top_k([set(), {"z"}], {"a"}, 3) == 0.0
+    assert best_top_k([], {"a"}, 3) == 0.0
+    assert best_top_k([{"a"}, {"a"}, {"b"}], {"a", "b"}, 2) == 1.0

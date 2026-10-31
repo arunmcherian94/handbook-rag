@@ -5,11 +5,13 @@ from pathlib import Path
 import pytest
 
 from handbook_rag.evaluation.assertions import FACT_PASS, ROW_PASS
-from handbook_rag.evaluation.metrics import row_metrics
+from handbook_rag.evaluation.metrics import paired, row_metrics
 from handbook_rag.evaluation.report import (
     is_binary,
     render_compare,
     render_md,
+    render_rerank,
+    rerank_summary,
     summarize,
     top_k_diff,
 )
@@ -391,3 +393,97 @@ def test_render_compare_top5_section():
     same = [_rec(1, "lookup", 0.5, 1.0, [_hit(1, [], "X")])]
     same_md = render_compare(summarize(same, META, NOTES), same, base_sum, same, "B", [1])
     assert "identical on 1 of 1 rows" in same_md and "differing rows" not in same_md
+
+
+def _cand(dense, rerank, facts=()):
+    return {"dense_rank": dense, "rerank_rank": rerank, "chunk_id": f"c{dense}",
+            "facts": list(facts), "rerank_score": 0.0}  # fmt: skip
+
+
+def _rr(row, required, cands, dense_ms, rerank_ms, tokens=1000, pairs=10, over=0):
+    return {"row": row, "required_facts": required, "metrics": {"chunk_hit@1": 1.0},
+            "candidates": cands, "latency_ms": {"dense": dense_ms, "rerank": rerank_ms},
+            "rerank": {"input_tokens": tokens, "pairs": pairs, "pairs_over": over}}  # fmt: skip
+
+
+def rerank_records():
+    # Row 8: F1 dense rank 7 -> rerank 1 (won); F2 absent from the candidates.
+    r8 = _rr(
+        8, ["F1", "F2"], [_cand(i, i + 1) for i in range(1, 7)] + [_cand(7, 1, ["F1"])], 10, 100
+    )
+    for c in r8["candidates"][:6]:
+        c["rerank_rank"] = c["dense_rank"] + 1
+    # Row 2: F1 at dense 1 -> rerank 8 (lost); F2 at dense 6 -> rerank 2 (not in dense top 5).
+    r2 = _rr(
+        2,
+        ["F1", "F2"],
+        [_cand(1, 8, ["F1"]), _cand(6, 2, ["F2"])]
+        + [_cand(i, i + 2 if i < 6 else i) for i in range(2, 6)],
+        20,
+        200,
+    )
+    # Row 3: unchanged (tied), full recall in both.
+    r3 = _rr(3, ["F1"], [_cand(1, 1, ["F1"]), _cand(2, 2)], 30, 300, tokens=None)
+    # An unscored record (no metrics) still counts for latency, truncation and tokens (every
+    # query ran); a record without candidates is ignored.
+    unscored = {**_rr(4, ["F1"], [_cand(1, 1, ["F1"])], 1, 1), "metrics": {}}
+    plain = {"row": 5, "required_facts": ["F1"], "metrics": {"chunk_hit@1": 1.0}}
+    return [r8, r2, r3, unscored, plain]
+
+
+def test_rerank_summary_paired_and_headroom():
+    """Spec 0012 AC-11: delta, SE, won/lost/tied, both headrooms and the in-run ceiling."""
+    s = rerank_summary(rerank_records())
+    assert s["n"] == 3
+    # dense@5: row 8 0.0, row 2 0.5 (F1 only), row 3 1.0; rerank@5: 0.5, 0.5 (F2), 1.0
+    assert s["recall"]["dense"][5] == pytest.approx(0.5)
+    assert s["recall"]["rerank"][5] == pytest.approx(2 / 3)
+    ref = paired([0.5, 0.0, 0.0])
+    assert s["paired"]["mean"] == pytest.approx(ref.mean)
+    assert s["paired"]["se"] == pytest.approx(ref.se)
+    assert s["paired"]["delta_se"] == pytest.approx(ref.mean / ref.se)
+    assert (s["won"], s["lost"], s["tied"]) == (1, 0, 2)
+    assert s["headroom_fixed"] == pytest.approx((2 / 3 - 0.583) / (0.875 - 0.583))
+    # ceiling: row 8 top-5 of dense list holds F1 at rank 7 -> best 5 of 7 can include it: 0.5;
+    # row 2: both facts -> 1.0; row 3: 1.0
+    assert s["ceiling"] == pytest.approx((0.5 + 1.0 + 1.0) / 3)
+    assert s["headroom_in_run"] == pytest.approx((2 / 3 - 0.5) / (2.5 / 3 - 0.5))
+
+
+def test_rerank_summary_curve_targeted_ops():
+    """Spec 0012 AC-10, AC-11: curve values, targeted rows, latency, truncation, tokens."""
+    s = rerank_summary(rerank_records())
+    assert sorted(s["recall"]["dense"]) == [3, 4, 5, 6, 7, 8, 9, 10]
+    assert s["recall"]["dense"][3] == pytest.approx((0 + 0.5 + 1.0) / 3)
+    assert s["recall"]["dense"][10] == pytest.approx((0.5 + 1.0 + 1.0) / 3)
+    assert s["recall"]["rerank"][3] == pytest.approx((0.5 + 0.5 + 1.0) / 3)
+    assert set(s["targeted"]) == {8}  # row 2 and 3 are not RERANK_ROWS
+    f1, f2 = s["targeted"][8]["F1"], s["targeted"][8]["F2"]
+    assert f1 == {"dense_rank": 7, "rerank_rank": 1, "dense_in_top5": False,
+                  "rerank_in_top5": True}  # fmt: skip
+    assert f2 == {"dense_rank": None, "rerank_rank": None, "dense_in_top5": False,
+                  "rerank_in_top5": False}  # fmt: skip
+    assert s["latency_ms"] == {"rerank_p50": 100, "rerank_p95": 300, "dense_p50": 10}
+    assert s["truncation_share"] == 0
+    assert s["input_tokens_per_pair"] == pytest.approx(3000 / 30)
+
+
+def test_rerank_summary_no_tokens_and_empty():
+    """Spec 0012 AC-11: no provider tokens -> None; no candidate records -> n = 0."""
+    recs = [_rr(3, ["F1"], [_cand(1, 1, ["F1"])], 5, 6, tokens=None, over=1, pairs=4)]
+    s = rerank_summary(recs)
+    assert s["input_tokens_per_pair"] is None and s["truncation_share"] == 0.25
+    assert s["paired"]["delta_se"] is None and s["headroom_in_run"] is None
+    assert rerank_summary([{"row": 1, "metrics": {"a": 1.0}, "required_facts": ["F1"]}]) == {"n": 0}
+
+
+def test_render_rerank():
+    """Spec 0012 AC-10, AC-11: the section carries the paired line, both headrooms, tables."""
+    md = render_rerank(rerank_summary(rerank_records()))
+    assert md.startswith("## Rerank vs in-run dense (spec 0012)")
+    assert "+0.167" in md and "won 1, lost 0, tied 2" in md and "n = 3" in md
+    assert "Headroom captured (headline, fixed)" in md and "Headroom within this run" in md
+    assert "query-vector drift" in md
+    assert "| chunk_fact_recall@3 |" in md and "| chunk_fact_recall@10 |" in md
+    assert "| 8 | F1 | 7 | 1 | no → yes |" in md and "| 8 | F2 | — | — | no → no |" in md
+    assert "100 / 300 ms" in md and "Truncation share" in md and "Input tokens per pair" in md
