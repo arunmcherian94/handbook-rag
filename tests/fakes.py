@@ -14,7 +14,7 @@ import httpx2
 import openai
 
 from handbook_rag.identity import Principal
-from handbook_rag.models import Completion
+from handbook_rag.models import Completion, RerankResult
 
 _REQ = httpx2.Request("POST", "https://api.openai.com/v1/embeddings")
 _STATUS_ERRORS = {
@@ -141,3 +141,27 @@ class FakeOpenAIClient:
 def make_principal(*groups: str, user_id: str = "test") -> Principal:
     """A Principal with exactly these groups, for tests outside src/ (spec 0007, AC-8)."""
     return Principal(user_id, MappingProxyType({}), frozenset(groups))
+
+
+class FakeReranker:
+    """Reranker (spec 0012) scoring each document by a callable (default: shared words with the
+    question). Records every call; fail raises on every call (no fallback may hide it)."""
+
+    name = "fake:reranker"
+    max_input_tokens = 32768
+
+    def __init__(self, score=None, input_tokens: int | None = 42, fail: Exception | None = None):
+        self.score = score or (
+            lambda q, d: len(
+                set(re.findall(r"[a-z0-9]+", q.lower())) & set(re.findall(r"[a-z0-9]+", d.lower()))
+            )
+        )
+        self.input_tokens = input_tokens
+        self.fail = fail
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def rerank(self, question: str, documents: list[str]):
+        self.calls.append((question, list(documents)))
+        if self.fail is not None:
+            raise self.fail
+        return RerankResult([float(self.score(question, d)) for d in documents], self.input_tokens)

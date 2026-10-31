@@ -27,6 +27,22 @@ class InputTooLong(ValueError):
 
 
 @dataclass(frozen=True)
+class RerankResult:
+    """Spec 0012, AC-1: one score per document, in input order, and the provider's token count
+    (None when the response doesn't carry it)."""
+
+    scores: list[float]
+    input_tokens: int | None
+
+
+class Reranker(Protocol):
+    name: str  # "provider:model"; recorded in run metadata (spec 0012, AC-9)
+    max_input_tokens: int  # the provider's limit per query-document pair
+
+    def rerank(self, question: str, documents: list[str]) -> RerankResult: ...
+
+
+@dataclass(frozen=True)
 class Completion:
     """Provider-neutral answer result, so traces look the same for every provider."""
 

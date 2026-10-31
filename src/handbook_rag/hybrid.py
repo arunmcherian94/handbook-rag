@@ -15,7 +15,7 @@ from handbook_rag.constants import BASELINE_CONFIG, FUSION_DEPTH, RETRIEVERS, RR
 from handbook_rag.db import vector_literal
 from handbook_rag.embed import embed_with_retry
 from handbook_rag.identity import Principal
-from handbook_rag.models import Embedder
+from handbook_rag.models import Embedder, Reranker
 
 # AC-2: an OR of the question's lexemes, each quoted as a literal, so quotes, `or` and `-` carry
 # no operator meaning. No lexemes (stop words only) gives NULL: nothing matches, and no error.
@@ -57,6 +57,34 @@ class Ranked(ask.Retrieved):
     fts_rank: int | None = None
     rrf_score: float | None = None
     fts_score: float | None = None
+    rerank_score: float | None = None  # spec 0012, AC-3
+
+
+class PairTooLong(ValueError):
+    """Spec 0012, AC-4: a query-document pair estimated over the reranker's limit. Raised before
+    any request; the client never truncates."""
+
+    def __init__(self, chunk_id: uuid.UUID, estimate: float, limit: int):
+        super().__init__(
+            f"chunk {chunk_id}: estimated {estimate:.0f} tokens with the question, over the "
+            f"reranker's {limit}; nothing is truncated (spec 0012, AC-4)"
+        )
+        self.chunk_id = chunk_id
+
+
+@dataclass(frozen=True)
+class RerankLists:
+    """Spec 0012, AC-3: one question's dense list to RERANK_DEPTH (dense ranks 1..n) and the same
+    chunks reranked. dense[:k] is the in-run dense top k (AC-11); reranked[:k] is the result.
+    Latencies are wall-clock ms; pairs_over counts pairs over the limit (AC-4: always 0, since one
+    over the limit raises)."""
+
+    dense: list[Ranked]
+    reranked: list[Ranked]
+    dense_ms: float
+    rerank_ms: float
+    input_tokens: int | None
+    pairs_over: int
 
 
 def search_fts(
@@ -146,6 +174,21 @@ def retrieve(
     return search(
         conn, retriever, q, question, embedder.name if embedder else "", principal, k, config_id
     )
+
+
+def rerank_lists(
+    conn,
+    reranker: Reranker,
+    q: str,
+    question: str,
+    model: str,
+    principal: Principal,
+    config_id: str = BASELINE_CONFIG,
+    clock=time.perf_counter,
+) -> RerankLists:
+    """Spec 0012, AC-3, AC-4: the dense list to RERANK_DEPTH (ACL pre-filtered by ask.search),
+    the truncation guard, then one rerank call; sorted by score desc, dense rank, chunk_id."""
+    raise NotImplementedError
 
 
 def query_empty(conn, question: str) -> bool:

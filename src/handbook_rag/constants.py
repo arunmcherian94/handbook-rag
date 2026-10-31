@@ -122,10 +122,31 @@ COMPARE_ROWS = (52, 53, 8, 10, 99, 38, 89)
 REGRESSION_ROWS = (11, 34, 44, 49, 51, 58, 88, 100)
 
 # Retrieval modes (spec 0011). Fixed before any run, not tuned on v1.2.
-RETRIEVERS = ("dense", "fts", "hybrid")
-DEFAULT_RETRIEVER = "dense"  # AC-8: hybrid is off until an ADR adopts it
+RETRIEVERS = ("dense", "fts", "hybrid", "rerank")
+# AC-8: hybrid is off until an ADR adopts it; spec 0012 AC-8: rerank changes it only by ADR-0023
+DEFAULT_RETRIEVER = "dense"
 RRF_K = 60  # AC-5: Cormack et al. 2009, fixed in their pilot
 FUSION_DEPTH = 50  # AC-5: each list's depth before fusion, beyond the scored depth of 20
+
+# Cross-encoder reranking over the dense list (spec 0012). Fixed before any run (AC-2).
+# max_input_tokens: the provider's limit per query-document pair (model tokens).
+# template_tokens: an estimate of the prompt template the provider wraps each pair in; used by
+#   the cost estimate and the truncation guard (AC-4), which work in cl100k tokens.
+# instruction: the model card's default, sent explicitly so a provider default can't drift.
+RERANK_MODELS: dict[str, dict] = {
+    "deepinfra:Qwen/Qwen3-Reranker-4B": {
+        "endpoint": "https://api.deepinfra.com/v1/inference/Qwen/Qwen3-Reranker-4B",
+        "instruction": "Given a web search query, retrieve relevant passages that answer the query",
+        "max_input_tokens": 32768,
+        "template_tokens": 80,
+        "usd_per_1m": 0.025,
+        "price_source": "deepinfra.com/Qwen/Qwen3-Reranker-4B, 2026-10-31",
+    },
+}
+DEFAULT_RERANK_MODEL = "deepinfra:Qwen/Qwen3-Reranker-4B"
+RERANK_DEPTH = 50  # AC-3: dense candidates reranked; where the 0.875 ceiling was measured
+RERANK_TOKEN_MARGIN = 1.5  # AC-4: cl100k -> the reranker's tokenizer, conservatively
+RERANK_TIMEOUT = 120.0  # seconds per HTTP request
 
 # Recall starvation on a separate HNSW path (spec 0007 Part B, AC-17, AC-18)
 ANN_RUNS = Path("runs/ann")
