@@ -10,6 +10,7 @@ only ever sees chunks the principal may see.
 import random
 import time
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, fields, replace
 
 import tiktoken
@@ -246,6 +247,28 @@ def rerank_lists(
     return RerankLists(scored, reranked, dense_ms, rerank_ms, res.input_tokens, 0)
 
 
+def rerank_tokens(searches: Mapping[str, int], chunk_tokens: int, template_tokens: int) -> int:
+    """Spec 0012, AC-9: the estimated tokens the reranker is billed for. searches maps each
+    question to its number of reranked searches; each scores RERANK_DEPTH pairs priced at question
+    + chunk_tokens (the config's longest chunk) + template tokens, in cl100k. Shared by the eval
+    harness and the permissions runner so their estimates can't drift."""
+    enc = tiktoken.get_encoding(TOKENIZER)
+    return sum(
+        n
+        * RERANK_DEPTH
+        * (len(enc.encode(q, disallowed_special=())) + chunk_tokens + template_tokens)
+        for q, n in searches.items()
+    )
+
+
+def longest_chunk(conn, config_id: str) -> int:
+    """The config's longest stored chunk (chunks.token_count, cl100k); 0 for an empty config."""
+    (n,) = conn.execute(
+        "SELECT COALESCE(max(token_count), 0) FROM chunks WHERE config_id = %s", (config_id,)
+    ).fetchone()
+    return n
+
+
 def worst_pair(questions: list[str], chunk_tokens: int, template_tokens: int) -> float:
     """Spec 0012, AC-4 (review fix): the dry run's bound on the longest pair, in the guard's units
     (cl100k x RERANK_TOKEN_MARGIN): the longest question with the config's longest chunk. Checked
@@ -253,6 +276,24 @@ def worst_pair(questions: list[str], chunk_tokens: int, template_tokens: int) ->
     enc = tiktoken.get_encoding(TOKENIZER)
     longest = max((len(enc.encode(q, disallowed_special=())) for q in questions), default=0)
     return (longest + chunk_tokens + template_tokens) * RERANK_TOKEN_MARGIN
+
+
+def rerank_preflight(questions: list[str], rerank: dict, chunk_tokens: int, tokens: int) -> str:
+    """Spec 0012, AC-4, AC-9: the dry run's rerank line (model, depth, tokens, cost, longest pair).
+    Exits, before any spend, when the longest pair is over the reranker's limit."""
+    worst = worst_pair(questions, chunk_tokens, rerank["template_tokens"])
+    limit = rerank["max_input_tokens"]
+    if worst > limit:
+        raise SystemExit(
+            f"longest rerank pair estimated at {worst:.0f} tokens, over the reranker's {limit}; "
+            "nothing is truncated (spec 0012 AC-4)"
+        )
+    usd = tokens * rerank["usd_per_1m"] / 1_000_000
+    return (
+        f"rerank: {rerank['model']}, depth {RERANK_DEPTH}, ~{tokens} tokens ${usd:.4f} at "
+        f"${rerank['usd_per_1m']}/1M ({rerank['price_source']}); longest pair ~{worst:.0f} of "
+        f"{limit} tokens, no truncation"
+    )
 
 
 def query_empty(conn, question: str) -> bool:

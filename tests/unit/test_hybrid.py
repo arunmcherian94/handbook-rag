@@ -327,3 +327,25 @@ def test_worst_pair_bounds_the_longest_question_with_the_longest_chunk():
     short, long = "a", "one two three four five"
     assert hybrid.worst_pair([short, long], 512, 80) == (5 + 512 + 80) * RERANK_TOKEN_MARGIN
     assert hybrid.worst_pair([], 512, 80) == (512 + 80) * RERANK_TOKEN_MARGIN
+
+
+def test_rerank_tokens_counts_depth_pairs_per_search():
+    """Spec 0012 AC-9 (review fix: one helper for both runners): each search scores RERANK_DEPTH
+    pairs at question + longest chunk + template tokens."""
+    from handbook_rag.constants import RERANK_DEPTH
+
+    assert hybrid.rerank_tokens({"a": 1, "one two": 2}, 512, 80) == RERANK_DEPTH * (
+        (1 + 512 + 80) + 2 * (2 + 512 + 80)
+    )
+    assert hybrid.rerank_tokens({}, 512, 80) == 0
+
+
+def test_rerank_preflight_exits_over_the_limit_and_reports_under_it():
+    """Spec 0012 AC-4, AC-9 (review fix): the dry-run line names the model, depth, tokens, cost and
+    longest pair; a pair over the limit exits before any spend."""
+    rerank = {"model": "m", "template_tokens": 80, "max_input_tokens": 1000, "usd_per_1m": 0.025}
+    rerank |= {"price_source": "test"}
+    line = hybrid.rerank_preflight(["a"], rerank, 512, 1_000_000)
+    assert "m, depth 50" in line and "$0.0250" in line and "of 1000 tokens" in line
+    with pytest.raises(SystemExit, match="over the reranker's 1000"):
+        hybrid.rerank_preflight(["a"], rerank, 700, 0)

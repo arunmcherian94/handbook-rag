@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import uuid
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -113,16 +114,9 @@ def estimate(
             * (per_row if r.answerable else 1)
             for r in rows
         )
-    if rerank:
-        rerank_tokens = sum(
-            RERANK_DEPTH
-            * (
-                len(enc.encode(r.question, disallowed_special=()))
-                + chunk_tokens
-                + rerank["template_tokens"]
-            )
-            for r in rows
-        )
+    if rerank:  # one reranked search per row
+        searches = Counter(r.question for r in rows)
+        rerank_tokens = hybrid.rerank_tokens(searches, chunk_tokens, rerank["template_tokens"])
     embed_usd = tokens * usd_per_1m / 1_000_000
     rerank_usd = rerank_tokens * rerank["usd_per_1m"] / 1_000_000 if rerank else 0.0
     answer_usd = 0.0 if retrieval_only else len(rows) * EST_ANSWER_USD_PER_ROW
@@ -719,9 +713,7 @@ def main(argv=None) -> int:
         # Spec 0012 AC-9: the reranker's settings (no key) price the pairs; an unknown model
         # fails the dry run. Pairs are priced at the config's longest chunk.
         rerank = describe_reranker() if args.retriever == "rerank" else None
-        (chunk_tokens,) = conn.execute(
-            "SELECT COALESCE(max(token_count), 0) FROM chunks WHERE config_id = %s", (args.config,)
-        ).fetchone()
+        chunk_tokens = hybrid.longest_chunk(conn, args.config)
         cost = estimate(
             todo,
             args.retrieval_only,
@@ -740,20 +732,11 @@ def main(argv=None) -> int:
             f"estimated cost: ${cost['total_usd']:.4f} (embed ~{cost['embed_tokens']} tokens "
             f"${cost['embed_usd']:.6f}, answers ${cost['answer_usd']:.4f})"
         )
-        if rerank:
-            worst = hybrid.worst_pair(
-                [r.question for r in todo], chunk_tokens, rerank["template_tokens"]
-            )
-            if worst > rerank["max_input_tokens"]:  # AC-4: refuse before any spend
-                raise SystemExit(
-                    f"longest rerank pair estimated at {worst:.0f} tokens, over the reranker's "
-                    f"{rerank['max_input_tokens']}; nothing is truncated (spec 0012 AC-4)"
-                )
+        if rerank:  # AC-4: exits before any spend if the longest pair is over the limit
             print(
-                f"rerank: {rerank['model']}, depth {RERANK_DEPTH}, ~{cost['rerank_tokens']} tokens "
-                f"${cost['rerank_usd']:.4f} at ${rerank['usd_per_1m']}/1M "
-                f"({rerank['price_source']}); longest pair ~{worst:.0f} of "
-                f"{rerank['max_input_tokens']} tokens, no truncation"
+                hybrid.rerank_preflight(
+                    [r.question for r in todo], rerank, chunk_tokens, cost["rerank_tokens"]
+                )
             )
         meta = metadata(
             eval_set.version,

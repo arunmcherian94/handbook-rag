@@ -38,7 +38,6 @@ from handbook_rag.constants import (
     PERMISSIONS_KS,
     PERMISSIONS_RUNS,
     PERMISSIONS_SUITE,
-    RERANK_DEPTH,
     RETRIEVERS,
     RRF_K,
     TOKENIZER,
@@ -525,11 +524,8 @@ def estimate(
     tokens = sum(len(enc.encode(sent(q), disallowed_special=())) for q in questions)
     est = {"embed_tokens": tokens, "embed_usd": tokens * usd_per_1m / 1_000_000}
     if rerank:
-        rerank_tokens = sum(
-            n
-            * RERANK_DEPTH
-            * (len(enc.encode(q, disallowed_special=())) + chunk_tokens + rerank["template_tokens"])
-            for q, n in (searches or {}).items()
+        rerank_tokens = hybrid.rerank_tokens(
+            searches or {}, chunk_tokens, rerank["template_tokens"]
         )
         rerank_usd = rerank_tokens * rerank["usd_per_1m"] / 1_000_000
         est |= {
@@ -739,9 +735,7 @@ def main(argv=None) -> int:
                 raise SystemExit(str(e)) from None
         # Spec 0012 AC-9: the reranker's settings (no key) price the pairs
         rerank = describe_reranker() if args.retriever == "rerank" else None
-        (chunk_tokens,) = conn.execute(
-            "SELECT COALESCE(max(token_count), 0) FROM chunks WHERE config_id = %s", (args.config,)
-        ).fetchone()
+        chunk_tokens = hybrid.longest_chunk(conn, args.config)
         cost = estimate(
             questions,
             usd_per_1m,
@@ -764,19 +758,8 @@ def main(argv=None) -> int:
             f"~{cost['embed_tokens']} tokens ${cost['embed_usd']:.6f}, "
             f"{len(questions)} unique questions)"
         )
-        if rerank:
-            worst = hybrid.worst_pair(questions, chunk_tokens, rerank["template_tokens"])
-            if worst > rerank["max_input_tokens"]:  # AC-4: refuse before any spend
-                raise SystemExit(
-                    f"longest rerank pair estimated at {worst:.0f} tokens, over the reranker's "
-                    f"{rerank['max_input_tokens']}; nothing is truncated (spec 0012 AC-4)"
-                )
-            print(
-                f"rerank: {rerank['model']}, depth {RERANK_DEPTH}, ~{cost['rerank_tokens']} tokens "
-                f"${cost['rerank_usd']:.4f} at ${rerank['usd_per_1m']}/1M "
-                f"({rerank['price_source']}); longest pair ~{worst:.0f} of "
-                f"{rerank['max_input_tokens']} tokens, no truncation"
-            )
+        if rerank:  # AC-4: exits before any spend if the longest pair is over the limit
+            print(hybrid.rerank_preflight(questions, rerank, chunk_tokens, cost["rerank_tokens"]))
         meta = metadata(
             suite,
             suite_bytes,
