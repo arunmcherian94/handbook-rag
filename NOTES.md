@@ -68,3 +68,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-27: answer evaluation, spec 0010](docs/journal/2026-10-27-answer-eval.md)
 - [2026-10-29: hybrid search build, spec 0011](docs/journal/2026-10-29-hybrid-build.md)
 - [2026-10-30: hybrid search runs and audit, spec 0011](docs/journal/2026-10-30-hybrid-runs.md)
+- [2026-10-31: cross-encoder reranker build, spec 0012](docs/journal/2026-10-31-rerank-build.md)
