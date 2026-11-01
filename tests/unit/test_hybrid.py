@@ -2,10 +2,11 @@ import inspect
 import uuid
 
 import pytest
-from fakes import make_principal
+from fakes import FakeReranker, make_principal
 
 from handbook_rag import ask, hybrid
-from handbook_rag.constants import FUSION_DEPTH, RRF_K
+from handbook_rag.constants import FUSION_DEPTH, RERANK_DEPTH, RERANK_TOKEN_MARGIN, RRF_K
+from handbook_rag.models import RerankResult
 
 
 def cid(i: int) -> uuid.UUID:
@@ -192,3 +193,159 @@ def test_hybrid_search_retrieves_both_lists_to_fusion_depth(monkeypatch, k):
     got = hybrid.search(None, "hybrid", "[0]", "q", "m", make_principal("staff"), k)
     assert depths == {"dense": max(k, FUSION_DEPTH), "fts": max(k, FUSION_DEPTH)}
     assert set(ids(got)) == {cid(1), cid(2)}
+
+
+def _dense_list(contents):
+    return [dense_row(i, i, content=c) for i, c in enumerate(contents, 1)]
+
+
+def _rerank(monkeypatch, contents, reranker, clock=None, question="q"):
+    monkeypatch.setattr(ask, "search", lambda *a: _dense_list(contents))
+    kw = {"clock": clock} if clock else {}
+    return hybrid.rerank_lists(None, reranker, "[1]", question, "m", make_principal("staff"), **kw)
+
+
+def test_rerank_sorts_by_score_and_keeps_dense_rank(monkeypatch):
+    """Spec 0012, AC-3: reranked is by score descending, n is the new rank, dense_rank is kept
+    and every result carries rerank_score."""
+    fake = FakeReranker(score=lambda q, d: {"a": 1, "b": 3, "c": 2}[d])
+    got = _rerank(monkeypatch, ["a", "b", "c"], fake).reranked
+    assert ids(got) == [cid(2), cid(3), cid(1)]
+    assert [r.n for r in got] == [1, 2, 3]
+    assert [r.dense_rank for r in got] == [2, 3, 1]
+    assert [r.rerank_score for r in got] == [3.0, 2.0, 1.0]
+
+
+def test_rerank_equal_scores_break_by_dense_rank(monkeypatch):
+    """Spec 0012, AC-3: equal scores keep dense order."""
+    got = _rerank(monkeypatch, ["a", "b", "c"], FakeReranker(score=lambda q, d: 1)).reranked
+    assert ids(got) == [cid(1), cid(2), cid(3)]
+
+
+def test_rerank_search_cuts_to_k(monkeypatch):
+    """Spec 0012, AC-3: search() returns the reranked top k."""
+    monkeypatch.setattr(ask, "search", lambda *a: _dense_list(["a", "b", "c"]))
+    fake = FakeReranker(score=lambda q, d: {"a": 1, "b": 3, "c": 2}[d])
+    got = hybrid.search(None, "rerank", "[1]", "q", "m", make_principal("s"), 2, reranker=fake)
+    assert ids(got) == [cid(2), cid(3)]
+
+
+def test_rerank_dense_list_keeps_dense_order_with_scores(monkeypatch):
+    """Spec 0012, AC-3: the dense list is in dense order, n = dense rank, scored; it is fetched
+    once to RERANK_DEPTH."""
+    depths = []
+
+    def fake_dense(conn, q, model, principal, depth, config_id):
+        depths.append(depth)
+        return _dense_list(["a", "b"])
+
+    monkeypatch.setattr(ask, "search", fake_dense)
+    fake = FakeReranker(score=lambda q, d: {"a": 1, "b": 3}[d])
+    lists = hybrid.rerank_lists(None, fake, "[1]", "q", "m", make_principal("s"))
+    assert depths == [RERANK_DEPTH]
+    assert ids(lists.dense) == [cid(1), cid(2)]
+    assert [(r.n, r.dense_rank, r.rerank_score) for r in lists.dense] == [(1, 1, 1.0), (2, 2, 3.0)]
+    assert lists.input_tokens == 42 and lists.pairs_over == 0
+
+
+def test_rerank_empty_dense_makes_no_call(monkeypatch):
+    """Spec 0012, AC-3: no candidates, no rerank call."""
+    fake = FakeReranker()
+    lists = _rerank(monkeypatch, [], fake)
+    assert (lists.dense, lists.reranked, lists.input_tokens, lists.pairs_over) == ([], [], 0, 0)
+    assert fake.calls == []
+
+
+def test_rerank_pair_too_long_raises_before_any_call(monkeypatch):
+    """Spec 0012, AC-4: an oversized pair raises PairTooLong naming the chunk; nothing is sent
+    and nothing is truncated."""
+    fake = FakeReranker()
+    fake.max_input_tokens = 200
+    with pytest.raises(hybrid.PairTooLong) as e:
+        _rerank(monkeypatch, ["short", "word " * 400], fake)
+    assert e.value.chunk_id == cid(2)
+    assert fake.calls == []
+
+
+def test_rerank_estimate_applies_template_and_margin(monkeypatch):
+    """Spec 0012, AC-4: (question + content + template) tokens x margin against the limit."""
+    fake = FakeReranker()
+    q_and_doc = 1 + 1  # "q" and "d" are one cl100k token each
+    fake.max_input_tokens = (q_and_doc + fake.template_tokens) * RERANK_TOKEN_MARGIN
+    assert len(_rerank(monkeypatch, ["d"], fake).reranked) == 1
+    fake.max_input_tokens -= 1
+    with pytest.raises(hybrid.PairTooLong):
+        _rerank(monkeypatch, ["d"], fake)
+
+
+def test_rerank_failure_propagates_without_fallback(monkeypatch):
+    """Spec 0012, AC-3: a reranker error is raised, never replaced by the dense order."""
+    fake = FakeReranker(fail=RuntimeError("provider down"))
+    with pytest.raises(RuntimeError, match="provider down"):
+        _rerank(monkeypatch, ["a", "b"], fake)
+
+
+def test_rerank_score_count_mismatch_raises(monkeypatch):
+    """Spec 0012, AC-3: a score list of the wrong length is an error, not a partial order."""
+    fake = FakeReranker()
+    fake.rerank = lambda q, docs: RerankResult([1.0], None)
+    with pytest.raises(ValueError, match="1 scores for 2"):
+        _rerank(monkeypatch, ["a", "b"], fake)
+
+
+def test_rerank_search_needs_a_reranker():
+    """Spec 0012, AC-3: the rerank mode without a reranker is a ValueError."""
+    with pytest.raises(ValueError, match="needs a reranker"):
+        hybrid.search(None, "rerank", "[1]", "q", "m", make_principal("s"), 5)
+
+
+def test_rerank_timings_come_from_the_clock(monkeypatch):
+    """Spec 0012, AC-3: dense_ms and rerank_ms are the clock's deltas in milliseconds."""
+    ticks = iter([0.0, 0.25, 1.0, 3.0])
+    got = _rerank(monkeypatch, ["a"], FakeReranker(), clock=lambda: next(ticks))
+    assert (got.dense_ms, got.rerank_ms) == (250.0, 2000.0)
+
+
+def test_other_modes_ignore_the_reranker(monkeypatch):
+    """Spec 0012, AC-7: dense, fts and hybrid dispatch as before and never call the reranker."""
+    fake = FakeReranker()
+    monkeypatch.setattr(ask, "search", lambda *a: _dense_list(["a", "b"]))
+    monkeypatch.setattr(hybrid, "search_fts", lambda *a: [fts_row(2, 1)])
+    p = make_principal("s")
+    dense = hybrid.search(None, "dense", "[1]", "q", "m", p, 2, reranker=fake)
+    assert ids(dense) == [cid(1), cid(2)]
+    assert ids(hybrid.search(None, "fts", None, "q", "m", p, 2, reranker=fake)) == [cid(2)]
+    assert ids(hybrid.search(None, "hybrid", "[1]", "q", "m", p, 2, reranker=fake))[0] == cid(2)
+    assert fake.calls == []
+
+
+def test_worst_pair_bounds_the_longest_question_with_the_longest_chunk():
+    """Spec 0012 AC-4 (review fix): the dry-run bound is (longest question + longest chunk +
+    template) x RERANK_TOKEN_MARGIN, in cl100k tokens."""
+    from handbook_rag.constants import RERANK_TOKEN_MARGIN
+
+    short, long = "a", "one two three four five"
+    assert hybrid.worst_pair([short, long], 512, 80) == (5 + 512 + 80) * RERANK_TOKEN_MARGIN
+    assert hybrid.worst_pair([], 512, 80) == (512 + 80) * RERANK_TOKEN_MARGIN
+
+
+def test_rerank_tokens_counts_depth_pairs_per_search():
+    """Spec 0012 AC-9 (review fix: one helper for both runners): each search scores RERANK_DEPTH
+    pairs at question + longest chunk + template tokens."""
+    from handbook_rag.constants import RERANK_DEPTH
+
+    assert hybrid.rerank_tokens({"a": 1, "one two": 2}, 512, 80) == RERANK_DEPTH * (
+        (1 + 512 + 80) + 2 * (2 + 512 + 80)
+    )
+    assert hybrid.rerank_tokens({}, 512, 80) == 0
+
+
+def test_rerank_preflight_exits_over_the_limit_and_reports_under_it():
+    """Spec 0012 AC-4, AC-9 (review fix): the dry-run line names the model, depth, tokens, cost and
+    longest pair; a pair over the limit exits before any spend."""
+    rerank = {"model": "m", "template_tokens": 80, "max_input_tokens": 1000, "usd_per_1m": 0.025}
+    rerank |= {"price_source": "test"}
+    line = hybrid.rerank_preflight(["a"], rerank, 512, 1_000_000)
+    assert "m, depth 50" in line and "$0.0250" in line and "of 1000 tokens" in line
+    with pytest.raises(SystemExit, match="over the reranker's 1000"):
+        hybrid.rerank_preflight(["a"], rerank, 700, 0)

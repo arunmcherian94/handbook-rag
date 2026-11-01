@@ -6,14 +6,19 @@ mode and estimated cost; spend (embed, answer) only with --confirm; write the ru
 run() takes the connection, embedder and answerer as ports, so tests drive it with fakes.
 Spec 0011: --retriever dense|fts|hybrid picks the retrieval mode (dense by default; the others
 are retrieval-only, since hybrid enters the answer path only by ADR). fts embeds nothing.
+Spec 0012: --retriever rerank reranks the dense top RERANK_DEPTH with a cross-encoder, once per
+row; the same run's dense order is kept per row, so the comparison is paired within the run.
 """
 
 import argparse
 import hashlib
 import json
+import random
 import subprocess
 import sys
+import time
 import uuid
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -36,29 +41,41 @@ from handbook_rag.constants import (
     FUSION_DEPTH,
     QUALITY_SET_USER,
     REGRESSION_ROWS,
+    RERANK_DEPTH,
+    RERANK_TOKEN_MARGIN,
     RETRIEVERS,
     RRF_K,
     TOKENIZER,
     TOP_K,
 )
 from handbook_rag.corpus import read_manifest, verify
-from handbook_rag.db import connect
+from handbook_rag.db import connect, vector_literal
+from handbook_rag.embed import embed_with_retry
 from handbook_rag.evaluation import evidence as evidence_mod
 from handbook_rag.evaluation.checks import abstention, code_checks, page_headings
 from handbook_rag.evaluation.evalset import Row, parse
 from handbook_rag.evaluation.evidence import Evidence, EvidenceError
 from handbook_rag.evaluation.metrics import row_metrics
-from handbook_rag.evaluation.report import render_compare, render_md, summarize
+from handbook_rag.evaluation.report import (
+    render_compare,
+    render_md,
+    render_rerank,
+    rerank_summary,
+    summarize,
+)
 from handbook_rag.identity import Principal
 from handbook_rag.ingest import derive_title, split_front_matter
 from handbook_rag.models import (
     Answerer,
     Embedder,
     InputTooLong,
+    Reranker,
     describe_embedder,
+    describe_reranker,
     embed_usd_per_1m,
     make_answerer,
     make_embedder,
+    make_reranker,
     resolve_answer_spec,
     resolve_embed_spec,
 )
@@ -79,25 +96,37 @@ def estimate(
     usd_per_1m: float,
     sent: Callable[[str], str] = str,
     embeds: bool = True,
+    rerank: dict | None = None,
+    chunk_tokens: int = 0,
 ) -> dict:
     """AC-8, spec 0006 AC-10, spec 0008 AC-5: tokens of each question as sent (sent(), e.g. with a
     query instruction) for the embedding cost at the given price (twice for an answerable row:
     the k=5 and the depth-20 query); a flat per-row answer cost. Spec 0011 AC-9: embeds=False
-    (fts) embeds nothing, so no tokens and $0."""
-    tokens = 0
+    (fts) embeds nothing, so no tokens and $0. Spec 0012 AC-9: rerank (the reranker's
+    describe_reranker settings) embeds each question once and scores RERANK_DEPTH pairs per row,
+    each priced at question + chunk_tokens (the config's longest chunk) + template tokens."""
+    enc = tiktoken.get_encoding(TOKENIZER)
+    tokens = rerank_tokens = 0
     if embeds:
-        enc = tiktoken.get_encoding(TOKENIZER)
+        per_row = 1 if rerank else 2  # rerank: one query vector serves both lists
         tokens = sum(
-            len(enc.encode(sent(r.question), disallowed_special=())) * (2 if r.answerable else 1)
+            len(enc.encode(sent(r.question), disallowed_special=()))
+            * (per_row if r.answerable else 1)
             for r in rows
         )
+    if rerank:  # one reranked search per row
+        searches = Counter(r.question for r in rows)
+        rerank_tokens = hybrid.rerank_tokens(searches, chunk_tokens, rerank["template_tokens"])
     embed_usd = tokens * usd_per_1m / 1_000_000
+    rerank_usd = rerank_tokens * rerank["usd_per_1m"] / 1_000_000 if rerank else 0.0
     answer_usd = 0.0 if retrieval_only else len(rows) * EST_ANSWER_USD_PER_ROW
     return {
         "embed_tokens": tokens,
         "embed_usd": embed_usd,
+        "rerank_tokens": rerank_tokens,
+        "rerank_usd": rerank_usd,
         "answer_usd": answer_usd,
-        "total_usd": embed_usd + answer_usd,
+        "total_usd": embed_usd + rerank_usd + answer_usd,
     }
 
 
@@ -159,12 +188,14 @@ def metadata(
     policy_version: str | None = None,
     policy_sha256: str | None = None,
     retriever: str = DEFAULT_RETRIEVER,
+    rerank: dict | None = None,
 ) -> dict:
     """AC-6, AC-12 run metadata. corpus_sha and chunk_params (the stored config) come from
     stored_chunk_params (the DB); chunk_params in the output is the config's params.
     answer_model None means retrieval-only. Spec 0007, AC-9: user_id and the policy version and
     sha256 record who the run was. Spec 0011, AC-9: the retriever, for hybrid the fusion
-    settings, for fts and hybrid the FTS settings."""
+    settings, for fts and hybrid the FTS settings. Spec 0012, AC-9: for rerank, the reranker's
+    settings (describe_reranker), depth and truncation handling; run() adds input_tokens."""
     return {
         "eval_version": version,
         "eval_sha256": hashlib.sha256(eval_bytes).hexdigest(),
@@ -191,7 +222,25 @@ def metadata(
         "policy_sha256": policy_sha256,
         "retriever": retriever,
         **({"rrf_k": RRF_K, "fusion_depth": FUSION_DEPTH} if retriever == "hybrid" else {}),
-        **({"fts": hybrid.FTS_SETTINGS} if retriever != "dense" else {}),
+        **({"fts": hybrid.FTS_SETTINGS} if retriever in ("fts", "hybrid") else {}),
+        **({"rerank": rerank_settings(rerank)} if retriever == "rerank" else {}),
+    }
+
+
+def rerank_settings(rerank: dict | None) -> dict:
+    """Spec 0012, AC-9: what a rerank run records about its reranker (no key)."""
+    if rerank is None:
+        raise ValueError("retriever 'rerank' needs the reranker's settings")
+    return {
+        "model": rerank["model"],
+        "depth": RERANK_DEPTH,
+        "instruction": rerank["instruction"],
+        "max_input_tokens": rerank["max_input_tokens"],
+        "template_tokens": rerank["template_tokens"],
+        "token_margin": RERANK_TOKEN_MARGIN,
+        "truncation": "none; refuse over limit",
+        "usd_per_1m": rerank["usd_per_1m"],
+        "price_source": rerank["price_source"],
     }
 
 
@@ -300,11 +349,14 @@ def record(
     result: ask.AskResult | None,
     checkout: Path = CHECKOUT,
     fts_query_empty: bool | None = None,
+    rerank: hybrid.RerankLists | None = None,
 ) -> dict:
     """One rows.jsonl line (schema in report.py). chunks is the k=5 list the model saw; deep the
     depth-20 list ([] for an ooc row). result is None in retrieval-only mode. Spec 0011 AC-9:
     a hybrid.Ranked entry also carries its dense and fts ranks and RRF score; fts_query_empty
-    (None for dense) is recorded when given."""
+    (None for dense) is recorded when given. Spec 0012 AC-9, AC-11: rerank (the row's
+    RerankLists) adds every candidate with its dense and rerank ranks, score and facts, the
+    latencies and the reranker's token count; entries also carry rerank_score."""
     paths, tokens, heading_paths = _lookup(conn, chunks)
     pages = [paths[c.doc_id].removeprefix(CORPUS_PREFIX) for c in chunks]
     relevant = {f.id: ev.relevant[(row.id, f.id)] for f in row.required}
@@ -335,7 +387,8 @@ def record(
     def ranks(c: ask.Retrieved) -> dict:
         if not isinstance(c, hybrid.Ranked):
             return {}
-        return {"dense_rank": c.dense_rank, "fts_rank": c.fts_rank, "rrf_score": c.rrf_score}
+        out = {"dense_rank": c.dense_rank, "fts_rank": c.fts_rank, "rrf_score": c.rrf_score}
+        return out | ({"rerank_score": c.rerank_score} if c.rerank_score is not None else {})
 
     rec = {
         "row": row.id,
@@ -390,6 +443,24 @@ def record(
     }
     if fts_query_empty is not None:
         rec["fts_query_empty"] = fts_query_empty
+    if rerank is not None:
+        rerank_rank = {c.chunk_id: c.n for c in rerank.reranked}
+        rec["candidates"] = [
+            {
+                "dense_rank": c.dense_rank,
+                "rerank_rank": rerank_rank[c.chunk_id],
+                "chunk_id": str(c.chunk_id),
+                "facts": sorted(facts),
+                "rerank_score": c.rerank_score,
+            }
+            for c, facts in zip(rerank.dense, facts_of(rerank.dense), strict=True)
+        ]
+        rec["latency_ms"] = {"dense": rerank.dense_ms, "rerank": rerank.rerank_ms}
+        rec["rerank"] = {
+            "input_tokens": rerank.input_tokens,
+            "pairs": len(rerank.dense),
+            "pairs_over": rerank.pairs_over,
+        }
     if result is None:
         return rec
     abst = abstention(result.answer, row.expected if not row.answerable else None)
@@ -429,6 +500,9 @@ def run(
     baseline: tuple[str, dict, list[dict]] | None = None,
     out: Path | None = None,
     retriever: str = DEFAULT_RETRIEVER,
+    reranker: Reranker | None = None,
+    sleep=time.sleep,
+    rand=random.random,
 ) -> Path:
     """Retrieve (and answer, unless answerer is None) every row; write the run folder (AC-7).
     Every retrieval runs as `principal` (spec 0007, AC-8).
@@ -438,17 +512,34 @@ def run(
     to summary.md. checkout is the pinned corpus the AC-5 heading check reads. out is a folder
     from new_run_dir() (one is created under out_root if None). Returns the folder.
 
-    Spec 0011: retriever picks the mode; fts needs no embedder (None). Full mode (an answerer)
+    Spec 0012: rerank (needs a reranker) embeds each question once and reranks once; the top 5
+    and the deep list are cuts of the same reranked list. Spec 0011: retriever picks the mode;
+    fts needs no embedder (None). Full mode (an answerer)
     is dense only: ask.ask is the answer path (AC-8).
     """
     if answerer is not None and retriever != "dense":
         raise ValueError("full mode is dense only; hybrid enters the answer path by ADR (AC-8)")
+    if retriever == "rerank" and reranker is None:  # before anything is embedded (review fix)
+        raise ValueError("retriever 'rerank' needs a reranker")
     out = out if out is not None else new_run_dir(out_root, meta)
     records: list[dict] = []
     # Appended per row, so a crash mid-run keeps what was paid for.
     with (out / "rows.jsonl").open("w", encoding="utf-8") as f:
         for row in to_run(rows, answerer is None):
-            if answerer is None:
+            lists = None
+            if answerer is None and retriever == "rerank":
+                result = None
+                q = vector_literal(embed_with_retry(embedder, [row.question], sleep, rand)[0])
+                lists = hybrid.rerank_lists(
+                    conn, reranker, q, row.question, embedder.name, principal, config_id
+                )
+                if not lists.dense:
+                    raise SystemExit(
+                        f"no embeddings for {embedder.name}; run `make embed` for the cost, "
+                        "then `make paid-embed`"
+                    )
+                chunks = lists.reranked[:TOP_K]
+            elif answerer is None:
                 result = None
                 chunks = hybrid.retrieve(
                     conn, retriever, embedder, row.question, principal, TOP_K, config_id
@@ -468,15 +559,17 @@ def run(
                     conn, embedder, answerer, row.question, principal, TOP_K, config_id=config_id
                 )
                 chunks = result.chunks
-            deep = (
-                hybrid.retrieve(
+            if lists is not None:
+                deep = lists.reranked[:EVAL_DEPTH] if row.answerable else []
+            elif row.answerable:
+                deep = hybrid.retrieve(
                     conn, retriever, embedder, row.question, principal, EVAL_DEPTH, config_id
                 )
-                if row.answerable
-                else []
-            )
-            empty = None if retriever == "dense" else hybrid.query_empty(conn, row.question)
-            rec = record(conn, row, ev, chunks, deep, result, checkout, empty)
+            else:
+                deep = []
+            fts = retriever in ("fts", "hybrid")
+            empty = hybrid.query_empty(conn, row.question) if fts else None
+            rec = record(conn, row, ev, chunks, deep, result, checkout, empty, lists)
             records.append(rec)
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             recall = rec["metrics"].get(f"chunk_fact_recall@{TOP_K}")
@@ -488,6 +581,10 @@ def run(
         "no_retrieval_facts": [r.id for r in ran if not r.required],
         "evidence_warnings": ev.warnings,
     }
+    if retriever == "rerank":  # AC-9: the provider's total, None if any response lacked it
+        used = [r["rerank"]["input_tokens"] for r in records if r.get("rerank")]
+        total = None if None in used else sum(used)
+        meta = meta | {"rerank": meta.get("rerank", {}) | {"input_tokens": total}}
     if baseline:
         meta = meta | {
             "baseline": baseline[0],
@@ -497,10 +594,14 @@ def run(
     if baseline:
         target = baseline[1]["groups"]["overall"][f"retrieved_tokens@{TOP_K}"]["mean"]
     summary = summarize(records, meta, notes, target_tokens=target)
+    if retriever == "rerank":  # AC-10, AC-11: paired within this run
+        summary["rerank"] = rerank_summary(records)
     (out / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     md = render_md(summary)
+    if retriever == "rerank":
+        md += "\n" + render_rerank(summary["rerank"])
     if baseline:
         base_id, base_summary, base_records = baseline
         md += "\n" + render_compare(
@@ -511,6 +612,12 @@ def run(
             base_id,
             list(dict.fromkeys(COMPARE_ROWS + REGRESSION_ROWS)),
         )
+        if retriever == "rerank":  # AC-12
+            md += (
+                "\nContinuity only (spec 0012 AC-12): the baseline embedded its questions "
+                "separately, so its query vectors can differ from this run's (the row 32 and 93 "
+                "drift). The decision rests on the in-run comparison above.\n"
+            )
     (out / "summary.md").write_text(md, encoding="utf-8")
     return out
 
@@ -526,7 +633,7 @@ def parser() -> argparse.ArgumentParser:
         "--retriever",
         choices=RETRIEVERS,
         default=DEFAULT_RETRIEVER,
-        help="retrieval mode (spec 0011); fts and hybrid are retrieval-only",
+        help="retrieval mode (spec 0011, 0012); all but dense are retrieval-only",
     )
     return ap
 
@@ -535,8 +642,8 @@ def main(argv=None) -> int:
     args = parser().parse_args(argv)
     if args.retriever != "dense" and not args.retrieval_only:
         raise SystemExit(
-            f"--retriever {args.retriever} needs --retrieval-only: hybrid enters the answer path "
-            "only by ADR (spec 0011 AC-8)"
+            f"--retriever {args.retriever} needs --retrieval-only: it enters the answer path "
+            "only by ADR (spec 0011 AC-8, spec 0012 AC-8)"
         )
 
     baseline = None
@@ -589,9 +696,7 @@ def main(argv=None) -> int:
         except (acl.StaleACL, acl.AclError) as e:
             raise SystemExit(str(e)) from None
         principal = identity.load(QUALITY_SET_USER, policy)
-        if (
-            args.retriever != "dense"
-        ):  # spec 0011 AC-6: after the ACL check (AC-6), the dry run included
+        if args.retriever in ("fts", "hybrid"):  # spec 0011 AC-6: after the ACL check, dry run too
             try:
                 hybrid.check_fts(conn, args.config)
             except hybrid.StaleFTS as e:
@@ -605,12 +710,18 @@ def main(argv=None) -> int:
                 query_embedder.prepare([r.question for r in todo])
             except InputTooLong as e:
                 raise SystemExit(str(e)) from None
+        # Spec 0012 AC-9: the reranker's settings (no key) price the pairs; an unknown model
+        # fails the dry run. Pairs are priced at the config's longest chunk.
+        rerank = describe_reranker() if args.retriever == "rerank" else None
+        chunk_tokens = hybrid.longest_chunk(conn, args.config)
         cost = estimate(
             todo,
             args.retrieval_only,
             usd_per_1m,
             lambda q: query_embedder.prepare([q])[0],
             embeds=args.retriever != "fts",
+            rerank=rerank,
+            chunk_tokens=chunk_tokens,
         )
         print(
             f"eval {eval_set.version}, config {args.config}: {len(todo)} rows ({n_ans} answerable, "
@@ -621,6 +732,12 @@ def main(argv=None) -> int:
             f"estimated cost: ${cost['total_usd']:.4f} (embed ~{cost['embed_tokens']} tokens "
             f"${cost['embed_usd']:.6f}, answers ${cost['answer_usd']:.4f})"
         )
+        if rerank:  # AC-4: exits before any spend if the longest pair is over the limit
+            print(
+                hybrid.rerank_preflight(
+                    [r.question for r in todo], rerank, chunk_tokens, cost["rerank_tokens"]
+                )
+            )
         meta = metadata(
             eval_set.version,
             eval_bytes,
@@ -634,6 +751,7 @@ def main(argv=None) -> int:
             policy_version=policy.version,
             policy_sha256=policy.sha256,
             retriever=args.retriever,
+            rerank=rerank,
         )
         # AC-6: a baseline that differs in more than one change fails the dry run.
         if baseline and (diff := baseline_mismatch(baseline[1]["meta"], meta)):
@@ -658,6 +776,7 @@ def main(argv=None) -> int:
                     f"run `make embed CONFIG={args.config}` for the cost, then `make paid-embed`"
                 )
         answerer = None if args.retrieval_only else make_answerer()
+        reranker = make_reranker() if rerank else None
         out, status = new_run_dir(EVAL_RUNS, meta), "failed"
         try:
             run(
@@ -672,6 +791,7 @@ def main(argv=None) -> int:
                 baseline=baseline,
                 out=out,
                 retriever=args.retriever,
+                reranker=reranker,
             )
             status = "ok"
         finally:  # spec 0009, AC-3: logged even when the run fails after spending

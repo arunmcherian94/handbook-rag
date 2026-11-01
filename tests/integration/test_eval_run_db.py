@@ -9,7 +9,7 @@ import json
 
 import psycopg
 import pytest
-from fakes import FakeAnswerer, FakeEmbedder, bow_vector
+from fakes import FakeAnswerer, FakeEmbedder, FakeReranker, bow_vector
 
 from handbook_rag import acl, hybrid, identity
 from handbook_rag.constants import (
@@ -452,6 +452,48 @@ def test_dense_run_rows_keep_their_shape(setup, tmp_path):
     for r in records.values():
         assert "fts_query_empty" not in r
         assert not any(RANK_KEYS & set(e) for e in r["retrieved"] + r["deep"])
+
+
+def test_rerank_run_embeds_once_reranks_once_and_reports(setup, tmp_path):
+    """Spec 0012 AC-3, AC-9, AC-10, AC-11: per answerable row, one embed and one rerank call over
+    the dense list; the top 5 and deep lists are cuts of the reranked order; every candidate is
+    kept with both ranks; summary.json and summary.md carry the in-run comparison."""
+    conn, checkout, path_a, path_b, question = setup
+    rows = _rows(path_a, path_b, question)
+    ev = evidence.check(rows, conn, BASELINE_CONFIG, checkout)
+    embedder, reranker = FakeEmbedder(name=MODEL), FakeReranker(score=lambda q, d: -len(d))
+    meta = _meta(None, 2) | {"retriever": "rerank", "rerank": {"model": reranker.name}}
+    out = run_mod.run(
+        conn, rows, ev, embedder, None, principal=_admin(conn), meta=meta, out_root=tmp_path,
+        checkout=checkout, retriever="rerank", reranker=reranker,
+    )  # fmt: skip
+    records, summary = _read(out)
+    assert len(embedder.calls) == 2 and len(reranker.calls) == 2  # one each per answerable row
+    r = records[1]
+    cands = r["candidates"]
+    assert [c["dense_rank"] for c in cands] == list(range(1, len(cands) + 1))
+    by_rerank = sorted(cands, key=lambda c: c["rerank_rank"])
+    assert [e["chunk_id"] for e in r["retrieved"]] == [c["chunk_id"] for c in by_rerank[:5]]
+    assert [e["chunk_id"] for e in r["deep"]] == [c["chunk_id"] for c in by_rerank[:20]]
+    assert r["rerank"]["pairs"] == len(cands) and r["rerank"]["pairs_over"] == 0
+    assert set(r["latency_ms"]) == {"dense", "rerank"}
+    assert summary["meta"]["rerank"]["input_tokens"] == 2 * 42
+    assert "rerank" in summary
+    assert "Rerank vs in-run dense" in (out / "summary.md").read_text()
+
+
+def test_rerank_failure_stops_the_run(setup, tmp_path):
+    """Spec 0012 AC-1, AC-3: a reranker error stops the run; nothing falls back to dense."""
+    conn, checkout, path_a, path_b, question = setup
+    rows = _rows(path_a, path_b, question)
+    ev = evidence.check(rows, conn, BASELINE_CONFIG, checkout)
+    reranker = FakeReranker(fail=RuntimeError("provider down"))
+    with pytest.raises(RuntimeError, match="provider down"):
+        run_mod.run(
+            conn, rows, ev, FakeEmbedder(name=MODEL), None, principal=_admin(conn),
+            meta=_meta(None, 2) | {"retriever": "rerank"}, out_root=tmp_path,
+            checkout=checkout, retriever="rerank", reranker=reranker,
+        )  # fmt: skip
 
 
 def test_dry_run_checks_fts_only_for_non_dense(monkeypatch):

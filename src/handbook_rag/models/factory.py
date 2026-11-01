@@ -15,11 +15,14 @@ from handbook_rag.constants import (
     DEEPINFRA_BASE_URL,
     DEFAULT_ANSWER_MODEL,
     DEFAULT_EMBED_MODEL,
+    DEFAULT_RERANK_MODEL,
     EMBED_MODELS,
+    RERANK_MODELS,
 )
 from handbook_rag.models.answerers.openai import OpenAIAnswerer
-from handbook_rag.models.base import Answerer, Embedder
+from handbook_rag.models.base import Answerer, Embedder, Reranker
 from handbook_rag.models.embedders.openai import OpenAIEmbedder
+from handbook_rag.models.rerankers.deepinfra import DeepInfraReranker
 
 
 def _openai_client(**kwargs):
@@ -127,3 +130,34 @@ def resolve_answer_spec(spec: str | None = None) -> str:
 
 def make_answerer(spec: str | None = None) -> Answerer:
     return _build(ANSWERERS, "answer", resolve_answer_spec(spec))
+
+
+def _rerank_entry(spec: str | None) -> tuple[str, str, dict]:
+    spec = spec or DEFAULT_RERANK_MODEL
+    entry = RERANK_MODELS.get(spec)
+    if entry is None:
+        raise SystemExit(f"unknown rerank model {spec!r} (known: {', '.join(RERANK_MODELS)})")
+    return spec, spec.partition(":")[2], entry
+
+
+def describe_reranker(spec: str | None = None) -> dict:
+    """The reranker's settings for dry runs and run metadata: no key, no env read."""
+    spec, _, entry = _rerank_entry(spec)
+    keys = ("endpoint", "instruction", "max_input_tokens", "template_tokens")
+    keys += ("usd_per_1m", "price_source")
+    return {"model": spec, **{k: entry[k] for k in keys}}
+
+
+def make_reranker(spec: str | None = None) -> Reranker:
+    spec, model, entry = _rerank_entry(spec)
+    provider = spec.partition(":")[0]
+    if provider != "deepinfra":
+        raise SystemExit(f"unknown rerank provider {provider!r} (registered: deepinfra)")
+    return DeepInfraReranker(
+        model,
+        entry["endpoint"],
+        entry["instruction"],
+        _require_env("DEEPINFRA_API_KEY"),
+        entry["max_input_tokens"],
+        entry["template_tokens"],
+    )

@@ -19,11 +19,24 @@ A record is the dict written as one line of rows.jsonl (built by run.py):
     checks: asdict(checks.CodeChecks) | None  (answerable, non-abstaining rows only)
 """
 
+import math
 import re
 from collections import Counter
 
-from handbook_rag.constants import TOP_K
-from handbook_rag.evaluation.metrics import matched_k, mean_se, paired
+from handbook_rag.constants import (
+    HEADROOM_CEILING,
+    HEADROOM_FLOOR,
+    RERANK_CURVE_KS,
+    RERANK_ROWS,
+    TOP_K,
+)
+from handbook_rag.evaluation.metrics import (
+    best_top_k,
+    fact_recall_at,
+    matched_k,
+    mean_se,
+    paired,
+)
 
 CHECK_FIELDS = ("has_citation", "citations_in_range", "headings_exist", "no_url")
 # The SE formula follows the metric's kind, never its values (a continuous metric can be all
@@ -340,4 +353,157 @@ def render_compare(
     out.append(f"identical on {compared - len(differing)} of {compared} rows")
     if differing:
         out += ["", "differing rows: " + ", ".join(str(i) for i in differing)]
+    return "\n".join(out) + "\n"
+
+
+def _percentile(values: list[float], p: float) -> float | None:
+    """Nearest-rank percentile: the value at sorted position ceil(p * n); None for no values."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[max(math.ceil(p * len(ordered)), 1) - 1]
+
+
+def _ordered_facts(record: dict, by: str) -> list[set[str]]:
+    """Candidate fact sets in dense_rank or rerank_rank order."""
+    return [set(c["facts"]) for c in sorted(record["candidates"], key=lambda c: c[by])]
+
+
+def _best_rank(record: dict, fact: str, by: str) -> int | None:
+    ranks = [c[by] for c in record["candidates"] if fact in c["facts"]]
+    return min(ranks) if ranks else None
+
+
+def rerank_summary(records: list[dict]) -> dict:
+    """Spec 0012 AC-10 and AC-11, from rows.jsonl records alone (those with "candidates").
+
+    Scored rows: non-empty metrics and required_facts. Keys:
+    n; recall {dense, rerank: {k: mean recall@k}} for RERANK_CURVE_KS and TOP_K;
+    paired {mean, se, n, delta_se} of per-row (rerank@5 - dense@5), delta_se None if se is 0;
+    won, lost, tied; headroom_fixed (against HEADROOM_FLOOR/CEILING); dense_at_5,
+    rerank_at_5, ceiling (mean best_top_k over the candidates at TOP_K), headroom_in_run
+    (None if the ceiling equals dense@5); targeted {row: {fact: {dense_rank, rerank_rank,
+    dense_in_top5, rerank_in_top5}}} for RERANK_ROWS present, ranks None if absent;
+    latency_ms {rerank_p50, rerank_p95, dense_p50} (nearest-rank percentiles);
+    truncation_share (sum pairs_over / sum pairs); input_tokens_per_pair (None if none).
+    """
+    cands = [r for r in records if r.get("candidates") is not None]
+    scored = [r for r in cands if r.get("metrics") and r.get("required_facts")]
+    out: dict = {"n": len(scored)}
+    if not scored:
+        return out
+    ks = sorted({*RERANK_CURVE_KS, TOP_K})
+    orders = {"dense": "dense_rank", "rerank": "rerank_rank"}
+    per_row = {
+        name: [
+            {k: fact_recall_at(_ordered_facts(r, by), set(r["required_facts"]), k) for k in ks}
+            for r in scored
+        ]
+        for name, by in orders.items()
+    }
+    out["recall"] = {
+        name: {k: sum(v[k] for v in rows) / len(rows) for k in ks} for name, rows in per_row.items()
+    }
+    deltas = [b[TOP_K] - a[TOP_K] for a, b in zip(per_row["dense"], per_row["rerank"], strict=True)]
+    stat = paired(deltas)
+    out["paired"] = {
+        "mean": stat.mean,
+        "se": stat.se,
+        "n": stat.n,
+        "delta_se": stat.mean / stat.se if stat.se else None,
+    }
+    out["won"] = sum(d > 0 for d in deltas)
+    out["lost"] = sum(d < 0 for d in deltas)
+    out["tied"] = sum(d == 0 for d in deltas)
+    dense5, rerank5 = out["recall"]["dense"][TOP_K], out["recall"]["rerank"][TOP_K]
+    ceilings = [
+        best_top_k(_ordered_facts(r, "dense_rank"), set(r["required_facts"]), TOP_K) for r in scored
+    ]
+    ceiling = sum(ceilings) / len(ceilings)
+    out["dense_at_5"], out["rerank_at_5"], out["ceiling"] = dense5, rerank5, ceiling
+    out["headroom_fixed"] = (rerank5 - HEADROOM_FLOOR) / (HEADROOM_CEILING - HEADROOM_FLOOR)
+    gap = ceiling - dense5
+    out["headroom_in_run"] = (rerank5 - dense5) / gap if gap else None
+    targeted: dict = {}
+    for r in cands:
+        if r["row"] not in RERANK_ROWS:
+            continue
+        facts = {}
+        for f in sorted(r.get("required_facts") or []):
+            d, rr = _best_rank(r, f, "dense_rank"), _best_rank(r, f, "rerank_rank")
+            facts[f] = {
+                "dense_rank": d,
+                "rerank_rank": rr,
+                "dense_in_top5": d is not None and d <= TOP_K,
+                "rerank_in_top5": rr is not None and rr <= TOP_K,
+            }
+        targeted[r["row"]] = facts
+    out["targeted"] = targeted
+    rerank_ms = [r["latency_ms"]["rerank"] for r in cands if r.get("latency_ms")]
+    dense_ms = [r["latency_ms"]["dense"] for r in cands if r.get("latency_ms")]
+    out["latency_ms"] = {
+        "rerank_p50": _percentile(rerank_ms, 0.5),
+        "rerank_p95": _percentile(rerank_ms, 0.95),
+        "dense_p50": _percentile(dense_ms, 0.5),
+    }
+    meta = [r["rerank"] for r in cands if r.get("rerank")]
+    pairs = sum(m["pairs"] for m in meta)
+    out["truncation_share"] = sum(m["pairs_over"] for m in meta) / pairs if pairs else None
+    counted = [m for m in meta if m["input_tokens"] is not None]
+    counted_pairs = sum(m["pairs"] for m in counted)
+    out["input_tokens_per_pair"] = (
+        sum(m["input_tokens"] for m in counted) / counted_pairs if counted_pairs else None
+    )
+    return out
+
+
+def _opt(value: float | None, spec: str = ".3f") -> str:
+    return "—" if value is None else format(value, spec)
+
+
+def render_rerank(summary: dict) -> str:
+    """Markdown section for a rerank run (spec 0012 AC-10, AC-11). Numbers only, no verdict."""
+    out = ["## Rerank vs in-run dense (spec 0012)", ""]
+    if not summary.get("n"):
+        return "\n".join([*out, "No scored rows with candidates."]) + "\n"
+    p = summary["paired"]
+    ratio = _opt(p["delta_se"], ".2f")
+    out += [
+        f"Paired chunk_fact_recall@5, rerank − dense: {p['mean']:+.3f} ± {p['se']:.3f} SE "
+        f"({ratio} SE), n = {p['n']}; won {summary['won']}, lost {summary['lost']}, "
+        f"tied {summary['tied']}",
+        "",
+        f"- Headroom captured (headline, fixed): {_opt(summary['headroom_fixed'])} = "
+        f"(rerank@5 {summary['rerank_at_5']:.3f} − {HEADROOM_FLOOR}) / "
+        f"({HEADROOM_CEILING} − {HEADROOM_FLOOR})",
+        f"- Headroom within this run: {_opt(summary['headroom_in_run'])} = "
+        f"(rerank@5 {summary['rerank_at_5']:.3f} − dense@5 {summary['dense_at_5']:.3f}) / "
+        f"(ceiling {summary['ceiling']:.3f} − dense@5 {summary['dense_at_5']:.3f})",
+        "- A gap between the two figures is query-vector drift. Neither decides adoption.",
+        "",
+        "| k | dense | rerank |",
+        "|---|---|---|",
+    ]
+    d, r = summary["recall"]["dense"], summary["recall"]["rerank"]
+    out += [f"| chunk_fact_recall@{k} | {d[k]:.3f} | {r[k]:.3f} |" for k in RERANK_CURVE_KS]
+    if summary["targeted"]:
+        out += ["", "| row | fact | dense rank | rerank rank | in top 5 (dense → rerank) |"]
+        out += ["|---|---|---|---|---|"]
+        for row, facts in summary["targeted"].items():
+            for fact, t in facts.items():
+                moved = f"{'yes' if t['dense_in_top5'] else 'no'} → "
+                moved += "yes" if t["rerank_in_top5"] else "no"
+                out.append(
+                    f"| {row} | {fact} | {_opt(t['dense_rank'], 'd')} "
+                    f"| {_opt(t['rerank_rank'], 'd')} | {moved} |"
+                )
+    lat = summary["latency_ms"]
+    out += [
+        "",
+        f"- Rerank latency p50 / p95: {_opt(lat['rerank_p50'], '.0f')} / "
+        f"{_opt(lat['rerank_p95'], '.0f')} ms; in-run dense search p50: "
+        f"{_opt(lat['dense_p50'], '.0f')} ms (nearest-rank percentiles)",
+        f"- Truncation share (pairs over the limit): {_opt(summary['truncation_share'])}",
+        f"- Input tokens per pair: {_opt(summary['input_tokens_per_pair'], '.1f')}",
+    ]
     return "\n".join(out) + "\n"

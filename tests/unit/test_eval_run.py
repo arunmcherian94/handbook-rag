@@ -6,7 +6,13 @@ import uuid
 import pytest
 
 from handbook_rag import ask
-from handbook_rag.constants import EST_ANSWER_USD_PER_ROW, EVAL_DEPTH, FUSION_DEPTH, RRF_K
+from handbook_rag.constants import (
+    EST_ANSWER_USD_PER_ROW,
+    EVAL_DEPTH,
+    FUSION_DEPTH,
+    RERANK_DEPTH,
+    RRF_K,
+)
 from handbook_rag.evaluation.evalset import Fact, Row
 from handbook_rag.evaluation.evidence import Evidence
 from handbook_rag.evaluation.run import (
@@ -348,3 +354,103 @@ def test_estimate_without_embeds_never_tokenizes():
         raise AssertionError("sent called")
 
     assert estimate(ROWS, True, 0.02, sent=boom, embeds=False)["embed_tokens"] == 0
+
+
+RERANK = {
+    "model": "deepinfra:Qwen/Qwen3-Reranker-4B",
+    "endpoint": "https://example.invalid",
+    "instruction": "Given a web search query, retrieve relevant passages that answer the query",
+    "max_input_tokens": 32768,
+    "template_tokens": 80,
+    "usd_per_1m": 0.025,
+    "price_source": "test",
+}
+
+
+def test_estimate_rerank_prices_depth_pairs_and_embeds_once():
+    """Spec 0012 AC-9: rerank embeds each answerable question once (one vector serves the top 5
+    and the deep list) and prices RERANK_DEPTH pairs per row at question + longest chunk +
+    template tokens."""
+    rows = [ROWS[0]]
+    plain = estimate(rows, True, 0.02)
+    cost = estimate(rows, True, 0.02, rerank=RERANK, chunk_tokens=512)
+    assert cost["embed_tokens"] == plain["embed_tokens"] // 2
+    q = plain["embed_tokens"] // 2
+    assert cost["rerank_tokens"] == RERANK_DEPTH * (q + 512 + 80)
+    assert cost["rerank_usd"] == pytest.approx(cost["rerank_tokens"] * 0.025 / 1_000_000)
+    assert cost["total_usd"] == pytest.approx(cost["embed_usd"] + cost["rerank_usd"])
+    assert plain["rerank_tokens"] == 0 and plain["rerank_usd"] == 0.0
+
+
+def test_metadata_records_reranker_settings_and_no_fts():
+    """Spec 0012 AC-9: a rerank run records the model, depth, instruction, limit and truncation
+    handling, and no FTS settings; dense and hybrid metadata are unchanged."""
+    cfg = {"config_id": "c", "strategy": "s", "params": {}, "tokenizer": "t"}
+    m = metadata("v", b"e", "sha", cfg, "m", None, 1, None, retriever="rerank", rerank=RERANK)
+    assert m["retriever"] == "rerank" and "fts" not in m and "rrf_k" not in m
+    r = m["rerank"]
+    assert r["model"] == RERANK["model"] and r["depth"] == RERANK_DEPTH
+    assert r["instruction"] == RERANK["instruction"] and r["max_input_tokens"] == 32768
+    assert r["truncation"] == "none; refuse over limit"
+    assert "endpoint" not in r and "api_key" not in r
+    assert "rerank" not in metadata("v", b"e", "sha", cfg, "m", None, 1, None)
+    hyb = metadata("v", b"e", "sha", cfg, "m", None, 1, None, retriever="hybrid")
+    assert "rerank" not in hyb and hyb["fts"] == FTS_SETTINGS
+    with pytest.raises(ValueError, match="settings"):
+        metadata("v", b"e", "sha", cfg, "m", None, 1, None, retriever="rerank")
+
+
+def test_rerank_is_a_retriever_choice_and_needs_retrieval_only():
+    """Spec 0012 AC-8: rerank is a --retriever choice, dense stays the default, and full mode
+    refuses it."""
+    assert parser().parse_args([]).retriever == "dense"
+    assert parser().parse_args(["--retriever", "rerank"]).retriever == "rerank"
+    with pytest.raises(SystemExit, match="needs --retrieval-only"):
+        main(["--retriever", "rerank"])
+
+
+def test_baseline_accepts_a_rerank_only_change():
+    """Spec 0012 AC-9, AC-12: a dense baseline (d83f3edc has no retriever key) against a rerank
+    run is the one retriever change; rerank with a new embed model is two changes."""
+    base = {"config_id": "c", "embed_model": "m"}
+    run = base | {"retriever": "rerank"}
+    assert baseline_mismatch(base, run) == [] and baseline_change(base, run) == "retriever"
+    assert baseline_change(base, run | {"embed_model": "n"}) is None
+
+
+def test_record_rerank_keeps_every_candidate_with_both_ranks():
+    """Spec 0012 AC-9, AC-11: a rerank row records all candidates in dense order with their
+    dense and rerank ranks, scores and facts, plus latencies and the reranker's tokens; the
+    retrieved entries carry rerank_score."""
+    from handbook_rag import hybrid
+
+    stored, ev, plain = _deep_setup([0, 1, 2, 3, 4, 5, 6, 7])
+    dense = [hybrid.Ranked(**vars(c), dense_rank=c.n, rerank_score=float(c.n)) for c in plain]
+    order = sorted(dense, key=lambda c: -c.rerank_score)
+    reranked = [hybrid.Ranked(**(vars(c) | {"n": n})) for n, c in enumerate(order, 1)]
+    lists = hybrid.RerankLists(dense, reranked, 3.0, 400.0, 4800, 0)
+    rec = record(FakeConn(stored, stored), ROWS[0], ev, reranked[:5], reranked, None, rerank=lists)
+    cands = rec["candidates"]
+    assert [c["dense_rank"] for c in cands] == list(range(1, 9))
+    assert [c["rerank_rank"] for c in cands] == list(range(8, 0, -1))
+    assert cands[0]["facts"] == ["F1"] and cands[0]["rerank_score"] == 1.0
+    assert rec["latency_ms"] == {"dense": 3.0, "rerank": 400.0}
+    assert rec["rerank"] == {"input_tokens": 4800, "pairs": 8, "pairs_over": 0}
+    assert all("rerank_score" in e for e in rec["retrieved"] + rec["deep"])
+    assert rec["metrics"]["chunk_fact_recall@5"] == 0.0  # F1's chunk fell to rerank rank 8
+
+
+def test_run_rerank_without_a_reranker_fails_before_embedding(tmp_path):
+    """Spec 0012 AC-1, AC-3 (review fix): run() in rerank mode with no reranker raises before
+    anything is embedded or written."""
+    from fakes import FakeEmbedder
+
+    from handbook_rag.evaluation import run as run_mod
+
+    emb = FakeEmbedder()
+    with pytest.raises(ValueError, match="needs a reranker"):
+        run_mod.run(
+            None, ROWS, Evidence({}, []), emb, None, principal=None, meta={},
+            out=tmp_path, retriever="rerank",
+        )  # fmt: skip
+    assert emb.calls == []
