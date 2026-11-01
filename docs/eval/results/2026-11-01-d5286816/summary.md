@@ -4,6 +4,7 @@
 
 - **Retrieval-only, rerank (`Qwen/Qwen3-Reranker-4B` over the dense top 50) vs the same run's dense top 5.** chunk_fact_recall@5 0.542 against 0.583: paired −0.041 ± 0.058, mean/SE −0.70, against the bar of +2. Rows: 3 won (52, 53, 8), 6 lost (44, 49, 35, 89, 58, 23), 23 tied. Below dense at every k from 3 to 10. Headroom captured −0.139.
 - **Targeted rows:** 8 and 53 gain. Rows 49 and 89 lose a fact from dense rank 3 or 5, and row 55's fact falls from rank 8 to 38. Truncation share 0; rerank p50 4,154 ms against dense 337 ms. Details are in the [journal](../../../journal/2026-11-01-rerank-runs.md).
+- **Why:** the dense top 50 is already on topic, and the reranker rates many candidates near 1.0 (5+ at ≥ 0.99 on 8 rows), so fact chunks lose on small margins (row 44: 0.998 against 0.999). It also scores some fact chunks as irrelevant: on row 89 ("whats our exit policy") all 50 score ≤ 0.056. Fixed 512-token windows and colloquial questions fit both patterns, untested. Row 55's reranked #1 names the leader through an optional fact, which the metric doesn't credit.
 - **Next:** not adopted under the pre-set rule (below 1 SE). Dense stays the default; `--retriever rerank` stays as a measurement flag.
 
 ## Run
