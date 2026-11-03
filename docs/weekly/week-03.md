@@ -1,6 +1,6 @@
 # Week 3 (27 Oct – 1 Nov 2026): answer evaluation, hybrid search and a cross-encoder reranker, both not adopted
 
-**Outcome:** production retrieval is unchanged: dense search on `fixed-512-64`, text-embedding-3-large@1536, with the SQL ACL pre-filter. Answer evaluation now classifies false abstentions and checks answer content with code-only assertions. It found the retrieval side mostly a ranking or depth problem at k = 5. Two ranking changes were built and measured against a 2-paired-SE bar set before each run. Hybrid search (Postgres full-text search + dense, RRF) scored −1.08 SE and the cross-encoder reranker −0.70 SE, so neither was adopted, and `DEFAULT_RETRIEVER` stays `dense`. Leak and over-block stayed 0 on both new paths. This summary covers PRs #45–#54. #54, the reranker runs, was open when this summary was drafted.
+**Outcome:** production retrieval is unchanged: dense search on `fixed-512-64`, text-embedding-3-large@1536, with the SQL ACL pre-filter. Answer evaluation now classifies false abstentions and checks answer content with code-only assertions. It found the retrieval side mostly a ranking or depth problem at k = 5. Two ranking changes were built and measured against a 2-paired-SE bar set before each run. Hybrid search (Postgres full-text search + dense, RRF) scored −1.08 SE and the cross-encoder reranker −0.70 SE, so neither was adopted, and `DEFAULT_RETRIEVER` stays `dense`. Leak and over-block stayed 0 on both new paths. This summary covers PRs #45–#54.
 
 ## 1. Decisions
 
@@ -44,14 +44,14 @@
 
 ## 2. Learnings
 - **The 0.875 ceiling counts what the candidates hold, not what a ranker can separate.** ([journal](../journal/2026-11-01-rerank-runs.md#why-the-reranker-scores-lower))
-  - Both ranking changes reordered the same dense top 50, and both lost.
+  - Neither change could reach a fact chunk outside dense's top 50 (FTS added none), and both lost.
   - The reranker rates many on-topic candidates near 1.0 (5 or more at ≥ 0.99 on 8 of 32 rows), so fact chunks lose on small margins (row 44: 0.998 against 0.999).
   - It also scores some fact chunks as irrelevant: on row 89 ("whats our exit policy"), all 50 candidates score ≤ 0.056.
   - Fixed 512-token windows that mix the fact with other text, and colloquial questions, fit both patterns. Neither cause is tested.
+  - Required-facts-only scoring also hides one reranker gain (row 55, an optional fact at #1).
 - **An in-run paired comparison removes query-vector drift as a variable.** Spec 0012 compared the reranked list with the dense list from the same query vector. This run's dense top 5 gave the same chunk_fact_recall@5 as `d83f3edc` on all 32 scored rows, so the continuity and in-run figures agree. ([journal](../journal/2026-11-01-rerank-runs.md#continuity-comparison-ac-12))
 - **Postgres FTS without IDF is close to noise on conversational questions.** Words like `pleas`, `need` and `get` survive as lexemes, and the OR query matches about half the corpus. The FTS top 20 holds no fact chunk that dense's top 50 lacks. ([journal](../journal/2026-10-30-hybrid-runs.md#why-hybrid-scores-lower))
-- **Counts in claims need checking against the run they name.** The 11-abstention figure came from the 3-small baseline, not `e602bd95`. #47 corrected it with the command that reproduces the count. ([journal](../journal/2026-10-27-answer-eval.md#answer-content-check))
-- **Required-facts-only scoring can hide a gain.** chunk_fact_recall counts required facts only. On row 55 the reranked #1 names the leader through an optional fact and still scores 0. One row; it doesn't change the result. ([journal](../journal/2026-11-01-rerank-runs.md#why-the-reranker-scores-lower))
+- **Counts in claims need checking against the run they name.** The 11-abstention figure came from the 3-small baseline, not `e602bd95`. #47 corrected it, listing the same 10 rows from both run files. ([journal](../journal/2026-10-27-answer-eval.md#answer-content-check))
 
 ## 3. Week 3 takeaway
 Answer evaluation located the loss: most retrieval-side false abstentions have their missing fact at dense rank 6–8. Two ranking changes over dense's candidates were then built with the ACL filter on every path, and measured against bars set before the runs. Both scored below dense, and both were recorded as not adopted rather than tuned on the 32 rows that would score them. The dense configuration from week 2 stands. The open question is now whether the candidates themselves (chunk boundaries, query wording) let any ranker separate the fact chunk.
