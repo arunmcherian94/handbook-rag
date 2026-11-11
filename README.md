@@ -2,7 +2,7 @@
 
 A permission-aware RAG assistant over the [GitLab public handbook](https://handbook.gitlab.com). Answers cite the handbook sections they come from. Retrieval only searches the chunks the asking user is allowed to see. The handbook is public, so the permissions are synthetic.
 
-**Status (end of week 3):** retrieval and permissions are built and measured. Answers are generated, and a code-only check scores whether they mention each fact's key content; correctness and groundedness aren't scored yet. Hybrid search and a cross-encoder reranker were built and measured, and neither was adopted. Week summaries: [week 1](docs/weekly/week-01.md), [week 2](docs/weekly/week-02.md), [week 3](docs/weekly/week-03.md).
+**Status:** retrieval and permissions are built and measured. Answers are generated, and a code-only check scores whether they mention each fact's key content; correctness and groundedness aren't scored yet. Hybrid search and a cross-encoder reranker were built and measured, and neither was adopted. Week summaries: [week 1](docs/weekly/week-01.md), [week 2](docs/weekly/week-02.md), [week 3](docs/weekly/week-03.md).
 
 ## Current configuration
 
