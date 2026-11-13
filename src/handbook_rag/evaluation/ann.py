@@ -756,7 +756,10 @@ def build_main(confirm: bool) -> int:
             raise SystemExit(str(e)) from None
         n = source_rows(conn, model, BASELINE_CONFIG)
         if not n:
-            raise SystemExit(f"no {model} embeddings for {BASELINE_CONFIG}; run `make embed`")
+            raise SystemExit(
+                f"no {model} embeddings for {BASELINE_CONFIG}; "
+                "run `make embed` for the cost, then `make paid-embed`"
+            )
         print(
             f"ann-build: copy {n} {model} rows of {BASELINE_CONFIG} into ann.hnsw_chunks "
             f"(vector({DIMS})), HNSW cosine m={HNSW_M} ef_construction={HNSW_EF_CONSTRUCTION}"
