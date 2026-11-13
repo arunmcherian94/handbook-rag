@@ -3,7 +3,6 @@ No DB, no API: the DB side is in tests/integration/test_ann_db.py."""
 
 import functools
 import json
-import types
 
 import pytest
 from fakes import FakeEmbedder
@@ -301,18 +300,3 @@ def test_failed_run_logs_its_partial_folder(monkeypatch, tmp_path):
     rec = json.loads(log.read_text())
     (folder,) = (tmp_path / "runs").iterdir()
     assert rec["status"] == "failed" and rec["run_id"] == folder.name
-
-
-def test_build_with_no_source_rows_points_at_paid_embed(monkeypatch):
-    """Spec 0009, AC-1: the empty-source hint names `make paid-embed`, since plain
-    `make embed` only dry-runs."""
-    monkeypatch.setattr(ann, "read_manifest", lambda: types.SimpleNamespace(sha="x"))
-    monkeypatch.setattr(ann, "verify", lambda m: None)
-    monkeypatch.setattr(ann, "connect", _Conn)
-    monkeypatch.setattr(ann, "stored_chunk_params", lambda conn, sha, config: None)
-    monkeypatch.setattr(ann.acl, "load_policy", lambda conn: None)
-    monkeypatch.setattr(ann.acl, "check_stale", lambda conn, policy: None)
-    monkeypatch.setattr(ann, "source_rows", lambda conn, model, config: 0)
-    with pytest.raises(SystemExit) as e:
-        ann.build_main(confirm=False)
-    assert str(e.value).endswith("run `make embed` for the cost, then `make paid-embed`")

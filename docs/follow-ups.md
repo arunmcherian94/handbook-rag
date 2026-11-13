@@ -137,7 +137,7 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 
 ## From the week 2 docs audit (2026-10-26)
 
-- ~~**`make ann-build` empty-source hint:**~~ Done in #57 (2026-11-13): the hint now says "run `make embed` for the cost, then `make paid-embed`", and a unit test pins it. `src/handbook_rag/evaluation/ann.py:759` said "run `make embed`", which only dry-runs now. Match the other hints: "run `make embed` for the cost, then `make paid-embed`".
+- ~~**`make ann-build` empty-source hint:**~~ Done in #57 (2026-11-13): the hint now says "run `make embed` for the cost, then `make paid-embed`". `src/handbook_rag/evaluation/ann.py:759` said "run `make embed`", which only dry-runs now. Match the other hints: "run `make embed` for the cost, then `make paid-embed`".
 
 ## From spec 0011 (2026-10-29)
 - **BM25 instead of `ts_rank_cd`:** Postgres FTS has no IDF, so common words ("team", "policy") outweigh rare ones ("POSH"). Candidates: Tiger Data `pg_textsearch` (PostgreSQL licence), ParadeDB `pg_search` (AGPL), VectorChord-bm25, or BM25 weights in pgvector `sparsevec`. Each is a new dependency or pipeline and needs an ADR. Trigger: the spec 0011 FTS-only run shows common words crowding out rare ones ([reading, Q3](reading/week-03.md#hybrid-search-postgres-full-text-search-reciprocal-rank-fusion)).
