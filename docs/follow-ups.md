@@ -139,6 +139,10 @@ Arun, after spec 0008: embedding and answer models will keep changing, so the fo
 
 - ~~**`make ann-build` empty-source hint:**~~ Done in #57 (2026-11-13): the hint now says "run `make embed` for the cost, then `make paid-embed`". `src/handbook_rag/evaluation/ann.py:759` said "run `make embed`", which only dry-runs now. Match the other hints: "run `make embed` for the cost, then `make paid-embed`".
 
+## Eval harness query embeds (2026-10-27)
+
+- **Top 5 from the depth-20 list, next spec that touches `run.py`:** in retrieval-only `run()` (`src/handbook_rag/evaluation/run.py`), each answerable dense or hybrid row calls `hybrid.retrieve` twice, at `TOP_K` and at `EVAL_DEPTH`, and each call embeds the question again. Take the top 5 as `deep[:TOP_K]` from one depth-20 retrieve, as the rerank branch already does, and count one query per row in `estimate()`. This removes one embed call per row. It also means the @5 and @10/@20 metrics come from one query vector. Embedding the same text twice is not deterministic: run `2026-10-24-ddf4a2dc` (spec 0007 Part B, freshly embedded queries) reordered near-ties on rows 32 and 93 against `2026-10-21-d83f3edc`, matching on 31 of 33 rows ([ADR-0021](decisions/0021-permission-model.md)). Those rows look like regressions but are embedding noise. Bundle with making saved query vectors the harness default. Parked, not scheduled (Arun, 27 Oct).
+
 ## From spec 0011 (2026-10-29)
 - **BM25 instead of `ts_rank_cd`:** Postgres FTS has no IDF, so common words ("team", "policy") outweigh rare ones ("POSH"). Candidates: Tiger Data `pg_textsearch` (PostgreSQL licence), ParadeDB `pg_search` (AGPL), VectorChord-bm25, or BM25 weights in pgvector `sparsevec`. Each is a new dependency or pipeline and needs an ADR. Trigger: the spec 0011 FTS-only run shows common words crowding out rare ones ([reading, Q3](reading/week-03.md#hybrid-search-postgres-full-text-search-reciprocal-rank-fusion)).
 - **Weighted RRF or a convex score combination:** both need a tuned weight. Tune it on the synthetic retrieval set, not on v1.2 (n = 32).
