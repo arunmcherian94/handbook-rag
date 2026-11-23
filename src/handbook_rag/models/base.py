@@ -57,3 +57,48 @@ class Answerer(Protocol):
     name: str  # "provider:model"
 
     def answer(self, system: str, user: str) -> Completion: ...
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    """One tool call as the model sent it (spec 0013, AC-1). arguments is the raw JSON string,
+    unparsed, so a malformed call is recorded exactly and rejected by the tool, not the port."""
+
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass(frozen=True)
+class ChatStep:
+    """One model call in the agent loop (spec 0013, AC-1): text, tool calls, usage, finish."""
+
+    text: str
+    tool_calls: tuple[ToolCall, ...]
+    input_tokens: int
+    output_tokens: int
+    finish_reason: str  # "stop", "tool_calls", "length", ...
+
+    @property
+    def truncated(self) -> bool:
+        """Stopped at the completion cap, as Completion.truncated in ask."""
+        return self.finish_reason == "length"
+
+
+class ChatModel(Protocol):
+    """Tool-calling port beside Answerer (spec 0013, AC-1).
+
+    messages are Chat Completions-shaped dicts (system, user, assistant with tool_calls, tool),
+    stored verbatim in the turn record (AC-12). tool_choice is "auto" or "none" (AC-10).
+    timeout is the request timeout in seconds: the turn's remaining time (AC-8).
+    """
+
+    name: str  # "provider:model"
+
+    def complete(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        tool_choice: str,
+        timeout: float | None = None,
+    ) -> ChatStep: ...

@@ -6,17 +6,22 @@ the factories. Adapters live in embedders/, answerers/ and rerankers/, one file 
 
 from handbook_rag.models.base import (
     Answerer,
+    ChatModel,
+    ChatStep,
     Completion,
     Embedder,
     InputTooLong,
     Reranker,
     RerankResult,
+    ToolCall,
 )
 from handbook_rag.models.factory import (
+    answer_usd_per_1m,
     describe_embedder,
     describe_reranker,
     embed_usd_per_1m,
     make_answerer,
+    make_chat_model,
     make_embedder,
     make_reranker,
     resolve_answer_spec,
@@ -32,6 +37,8 @@ from handbook_rag.models.rerankers.deepinfra import (
 
 __all__ = [
     "Answerer",
+    "ChatModel",
+    "ChatStep",
     "Completion",
     "Embedder",
     "FatalRerankError",
@@ -42,10 +49,13 @@ __all__ = [
     "RerankResult",
     "RerankRetriesExhausted",
     "Reranker",
+    "ToolCall",
+    "answer_usd_per_1m",
     "describe_embedder",
     "describe_reranker",
     "embed_usd_per_1m",
     "make_answerer",
+    "make_chat_model",
     "make_embedder",
     "make_reranker",
     "resolve_answer_spec",

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval answer-eval permissions paid-permissions ann-build ann paid-ann test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval answer-eval permissions paid-permissions ann-build ann paid-ann agent paid-agent test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -32,6 +32,9 @@ EVAL = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.r
 PERMISSIONS = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.permissions \
 	$(if $(CONFIG),--config $(CONFIG)) $(if $(RETRIEVER),--retriever $(RETRIEVER))
 ANN = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.ann
+AGENT = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.agent --as "$(AS)" \
+	$(if $(SESSION),--session "$(SESSION)") "$$Q"
+AGENT_USAGE = @test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make agent AS=<user id> Q="..." [SESSION=<id>]'; exit 2; }
 ASK_USAGE = @test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make ask AS=<user id> Q="your question"'; exit 2; }
 
 embed: ## Dry run: chunks of CONFIG with no embedding for EMBED_MODEL, and the cost; LIMIT=n
@@ -74,6 +77,14 @@ ann: ## Dry run: exact vs HNSW recall-starvation run, saved/missing query vector
 
 paid-ann: ## Spend: embed missing query vectors, then run as `make ann` describes
 	$(SPEND) $(ANN) run --confirm
+
+agent: ## Dry run: models, budgets and upper-bound cost of one agent turn; AS= Q= [SESSION=<id>]
+	$(AGENT_USAGE)
+	$(AGENT)
+
+paid-agent: ## Spend: one agent turn, AS= Q= as for `make agent`; SESSION=<id> follows up
+	$(AGENT_USAGE)
+	$(SPEND) $(AGENT) --confirm
 
 test: test-unit test-integration ## Run unit + integration tests
 

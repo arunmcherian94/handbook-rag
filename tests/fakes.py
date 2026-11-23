@@ -5,7 +5,9 @@ inheritance), so pipeline code runs on them unchanged. FakeOpenAIClient is injec
 real adapters to test their request and response handling.
 """
 
+import copy
 import hashlib
+import json
 import math
 import re
 from types import MappingProxyType, SimpleNamespace
@@ -14,7 +16,7 @@ import httpx2
 import openai
 
 from handbook_rag.identity import Principal
-from handbook_rag.models import Completion, RerankResult
+from handbook_rag.models import ChatStep, Completion, RerankResult, ToolCall
 
 _REQ = httpx2.Request("POST", "https://api.openai.com/v1/embeddings")
 _STATUS_ERRORS = {
@@ -107,11 +109,15 @@ class FakeAnswerer:
 class FakeOpenAIClient:
     """Records request kwargs; returns SDK-shaped responses for adapter contract tests."""
 
-    def __init__(self, dims=1536, answer="ok", finish_reason="stop", reverse_order=True):
+    def __init__(
+        self, dims=1536, answer="ok", finish_reason="stop", reverse_order=True, tool_calls=None
+    ):
+        """tool_calls: (id, name, arguments) triples returned as message.tool_calls (spec 0013)."""
         self.requests: list[tuple[str, dict]] = []
         self.dims = dims
         self.answer = answer
         self.finish_reason = finish_reason
+        self.tool_calls = tool_calls
         self.reverse_order = reverse_order
         self.embeddings = SimpleNamespace(create=self._embed)
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._chat))
@@ -131,7 +137,17 @@ class FakeOpenAIClient:
         return SimpleNamespace(
             choices=[
                 SimpleNamespace(
-                    message=SimpleNamespace(content=self.answer), finish_reason=self.finish_reason
+                    message=SimpleNamespace(
+                        content=self.answer,
+                        tool_calls=self.tool_calls
+                        and [
+                            SimpleNamespace(
+                                id=i, type="function", function=SimpleNamespace(name=n, arguments=a)
+                            )
+                            for i, n, a in self.tool_calls
+                        ],
+                    ),
+                    finish_reason=self.finish_reason,
                 )
             ],
             usage=SimpleNamespace(prompt_tokens=50, completion_tokens=10),
@@ -166,3 +182,51 @@ class FakeReranker:
         if self.fail is not None:
             raise self.fail
         return RerankResult([float(self.score(question, d)) for d in documents], self.input_tokens)
+
+
+def tool_step(query: str, page: int = 1, call_id: str = "call_1", **extra) -> ChatStep:
+    """A scripted model step that calls retrieve once (spec 0013); extra adds arguments."""
+    args = json.dumps({"query": query, "page": page, **extra})
+    return ChatStep("", (ToolCall(call_id, "retrieve", args),), 100, 20, "tool_calls")
+
+
+def raw_tool_step(arguments: str, name: str = "retrieve", call_id: str = "call_1") -> ChatStep:
+    """A tool call with arbitrary raw arguments or tool name, for malformed-call tests."""
+    return ChatStep("", (ToolCall(call_id, name, arguments),), 100, 20, "tool_calls")
+
+
+def final_step(text: str, finish_reason: str = "stop", input_tokens: int = 100) -> ChatStep:
+    return ChatStep(text, (), input_tokens, 20, finish_reason)
+
+
+class FakeChatModel:
+    """ChatModel (spec 0013, AC-1) returning scripted steps, recording every call.
+
+    script: a list of ChatStep or Exception, consumed in order (an Exception is raised), or a
+        callable (call_index, messages, tools, tool_choice) -> ChatStep for open-ended scripts.
+    Running past the end of a list fails the test.
+    """
+
+    def __init__(self, script, name="fake:chat"):
+        self.script = script if callable(script) else list(script)
+        self.name = name
+        self.calls: list[dict] = []
+
+    def complete(self, messages, tools, tool_choice, timeout=None) -> ChatStep:
+        i = len(self.calls)
+        self.calls.append(
+            {
+                "messages": copy.deepcopy(messages),
+                "tools": copy.deepcopy(tools),
+                "tool_choice": tool_choice,
+                "timeout": timeout,
+            }
+        )
+        if callable(self.script):
+            out = self.script(i, messages, tools, tool_choice)
+        else:
+            assert i < len(self.script), f"FakeChatModel: unscripted call {i + 1}"
+            out = self.script[i]
+        if isinstance(out, Exception):
+            raise out
+        return out

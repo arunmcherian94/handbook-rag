@@ -12,6 +12,7 @@ import os
 from collections.abc import Callable
 
 from handbook_rag.constants import (
+    ANSWER_MODELS,
     DEEPINFRA_BASE_URL,
     DEFAULT_ANSWER_MODEL,
     DEFAULT_EMBED_MODEL,
@@ -20,7 +21,8 @@ from handbook_rag.constants import (
     RERANK_MODELS,
 )
 from handbook_rag.models.answerers.openai import OpenAIAnswerer
-from handbook_rag.models.base import Answerer, Embedder, Reranker
+from handbook_rag.models.base import Answerer, ChatModel, Embedder, Reranker
+from handbook_rag.models.chat.openai import OpenAIChatModel
 from handbook_rag.models.embedders.openai import OpenAIEmbedder
 from handbook_rag.models.rerankers.deepinfra import DeepInfraReranker
 
@@ -57,6 +59,9 @@ EMBEDDERS: dict[str, Callable[[str, int | None, str], Embedder]] = {
 }
 ANSWERERS: dict[str, Callable[[str], Answerer]] = {
     "openai": lambda model: OpenAIAnswerer(_openai_client(), model),
+}
+CHAT_MODELS: dict[str, Callable[[str], ChatModel]] = {
+    "openai": lambda model: OpenAIChatModel(_openai_client(), model),
 }
 
 
@@ -130,6 +135,20 @@ def resolve_answer_spec(spec: str | None = None) -> str:
 
 def make_answerer(spec: str | None = None) -> Answerer:
     return _build(ANSWERERS, "answer", resolve_answer_spec(spec))
+
+
+def make_chat_model(spec: str | None = None) -> ChatModel:
+    """AC-1: the tool-calling model, built from the same spec as the answerer."""
+    return _build(CHAT_MODELS, "chat", resolve_answer_spec(spec))
+
+
+def answer_usd_per_1m(spec: str) -> tuple[float, float]:
+    """AC-16: (input, output) USD per 1M tokens; an unknown model raises, as embed_usd_per_1m."""
+    entry = ANSWER_MODELS.get(spec)
+    if entry is None:
+        known = ", ".join(ANSWER_MODELS)
+        raise ValueError(f"no price for answer model {spec!r} (known: {known})")
+    return entry["input_usd_per_1m"], entry["output_usd_per_1m"]
 
 
 def _rerank_entry(spec: str | None) -> tuple[str, str, dict]:
