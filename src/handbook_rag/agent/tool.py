@@ -33,7 +33,8 @@ TOOL: dict = {
     "function": {
         "name": TOOL_NAME,
         "description": (
-            "Search the GitLab handbook. Returns 5 numbered excerpts per page. Start at page 1. "
+            f"Search the GitLab handbook. Returns {TOP_K} numbered excerpts per page. "
+            "Start at page 1. "
             "Ask for the next page only when the results are on-topic but miss the detail you "
             "need; if they are off-topic, reword the query instead. Use one search per part of a "
             "multi-part question. "

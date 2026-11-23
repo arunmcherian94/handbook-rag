@@ -61,7 +61,7 @@ def test_description_content():
     d = TOOL["function"]["description"]
     phrases = [
         "GitLab handbook",
-        "5 numbered excerpts per page",
+        f"{TOP_K} numbered excerpts per page",
         "page 1",
         "next page",
         "reword",
