@@ -70,3 +70,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-30: hybrid search runs and audit, spec 0011](docs/journal/2026-10-30-hybrid-runs.md)
 - [2026-10-31: cross-encoder reranker build, spec 0012](docs/journal/2026-10-31-rerank-build.md)
 - [2026-11-01: cross-encoder reranker runs, spec 0012](docs/journal/2026-11-01-rerank-runs.md)
+- [2026-11-23: hand-rolled agent spec review, spec 0013](docs/journal/2026-11-23-agent-spec.md)

@@ -163,3 +163,13 @@ The reranker was not adopted (−0.70 SE; [journal](journal/2026-11-01-rerank-ru
 - **Blend rerank scores with the dense order instead of replacing it:** on 8 of 32 rows, 5 or more candidates score ≥ 0.99, so the reranked order among them carries little signal. For example, reorder only where the score spread is large, or interpolate with dense rank. Needs a tuned threshold.
 - **AND-query FTS with a dense fallback:** offline +0.016 (+1.0 SE), but 17–18 rows had an empty FTS list and fell back to dense ([hybrid journal, variants](journal/2026-10-30-hybrid-runs.md#variants-tried-offline)). Re-test with the keyword-heavy questions.
 - **Score the reranker on answers, not only retrieval:** chunk_fact_recall credits required facts only, and row 55's reranked #1 names the leader through an optional fact. Generate answers from the reranked top 5 (a paid answer run) and compare false abstentions with `e602bd95`, starting with rows 8, 53 and 55.
+
+## From the spec 0013 review (2026-11-23)
+
+Agent work kept out of spec 0013 (Arun, 23 Nov). Details in [the journal](journal/2026-11-23-agent-spec.md).
+
+- **Session compaction:** once the question-and-answer history of a session grows long (say over 10 turns), replace older turns with an LLM summary and keep the latest turns as they are. Spec 0013 replays question + final answer only, which stays small for short sessions.
+- **Agent observability, week 6:** spans per step and tool call, cost and latency per turn, the `budget_exhausted` rate. The spec 0013 turn records are the source until then (see production observability above).
+- **Session expiry:** an `expires_at` on `agent_sessions` and a cleanup job.
+- **Multi-device sessions for the same user:** the Postgres store, owner check and version check already allow it; it needs a session list per user and an API, with the week 7 service.
+- **Redis session cache:** only if read volume ever needs it, in front of Postgres as the source of truth.
