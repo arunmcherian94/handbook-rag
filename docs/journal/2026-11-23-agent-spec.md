@@ -49,4 +49,4 @@ Recorded with alternatives in [spec 0013's Decisions table](../../specs/0013-han
 - Agreed spec changes: query length cap and empty-query rejection; error texts that say what to do next; budgets not overridable by the user and recorded per turn.
 
 ## Assumptions
-- The framework behaviour cited in D6 (LangChain `early_stopping_method`, OpenAI Agents SDK `MaxTurnsExceeded`, Claude Agent SDK `error_max_turns`) is from memory; check it against their docs before the build.
+- The framework behaviour cited in D6 (LangChain `early_stopping_method`, OpenAI Agents SDK `MaxTurnsExceeded`, Claude Agent SDK `error_max_turns`) was from memory. Checked before the build: see the [build journal](2026-11-23-agent-build.md#d6-framework-behaviour-checked).

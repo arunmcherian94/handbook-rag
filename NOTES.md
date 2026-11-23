@@ -39,6 +39,7 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [0020. Chunk configs coexist in one table, keyed by config_id](docs/decisions/0020-chunk-configs-coexist.md)
 - [0021. Document-level group allow-lists on chunks, filtered in SQL; identity from the session](docs/decisions/0021-permission-model.md)
 - [0022. Adopt text-embedding-3-large@1536 as the default embedding model (departs from the AC-9 rule)](docs/decisions/0022-adopt-text-embedding-3-large-1536.md)
+- [0024. Hand-rolled tool-loop agent with Postgres session state](docs/decisions/0024-hand-rolled-agent.md)
 
 ## Journal
 
@@ -71,3 +72,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-31: cross-encoder reranker build, spec 0012](docs/journal/2026-10-31-rerank-build.md)
 - [2026-11-01: cross-encoder reranker runs, spec 0012](docs/journal/2026-11-01-rerank-runs.md)
 - [2026-11-23: hand-rolled agent spec review, spec 0013](docs/journal/2026-11-23-agent-spec.md)
+- [2026-11-23: hand-rolled agent build, spec 0013](docs/journal/2026-11-23-agent-build.md)

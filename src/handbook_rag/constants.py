@@ -6,6 +6,7 @@ from pathlib import Path
 CHECKOUT = Path("data/handbook")
 DOCUMENTS_SCHEMA = Path("db/init/002_documents.sql")
 CHUNKS_SCHEMA = Path("db/init/003_chunks.sql")
+AGENT_SCHEMA = Path("db/init/004_agent_sessions.sql")
 TRACE_PATH = Path("runs/ask.jsonl")
 SPEND_LOG = Path("runs/spend.jsonl")  # one line per confirmed paid run (spec 0009, AC-3)
 
@@ -102,6 +103,25 @@ REASONING_EFFORT = "none"
 MAX_COMPLETION_TOKENS = 1024
 TOP_K = 5
 MAX_CITATION = 99  # bracketed numbers above this are years or amounts, not excerpt numbers
+# Answer model prices, for cost estimates that need tokens (spec 0013, AC-16). USD per 1M tokens,
+# standard tier. An unknown model fails the dry run rather than borrowing another's price.
+ANSWER_MODELS: dict[str, dict] = {
+    "openai:gpt-5.4-mini": {
+        "input_usd_per_1m": 0.75,
+        "output_usd_per_1m": 4.50,
+        "price_source": "developers.openai.com/api/docs/pricing, 2026-11-23",
+    },
+}
+
+# Agent (spec 0013). Budgets are per turn and change only by a code change here (AC-8, AC-9):
+# no flag, Make variable or env var sets them. The arithmetic: docs/journal/2026-11-23-agent-spec.md
+AGENT_MAX_STEPS = 6  # model calls, the final answer call included
+AGENT_MAX_TOOL_CALLS = 5  # executed or rejected; binds on its own if parallel calls are turned on
+AGENT_MAX_TOKENS = 50_000  # input + output over the turn's model calls, a projected ceiling
+AGENT_TIMEOUT_S = 90.0  # wall clock since the turn started
+AGENT_PAGES = 4  # retrieve pages 1..4 of TOP_K each: ranks up to 20 (AC-2)
+AGENT_MAX_QUERY_TOKENS = 256  # cl100k tokens per retrieve query, well under the embedder's limit
+AGENT_LEASE_MARGIN_S = 30.0  # a crashed turn's lease expires after AGENT_TIMEOUT_S + this (AC-13)
 
 # Eval harness (spec 0004)
 EVAL_SET = Path("docs/eval/eval-set-v1.md")

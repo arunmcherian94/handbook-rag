@@ -1,6 +1,6 @@
 # 0013: Hand-rolled agent, multi-turn, with explicit session state
 
-- Status: draft
+- Status: implemented
 - Date: 2026-11-23
 
 ## Problem
@@ -174,7 +174,7 @@ Decided by Arun, 23 Nov. The review questions, the adjacency check and the budge
 | D3 | State storage | **(a) In memory + a JSON file per session.** *Pros:* simplest. *Cons:* two turns on one session race (last write wins) without a lock; not how a server would store it. **(b) An append-only JSONL event log.** *Cons:* a replay function; two shapes to keep in step. **(c) Postgres tables.** *Pros:* already running; durable; one `UPDATE` gives the concurrency check; queryable for evals and audit; the production shape. *Cons:* a schema file and integration tests. **(d) Redis.** *Pros:* sub-millisecond reads; built-in expiry. *Cons:* a new service; durability depends on its persistence settings; no SQL next to `chunks`. Storage latency is irrelevant beside a ~1.9 s model call. **(e) In memory only.** *Cons:* no follow-up across CLI calls | **(c)**, with a version check and a lease (AC-13) |
 | D4 | Budget values (per turn) | **(a) Tight:** 4 steps, 4 tool calls, 20k tokens, 60 s. **(b) Medium:** 6 steps, 5 tool calls, 50k tokens, 90 s. **(c) Loose:** 10 steps, 15 tool calls, 100k tokens, 180 s. Tool calls above steps − 1 can never bind with parallel calls off, so (b) uses 5, not the 8 first drafted. Tokens are 50k, not 40k, so that a turn which spends all 5 tool calls still fits the forced final answer (D6) | **(b)** |
 | D5 | How a follow-up turn is handled | **(a) Replay the full history.** *Pros:* exact. *Cons:* turn 1 leaves ~12k tokens of tool results, re-sent at every step of turn 2, so a follow-up gets one retrieval at most. **(b) Question + final answer only.** *Pros:* ~0.5k tokens per turn; deterministic; no extra call. *Cons:* an earlier excerpt must be retrieved again to be quoted. **(c) (b) plus a list of earlier excerpts.** *Cons:* invites citing text the model can't see. **(d) Condense the follow-up into a standalone question.** *Cons:* an extra call; the rewrite can drop intent. **(e) Last N turns in full + an LLM summary of older turns.** *Pros:* the standard long-session pattern. *Cons:* the "in full" part has (a)'s cost even at N = 1; the summary is an extra, lossy call | **(b)**; summarising older turns is a follow-up (session compaction) |
-| D6 | When a budget runs out | **(a) Stop with a fixed message** (LangChain `early_stopping_method="force"`; the OpenAI Agents SDK raises `MaxTurnsExceeded`; the Claude Agent SDK returns an `error_max_turns` result). *Pros:* simplest; no extra cost. *Cons:* discards the excerpts already gathered. **(b) One final call with tools off** (LangChain `"generate"`). *Pros:* a cited answer from ACL-filtered excerpts; the checks still apply. *Cons:* needs headroom in the budget. **(c) (b) for steps and tool calls, (a) for tokens and time** | **(c)** (AC-10). Framework behaviour as recalled on 23 Nov; checked against their docs before the build |
+| D6 | When a budget runs out | **(a) Stop with a fixed message** (LangChain `early_stopping_method="force"`; the OpenAI Agents SDK raises `MaxTurnsExceeded`; the Claude Agent SDK returns an `error_max_turns` result). *Pros:* simplest; no extra cost. *Cons:* discards the excerpts already gathered. **(b) One final call with tools off** (LangChain `"generate"`). *Pros:* a cited answer from ACL-filtered excerpts; the checks still apply. *Cons:* needs headroom in the budget. **(c) (b) for steps and tool calls, (a) for tokens and time** | **(c)** (AC-10). Framework behaviour checked against their docs on 23 Nov ([build journal](../docs/journal/2026-11-23-agent-build.md#d6-framework-behaviour-checked)): the Claude Agent SDK's single-shot `query()` also raises after the `error_max_turns` result; LangChain's `AgentExecutor` is deprecated |
 | D7 | Excerpt numbering | **(a) Session-wide.** *Cons:* reaches `MAX_CITATION` (99) after about 3 turns; with (D5 b) old numbers would point at text no longer in context. **(b) Per turn**, `[n]` stripped from replayed answers. *Pros:* at most 25 per turn, so no overflow; every valid number points at visible text. *Cons:* a chunk can get different numbers in different turns (the record keys on `chunk_id`). **(c) Per retrieval call, prefixed (`[r2.3]`).** *Cons:* breaks `parse_citations` | **(b)** (AC-4) |
 | D8 | Code-side ACL re-check on tool results | **(a) Re-check every result in code.** *Pros:* defence in depth. *Cons:* redundant when every chunk already comes through the verified `ask.search` predicate. **(b) Only where data isn't already verified** | **(b)** (Arun): no re-check now; AC-3 keeps every chunk on the verified path, and a future tool with its own source adds one |
 
@@ -206,10 +206,10 @@ None.
 
 Before the implementation PR:
 
-- [ ] `make test` and `make lint` pass
-- [ ] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
-- [ ] Clean-room verified
-- [ ] docs updated: journal entry, an ADR for any decision, follow-ups
+- [x] `make test` and `make lint` pass
+- [x] `/code-review` run, findings ranked: must-fix items fixed, lower-priority items confirmed with a human
+- [x] Clean-room verified
+- [x] docs updated: journal entry, an ADR for any decision, follow-ups
 
 ## References
 

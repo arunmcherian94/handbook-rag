@@ -173,3 +173,4 @@ Agent work kept out of spec 0013 (Arun, 23 Nov). Details in [the journal](journa
 - **Session expiry:** an `expires_at` on `agent_sessions` and a cleanup job.
 - **Multi-device sessions for the same user:** the Postgres store, owner check and version check already allow it; it needs a session list per user and an API, with the week 7 service.
 - **Redis session cache:** only if read volume ever needs it, in front of Postgres as the source of truth.
+- **Move citation parsing out of `ask.py`:** `parse_citations` and `CITATION` are shared by `ask` and `agent/loop.py`. A small `citations.py` would stop the agent importing from the single-shot pipeline's module. Deferred from the PR #60 review (Arun, 23 Nov): it moves code on the frozen `ask` path, and spec 0013 doesn't need it.
