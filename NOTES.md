@@ -9,7 +9,7 @@ Index of the project notes. The notes themselves live in `docs/`.
 | Dated log: gate catches, findings, limitations | [docs/journal/](docs/journal/), listed below |
 | Follow-ups (not built) | [docs/follow-ups.md](docs/follow-ups.md) |
 | Corpus: git behaviors, limitations, assumptions | [docs/corpus.md](docs/corpus.md) |
-| Reading log | [docs/reading/](docs/reading/): [week 1](docs/reading/week-01.md), [week 2](docs/reading/week-02.md), [week 3](docs/reading/week-03.md) |
+| Reading log | [docs/reading/](docs/reading/): [week 1](docs/reading/week-01.md), [week 2](docs/reading/week-02.md), [week 3](docs/reading/week-03.md), [week 5](docs/reading/week-05.md) |
 | Error analysis: seed traces | [docs/error-analysis/](docs/error-analysis/) |
 | Eval set, results, metric definitions | [docs/eval/](docs/eval/), [results/metrics.md](docs/eval/results/metrics.md) |
 
@@ -70,3 +70,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-10-30: hybrid search runs and audit, spec 0011](docs/journal/2026-10-30-hybrid-runs.md)
 - [2026-10-31: cross-encoder reranker build, spec 0012](docs/journal/2026-10-31-rerank-build.md)
 - [2026-11-01: cross-encoder reranker runs, spec 0012](docs/journal/2026-11-01-rerank-runs.md)
+- [2026-11-23: hand-rolled agent spec review, spec 0013](docs/journal/2026-11-23-agent-spec.md)
