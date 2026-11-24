@@ -7,6 +7,27 @@ and what it changes in this project. Newest first within each date.
 
 ## Guardrails (Tue 24 Nov)
 
+### Beyond permission prompts: making Claude Code more secure and autonomous (Anthropic, Oct 2025)
+
+[Beyond permission prompts](https://www.anthropic.com/engineering/claude-code-sandboxing), Anthropic Engineering (David Dworken, Oliver Weller-Davies), 20 Oct 2025. Read by Arun on 24 Nov.
+
+**Summary (Claude-drafted):**
+- Asking before every file change or command slows work down and causes approval fatigue: people stop reading what they approve, which makes the tool less safe, not more.
+- The answer is sandboxing: fixed limits on what the agent can do, inside which it can act without asking. In internal use this cut permission prompts by 84%.
+- There are two boundaries, and both are needed. Filesystem isolation: read and write only in the working directory. Network isolation: connect only to approved domains, through a proxy outside the sandbox that asks the user about new domains.
+- One without the other fails. Without network isolation, a compromised agent can send out secrets such as SSH keys. Without filesystem isolation, it can escape the sandbox and reach the network.
+- Enforcement is at the OS level (bubblewrap on Linux, seatbelt on macOS) and covers every subprocess. So a successful prompt injection is contained, not just discouraged.
+- The same idea applies to Claude Code on the web: git credentials stay outside the sandbox, behind a proxy that checks scope and branch.
+
+**How it applies to handbook-rag:**
+- The same principle as the lethal trifecta, enforced outside the model. In handbook-rag the agent's network reach is fixed in code (the chat and embedding adapters), not chosen by the model, and it has no filesystem tool. Spec 0014 AC-13 turns that into a static test.
+- The paid-call hook (spec 0009) is this project's permission prompt. It asks only on exact `paid-*` names so that prompts stay rare and get read, the same reason the article gives against approval fatigue.
+- Budgets in code (spec 0013 AC-9) and the policy as a code constant (spec 0014 D8) follow the same idea: limits are set outside anything the model or user input can change.
+
+**In one line:** contain the agent with hard filesystem and network boundaries enforced outside the model, so it can act freely inside them without a prompt for every step.
+
+**My takeaway:**
+
 ### The lethal trifecta for AI agents (Simon Willison, Jun 2025)
 
 [The lethal trifecta for AI agents](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/), Simon Willison, 16 Jun 2025. Read by Arun on 24 Nov.
@@ -24,7 +45,7 @@ and what it changes in this project. Newest first within each date.
 - Spec 0014 keeps that leg cut and proves it: AC-13 (a static test that the agent has no outbound tool or network client) and D7 / AC-9 (no URLs or images in answers).
 - Why D1 and D2 treat pattern detection as a signal, not the defence: the structural controls (the ACL pre-filter in SQL, the Principal bound in code, no egress) carry the load.
 
-**Interview line:** "The agent holds private data and reads untrusted text, so I keep the third leg cut: its only tool is read-only retrieval, and identity is bound in code, never by the model."
+**In one line:** prompt injection can't be filtered out reliably, so never give one agent private data, untrusted content and a way to send data out all at once.
 
 **My takeaway:**
 
@@ -46,7 +67,7 @@ and what it changes in this project. Newest first within each date.
 - D4 / AC-10, AC-11: PII redaction before persistence and before the provider call. The regex-only caveat is recorded in D4.
 - No human-approval step is needed while no tool has side effects. A write or send tool would need one. The paid-call hook is the human gate for spend today.
 
-**Interview line:** "OWASP's 2026 guidance treats prompt injection as unpreventable, so it says to limit the blast radius. That's what the agent already does: the ACL is enforced in SQL before ranking, and the model gets one read-only tool with no identity argument."
+**In one line:** assume injection will succeed, and make it harmless by limiting what the model can see, do and send, enforced in code rather than in the prompt.
 
 **My takeaway:**
 
