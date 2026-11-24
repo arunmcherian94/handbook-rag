@@ -174,3 +174,13 @@ Agent work kept out of spec 0013 (Arun, 23 Nov). Details in [the journal](journa
 - **Multi-device sessions for the same user:** the Postgres store, owner check and version check already allow it; it needs a session list per user and an API, with the week 7 service.
 - **Redis session cache:** only if read volume ever needs it, in front of Postgres as the source of truth.
 - **Move citation parsing out of `ask.py`:** `parse_citations` and `CITATION` are shared by `ask` and `agent/loop.py`. A small `citations.py` would stop the agent importing from the single-shot pipeline's module. Deferred from the PR #60 review (Arun, 23 Nov): it moves code on the frozen `ask` path, and spec 0013 doesn't need it.
+
+## From spec 0014 (2026-11-24)
+
+Guardrail work kept out of [spec 0014](../specs/0014-guardrails.md) (Arun, 24 Nov).
+
+- **PII beyond regex (D4):** NER-based detection (e.g. Presidio) for person names and addresses, exempting values that appear in the turn's excerpts so handbook names survive; a trained classifier pass, as OWASP LLM02:2026 Tier 1 #5 recommends; more entities (IP address, postal address, non-US national IDs) and locales.
+- **Per-user repeat-trip escalation (D2):** count `flag` events per user over a window, and add friction (refuse, or require review) past a threshold. Needs a user-level store and the week 6 trip-rate data to set the threshold.
+- **Shadow mode for new rules (D2):** add a new pattern as flag-only, measure its false-positive rate on real traffic, then decide whether it blocks.
+- **Revisit a classifier (D1):** if week 6 trip rates or a paid injection eval show the rules missing paraphrased or encoded attacks, weigh an injection classifier against its cost and latency per turn.
+- **Links from excerpts (D7 b):** allow a URL that appears verbatim in the turn's excerpts, if a UI ever renders answers. Needs the eval's `no_url` check (spec 0010) changed to match.
