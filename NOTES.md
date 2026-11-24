@@ -74,3 +74,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-11-23: hand-rolled agent spec review, spec 0013](docs/journal/2026-11-23-agent-spec.md)
 - [2026-11-23: hand-rolled agent build, spec 0013](docs/journal/2026-11-23-agent-build.md)
 - [2026-11-24: first paid agent turn](docs/journal/2026-11-24-first-paid-agent-turn.md)
+- [2026-11-24: guardrails spec, spec 0014](docs/journal/2026-11-24-guardrails-spec.md)
