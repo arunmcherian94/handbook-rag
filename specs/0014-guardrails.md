@@ -1,6 +1,6 @@
 # 0014: Agent guardrails (input, excerpt framing, output, PII, retry with feedback)
 
-- Status: approved
+- Status: implemented
 - Date: 2026-11-24
 
 ## Problem

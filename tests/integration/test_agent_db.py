@@ -14,6 +14,7 @@ from handbook_rag.constants import BASELINE_CONFIG, CORPUS_PREFIX
 from handbook_rag.db import connect, vector_literal
 from handbook_rag.evaluation.permissions import parse_suite
 from handbook_rag.models import ToolCall
+from handbook_rag.prompts import NOT_FOUND
 
 pytestmark = pytest.mark.integration
 
@@ -149,7 +150,8 @@ def test_claimed_identity_through_the_agent(claims_db, case):
     assert hidden_docs, f"{case.id}: persona can see every target; not a denied case"
 
     script = [tool_step(case.question, page=p, call_id=f"c{p}") for p in range(1, 5)]
-    model = FakeChatModel([*script, final_step("I don't know based on the provided excerpts.")])
+    # Spec 0014 AC-7: the exact fixed string; a near-miss now triggers a citation retry.
+    model = FakeChatModel([*script, final_step(NOT_FOUND)])
     tool = TurnTool(conn, FakeEmbedder(name=MODEL_CLAIMS), principal)
     saved: list[dict] = []
     rec = run_turn(model, tool, case.question, [], saved.append)
