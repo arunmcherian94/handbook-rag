@@ -9,7 +9,8 @@ from fakes import FakeChatModel, FakeEmbedder, final_step, make_principal
 
 from handbook_rag import constants, spend
 from handbook_rag.agent import __main__ as cli
-from handbook_rag.agent import store
+from handbook_rag.agent import guardrails, store
+from handbook_rag.prompts import GUARDRAIL_REFUSALS, OUT_OF_SCOPE
 
 P = make_principal("staff", user_id="us-ic")
 EMBED = "openai:text-embedding-3-large@1536"
@@ -139,9 +140,10 @@ def test_confirm_without_paid_env_exits(monkeypatch, tmp_path):
 
 def test_paid_path_claims_runs_releases_logs(monkeypatch, tmp_path, capsys):
     """AC-17, AC-13: claim, run, release, then one spend line with run_id=session id and the
-    terminal state as status."""
+    terminal state as status. Amended by spec 0014 AC-7: the reply is a fixed string, since an
+    uncited one now triggers a retry."""
     spies, sess, path = env(monkeypatch, tmp_path, paid=True)
-    model = FakeChatModel([final_step("Hello.")])
+    model = FakeChatModel([final_step(OUT_OF_SCOPE)])
     monkeypatch.setattr(cli, "make_chat_model", lambda spec: model)
     assert cli.main(["--as", "us-ic", "--confirm", "q"]) == 0
     assert spies.names() == [
@@ -156,9 +158,9 @@ def test_paid_path_claims_runs_releases_logs(monkeypatch, tmp_path, capsys):
     assert spies.calls[3][1][1:3] == (sid, 1)
     (line,) = path.read_text().splitlines()
     rec = json.loads(line)
-    assert (rec["target"], rec["run_id"], rec["status"]) == ("agent", sid, "answered")
+    assert (rec["target"], rec["run_id"], rec["status"]) == ("agent", sid, "abstained")
     out = capsys.readouterr().out
-    assert "Hello." in out and f"SESSION={sid}" in out
+    assert OUT_OF_SCOPE in out and f"SESSION={sid}" in out
 
 
 def test_failed_run_still_logs_spend(monkeypatch, tmp_path):
@@ -233,3 +235,90 @@ def test_resume_dry_run_ok(monkeypatch, tmp_path, capsys):
     no_model(monkeypatch)
     assert cli.main(["--as", "us-ic", "--session", str(sess.session_id), "q"]) == 0
     assert f"session {sess.session_id}, turn 1" in capsys.readouterr().out
+
+
+# Spec 0014
+
+
+def test_header_records_guardrails_version_and_sha():
+    """0014 AC-1: the session header records the policy version and sha; neither is bound."""
+    bound = {"user_id": "us-ic"}
+    h = cli.header(bound, EMBED, ANSWER, "abc")
+    assert h["guardrails_version"] == "guardrails-v1"
+    assert h["guardrails_sha256"] == guardrails.POLICY.sha256()
+    assert "guardrails_version" not in store.BINDING_KEYS
+    assert "guardrails_sha256" not in store.BINDING_KEYS
+
+
+def test_blank_question_blocked_before_any_model_call(monkeypatch, tmp_path, capsys):
+    """0014 AC-3, AC-12: a blank question is blocked with no model call; the CLI prints the fixed
+    text and the guardrails line, and the spend status is guardrail_blocked."""
+    spies, _, path = env(monkeypatch, tmp_path, paid=True)
+    model = FakeChatModel([])
+    monkeypatch.setattr(cli, "make_chat_model", lambda spec: model)
+    assert cli.main(["--as", "us-ic", "--confirm", "   "]) == 0
+    assert model.calls == []
+    assert json.loads(path.read_text())["status"] == "guardrail_blocked"
+    out = capsys.readouterr().out
+    assert GUARDRAIL_REFUSALS["input_empty"] in out
+    assert "guardrails: input/input_empty block input_empty ×1" in out
+    assert "state: guardrail_blocked (input_empty)" in out
+
+
+def test_citation_failure_blocked_spend_status(monkeypatch, tmp_path, capsys):
+    """0014 AC-7, AC-8, AC-12: two uncited replies end guardrail_blocked; the spend status says
+    so and the CLI prints the fixed text, not the rejected reply."""
+    spies, _, path = env(monkeypatch, tmp_path, paid=True)
+    model = FakeChatModel([final_step("Hello."), final_step("Hello again.")])
+    monkeypatch.setattr(cli, "make_chat_model", lambda spec: model)
+    assert cli.main(["--as", "us-ic", "--confirm", "q"]) == 0
+    assert json.loads(path.read_text())["status"] == "guardrail_blocked"
+    out = capsys.readouterr().out
+    assert GUARDRAIL_REFUSALS["citation_check_failed"] in out
+    assert "Hello again." not in out.split("Steps:")[0]
+    assert "output/output_citation retry citation_missing ×1" in out
+    assert "output/output_citation block citation_missing ×1" in out
+
+
+def test_guardrails_line_all_passed(monkeypatch, tmp_path, capsys):
+    """0014 AC-2: a clean turn prints 'guardrails: all passed'."""
+    env(monkeypatch, tmp_path, paid=True)
+    monkeypatch.setattr(
+        cli, "make_chat_model", lambda spec: FakeChatModel([final_step(OUT_OF_SCOPE)])
+    )
+    cli.main(["--as", "us-ic", "--confirm", "What is the PTO policy?"])
+    assert "guardrails: all passed" in capsys.readouterr().out
+
+
+def test_no_raw_pii_in_cli_output_or_saved_turns(monkeypatch, tmp_path, capsys):
+    """0014 AC-11: no raw PII value from the question reaches the CLI output, the saved turn or
+    the spend log; the spend record keeps exactly its keys, none with free text."""
+    spies, _, path = env(monkeypatch, tmp_path, paid=True)
+    values = [
+        "jane.doe@example.org",
+        "+44 20 7946 0958",
+        "4111 1111 1111 1111",
+        "123-45-6789",
+        "GB82 WEST 1234 5698 7654 32",
+    ]
+    question = "My details: " + ", ".join(values) + ". What is the PTO policy?"
+    model = FakeChatModel([final_step(OUT_OF_SCOPE)])
+    monkeypatch.setattr(cli, "make_chat_model", lambda spec: model)
+    cli.main(["--as", "us-ic", "--confirm", question])
+    out = capsys.readouterr().out
+    saved = [json.dumps(c[1][3]) for c in spies.calls if c[0] == "save_turn"]
+    assert saved
+    for blob in [out, *saved, path.read_text()]:
+        for v in values:
+            assert v not in blob
+    rec = json.loads(path.read_text())
+    assert set(rec) == {
+        "timestamp",
+        "target",
+        "run_id",
+        "embed_model",
+        "answer_model",
+        "est_usd",
+        "status",
+    }
+    assert "PTO" not in path.read_text()

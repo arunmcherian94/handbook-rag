@@ -40,6 +40,7 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [0021. Document-level group allow-lists on chunks, filtered in SQL; identity from the session](docs/decisions/0021-permission-model.md)
 - [0022. Adopt text-embedding-3-large@1536 as the default embedding model (departs from the AC-9 rule)](docs/decisions/0022-adopt-text-embedding-3-large-1536.md)
 - [0024. Hand-rolled tool-loop agent with Postgres session state](docs/decisions/0024-hand-rolled-agent.md)
+- [0025. Deterministic agent guardrails with a versioned policy in code](docs/decisions/0025-agent-guardrails.md)
 
 ## Journal
 
@@ -75,3 +76,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-11-23: hand-rolled agent build, spec 0013](docs/journal/2026-11-23-agent-build.md)
 - [2026-11-24: first paid agent turn](docs/journal/2026-11-24-first-paid-agent-turn.md)
 - [2026-11-24: guardrails spec, spec 0014](docs/journal/2026-11-24-guardrails-spec.md)
+- [2026-11-24: guardrails build, spec 0014](docs/journal/2026-11-24-guardrails-build.md)

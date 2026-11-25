@@ -1,4 +1,7 @@
-"""The agent's tool loop for one turn (spec 0013, AC-7 to AC-11, AC-14, AC-15).
+"""The agent's tool loop for one turn (spec 0013, AC-7 to AC-11, AC-14, AC-15), with the spec
+0014 guardrails around it: input checks (AC-3, AC-4), excerpt events (AC-5), the final-answer
+check with one retry (AC-7, AC-8), link and PII stripping (AC-9, AC-10), redaction before every
+save (AC-11) and the guardrail_blocked state (AC-12).
 
 run_turn is a function of (question, earlier turn records, model, tool): it holds no session
 state of its own, so a later mode can wrap it or resume it from a saved record. The turn record
@@ -13,6 +16,7 @@ from datetime import UTC, datetime
 
 import tiktoken
 
+from handbook_rag.agent import guardrails
 from handbook_rag.agent.tool import TOOL, ToolTimeout, TurnTool
 from handbook_rag.ask import CITATION, parse_citations
 from handbook_rag.constants import (
@@ -26,11 +30,14 @@ from handbook_rag.constants import (
 )
 from handbook_rag.evaluation.checks import abstention
 from handbook_rag.models import ChatModel, ChatStep, ToolCall
-from handbook_rag.prompts import AGENT_SYSTEM_PROMPT, BUDGET_STOPPED
+from handbook_rag.prompts import AGENT_SYSTEM_PROMPT, BUDGET_STOPPED, GUARDRAIL_REFUSALS
 
-# The terminal states (AC-11) and the budgets that can end a turn (AC-10).
-STATES = ("answered", "abstained", "budget_exhausted", "error")
+# The terminal states (0013 AC-11, amended by 0014 AC-12) and the budgets that can end a turn.
+STATES = ("answered", "abstained", "budget_exhausted", "guardrail_blocked", "error")
 BUDGET_NAMES = ("steps", "tool_calls", "tokens", "timeout")
+# 0014 AC-3: questions blocked before any call. Not replayed in a follow-up (review fix): a
+# replay would carry an over-long or garbage question past the input checks.
+INPUT_BLOCKS = ("input_empty", "input_too_long", "input_garbage")
 TOOL_BUDGET_SPENT = (
     "Error: the tool-call budget for this question is spent; answer from the excerpts above."
 )
@@ -66,6 +73,8 @@ def replay(history: list[dict]) -> list[dict]:
     or time, or an error) is replayed as its question alone."""
     messages: list[dict] = []
     for record in history:
+        if record.get("guardrail_reason") in INPUT_BLOCKS:
+            continue  # 0014 review fix: a blocked question never reaches the model, later either
         messages.append({"role": "user", "content": record["question"]})
         answer = record.get("answer")
         if answer is None:
@@ -102,6 +111,18 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _excerpt_text(tool: TurnTool) -> str:
+    """This turn's excerpt content: PII found verbatim here is handbook text (0014 AC-10)."""
+    return "\n".join(e.content for e in tool.excerpts)
+
+
+def _counts_event(check: str, counts: dict[str, int]) -> dict:
+    """A PII check's event: redact with per-entity counts and a total, or pass (0014 AC-2)."""
+    if not counts:
+        return guardrails.event(check, "pass")
+    return guardrails.event(check, "redact", "pii", **counts, count=sum(counts.values()))
+
+
 def run_turn(
     model: ChatModel,
     tool: TurnTool,
@@ -115,17 +136,18 @@ def run_turn(
 
     Never raises for a model, database or store failure: the turn ends as `error` with the
     exception's type and message (a last save is attempted).
+
+    `save` and the caller receive a redacted copy of the record (spec 0014 AC-11); the working
+    record, with the text the model saw, never leaves this function.
     """
     limits = budgets()
-    messages = [
-        {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-        *replay(history),
-        {"role": "user", "content": question},
-    ]
+    policy = guardrails.POLICY
+    events: list[dict] = []
+    messages: list[dict] = []
     tools = [TOOL]
     record: dict = {
         "turn_no": turn_no,
-        "question": question,
+        "question": question,  # stripped below; redacted in full on save (0014 AC-11)
         "answer_model": model.name,
         "started_at": _now(),
         "ended_at": None,
@@ -144,11 +166,27 @@ def run_turn(
         "truncated": False,
         "tokens": {"input": 0, "output": 0},
         "latency_ms": 0.0,
-        "stop_message": None,  # BUDGET_STOPPED when tokens or time end the turn (AC-10)
+        # BUDGET_STOPPED when tokens or time end the turn (AC-10); the GUARDRAIL_REFUSALS text
+        # for a guardrail_blocked turn (0014 AC-12)
+        "stop_message": None,
         "error": None,
+        # spec 0014
+        "guardrails_version": policy.version,  # AC-1
+        "guardrails_sha256": policy.sha256(),
+        "excerpt_nonce": tool.nonce,  # AC-5
+        "guardrail_events": events,  # AC-2
+        "guardrail_reason": None,  # AC-12
+        "retries": 0,  # AC-8
     }
     t0 = clock()
     model_calls = tool_calls = 0
+
+    def persist() -> dict:
+        """Save and return a redacted copy (0014 AC-11): model text keeps values present in this
+        turn's excerpts, user-originated text gets no exemption."""
+        out = guardrails.redact_record(record, _excerpt_text(tool))
+        save(out)
+        return out
 
     def finish(state: str, budget: str | None = None) -> dict:
         record["state"], record["budget"] = state, budget
@@ -158,10 +196,28 @@ def run_turn(
         ]
         record["ended_at"] = _now()
         record["latency_ms"] = (clock() - t0) * 1000
-        save(record)
-        return record
+        return persist()
+
+    def block(reason: str, budget: str | None = None) -> dict:
+        record["guardrail_reason"] = reason
+        record["stop_message"] = GUARDRAIL_REFUSALS[reason]
+        return finish("guardrail_blocked", budget)
 
     try:
+        # Inside the try (review fix), so a failing check still ends the turn as `error`.
+        clean, input_events, blocked = guardrails.check_input(question)  # 0014 AC-3, AC-4
+        record["question"] = clean
+        events.extend(input_events)
+        # 0014 D4: the model gets the question with PII redacted, apart from @gitlab.com emails.
+        to_model, pii = guardrails.redact_pii(clean, allow_gitlab_email=True)
+        events.append(_counts_event("input_pii", pii))
+        messages += [
+            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+            *replay(history),
+            {"role": "user", "content": to_model},
+        ]
+        if blocked:  # 0014 AC-3: no model, embedding or tool call
+            return block(blocked)
         while True:
             elapsed = clock() - t0
             if elapsed >= limits["timeout_s"]:
@@ -224,7 +280,7 @@ def run_turn(
                         record["stop_message"] = BUDGET_STOPPED
                         return finish("budget_exhausted", "timeout")
                     tool_calls += 1
-                save(record)
+                persist()
                 continue
 
             # The final answer: a reply with no tool call, or the forced call (AC-7, AC-10).
@@ -246,7 +302,6 @@ def run_turn(
             citations, invalid = parse_citations(text, tool.excerpts)  # AC-15: this turn only
             check = abstention(text, None)
             record.update(
-                answer=text,
                 citations=[
                     {"n": c.n, "url_path": c.url_path, "heading": c.heading} for c in citations
                 ],
@@ -256,6 +311,50 @@ def run_turn(
                 truncated=step.truncated,
                 forced_final=forced is not None,
             )
+            failed = guardrails.final_check(len(citations), invalid, check.abstained, check.label)
+            if failed:  # 0014 AC-7
+                # Links stripped from the stored rejected reply too (review fix, AC-2: removed
+                # URLs are never kept in full); PII is redacted on save like any assistant text.
+                rejected = {"role": "assistant", "content": guardrails.strip_links(text)[0]}
+                feedback = {
+                    "role": "user",
+                    "content": guardrails.retry_feedback(failed, invalid, len(tool.excerpts)),
+                }
+                spent = record["tokens"]["input"] + record["tokens"]["output"]
+                projected = spent + _tokens([*messages, rejected, feedback], tools)
+                can_retry = (  # 0014 AC-8: one retry, only inside the existing budgets
+                    record["retries"] < policy.max_retries
+                    and not forced
+                    and model_calls < limits["max_steps"]
+                    and clock() - t0 < limits["timeout_s"]
+                    and projected + MAX_COMPLETION_TOKENS <= limits["max_tokens"]
+                )
+                messages.append(rejected)  # the rejected reply stays in the record (AC-12)
+                action = "retry" if can_retry else "block"
+                events.extend(guardrails.event("output_citation", action, r) for r in failed)
+                if can_retry:
+                    record["retries"] += 1
+                    messages.append(feedback)
+                    # Review fix: the rejected reply's checks must not outlive it.
+                    record.update(
+                        citations=[],
+                        invalid_citations=[],
+                        abstained=None,
+                        abstention_label=None,
+                        truncated=False,
+                        forced_final=False,
+                    )
+                    persist()
+                    continue
+                # 0014 AC-12: takes precedence over budget_exhausted; budget still names the
+                # budget that forced the reply.
+                return block("citation_check_failed", forced)
+            events.append(guardrails.event("output_citation", "pass"))
+            answer, link_events = guardrails.strip_links(text)  # 0014 AC-9
+            events.extend(link_events)
+            answer, pii = guardrails.redact_pii(answer, keep=_excerpt_text(tool))  # 0014 AC-10
+            events.append(_counts_event("output_pii", pii))
+            record["answer"] = answer
             if forced:
                 return finish("budget_exhausted", forced)
             return finish("abstained" if check.abstained else "answered")
@@ -265,7 +364,10 @@ def run_turn(
             return finish("error")
         except Exception:  # noqa: BLE001 - the store itself failed; the caller still gets the record
             record["state"] = "error"
-            return record
+            try:
+                return guardrails.redact_record(record, _excerpt_text(tool))
+            except Exception:  # noqa: BLE001 - review fix: never return unredacted text
+                return {**record, "question": "[unavailable]", "messages": [], "steps": []}
 
 
 def _run_tool(
@@ -281,6 +383,7 @@ def _run_tool(
         content = TOOL_BUDGET_SPENT
     else:
         result = tool.execute(call, time_left=time_left)
+        record["guardrail_events"].extend(result.events)  # 0014 AC-4, AC-5
         entry.update(
             accepted=result.accepted,
             error=result.error,

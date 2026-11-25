@@ -14,7 +14,7 @@ import uuid
 from datetime import UTC, datetime
 
 from handbook_rag import acl, identity
-from handbook_rag.agent import store
+from handbook_rag.agent import guardrails, store
 from handbook_rag.agent.loop import budgets, run_turn
 from handbook_rag.agent.tool import TOOL, TurnTool
 from handbook_rag.constants import (
@@ -77,6 +77,9 @@ def header(bound: dict, embed_spec: str, answer_spec: str, corpus_sha: str) -> d
         "corpus_sha": corpus_sha,
         "system_prompt_sha256": _sha256(AGENT_SYSTEM_PROMPT),
         "tool_sha256": _sha256(json.dumps(TOOL, sort_keys=True)),
+        # spec 0014 AC-1: recorded, not bound (D8); every turn records the version it ran
+        "guardrails_version": guardrails.POLICY.version,
+        "guardrails_sha256": guardrails.POLICY.sha256(),
     }
 
 
@@ -109,11 +112,15 @@ def format_turn(record: dict, session_id: str) -> str:
         else:
             mark = f"-> {s['numbers']}" if s["accepted"] else f"rejected: {s['error']}"
             lines.append(f"  {s['name']} {s['arguments']} {mark}")
-    budget = f" ({record['budget']}{', forced final' if record['forced_final'] else ''})"
+    notes = [n for n in (record.get("guardrail_reason"), record["budget"]) if n]
+    if record["budget"] and record["forced_final"]:
+        notes.append("forced final")
+    suffix = f" ({', '.join(notes)})" if notes else ""
     t = record["tokens"]
     lines += [
         "",
-        f"state: {state}{budget if record['budget'] else ''} | tokens: in {t['input']}, "
+        guardrails.format_events(record.get("guardrail_events", [])),  # spec 0014 AC-2
+        f"state: {state}{suffix} | tokens: in {t['input']}, "
         f"out {t['output']} | latency {record['latency_ms']:.0f} ms",
         f"session {session_id}, turn {record['turn_no']}: follow up with SESSION={session_id}",
     ]
