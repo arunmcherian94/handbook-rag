@@ -26,7 +26,7 @@ and what it changes in this project. Newest first within each date.
 
 **In one line:** contain the agent with hard filesystem and network boundaries enforced outside the model, so it can act freely inside them without a prompt for every step.
 
-**My takeaway (Claude-drafted from the 25 Nov discussion; Arun reviews):** asking the user to approve every action isn't safety, because people stop reading what they approve. Fix the boundaries outside the agent, in the OS or in code, and let it act freely inside them. For us the boundaries are code: one read-only tool, budgets as constants and a policy in code. Our only prompt, the paid-call hook, stays rare so that it still gets read.
+**My takeaway:** asking the user to approve every action isn't safety, because people stop reading what they approve. Fix the boundaries outside the agent, in the OS or in code, and let it act freely inside them. For us the boundaries are code: one read-only tool, budgets as constants and a policy in code. Our only prompt, the paid-call hook, stays rare so that it still gets read.
 
 ### The lethal trifecta for AI agents (Simon Willison, Jun 2025)
 
@@ -47,7 +47,7 @@ and what it changes in this project. Newest first within each date.
 
 **In one line:** prompt injection can't be filtered out reliably, so never give one agent private data, untrusted content and a way to send data out all at once.
 
-**My takeaway (Claude-drafted from the 25 Nov discussion; Arun reviews):** flagging an injection doesn't stop the model obeying it; nothing in the prompt can guarantee that. What makes it harmless is cutting a leg of the trifecta. Our agent has no way to send data out, and it sees only data the user can already see. So the worst a successful injection can do is give this user a wrong answer. Detection, whether regex now or a classifier later (C1), is a signal for observability and evals, not the defence. Any future tool that fetches, sends or renders reopens the question.
+**My takeaway:** flagging an injection doesn't stop the model obeying it; nothing in the prompt can guarantee that. What makes it harmless is cutting a leg of the trifecta. Our agent has no way to send data out, and it sees only data the user can already see. So the worst a successful injection can do is give this user a wrong answer. Detection, whether regex now or a classifier later (C1), is a signal for observability and evals, not the defence. Any future tool that fetches, sends or renders reopens the question.
 
 ### OWASP Top 10 for LLM Applications 2026 (OWASP GenAI Security Project, Aug 2026)
 
@@ -69,7 +69,7 @@ and what it changes in this project. Newest first within each date.
 
 **In one line:** assume injection will succeed, and make it harmless by limiting what the model can see, do and send, enforced in code rather than in the prompt.
 
-**My takeaway (Claude-drafted from the 25 Nov discussion; Arun reviews):** production systems layer controls. Cheap deterministic checks come first: invisible-character stripping, framing untrusted content, and authorising in the retrieval query. A classifier comes next (Prompt Guard, Prompt Shields, Lakera and similar), and containment sits behind both. Our regex layer looks trivial on its own, and that's expected: the controls that hold up are the blast-radius ones (least privilege, deterministic checks, no egress). A classifier mainly improves detection, not safety. PII regex is weak against encoded or multilingual text, so redaction is best effort, which is another reason structural controls carry the load.
+**My takeaway:** production systems layer controls. Cheap deterministic checks come first: invisible-character stripping, framing untrusted content, and authorising in the retrieval query. A classifier comes next (Prompt Guard, Prompt Shields, Lakera and similar), and containment sits behind both. Our regex layer looks trivial on its own, and that's expected: the controls that hold up are the blast-radius ones (least privilege, deterministic checks, no egress). A classifier mainly improves detection, not safety. PII regex is weak against encoded or multilingual text, so redaction is best effort, which is another reason structural controls carry the load.
 
 ---
 
