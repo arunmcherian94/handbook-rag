@@ -215,4 +215,8 @@ Guardrail work kept out of [spec 0014](../specs/0014-guardrails.md) (Arun, 24 No
 - **Session taint (L2):** mark a session tainted when an excerpt is flagged (AC-4), and require approval for any side-effect call in a tainted session. Nothing to gate until such a tool exists.
 - **Canary token (L4):** a random per-session token in the system prompt, checked in the output and in tool arguments; withhold the answer on a match. A smoke detector, valuable once a prompt holds anything private or an outbound channel exists.
 - **Paid injection eval (forbidden-outcome rate):** now committed as [C2](#committed-guardrail-work-arun-25-nov), regex alone vs regex plus a classifier (Arun, 25 Nov). The datamarking comparison can reuse the same eval.
+- **Retry probe against the real model (Arun, 25 Nov):** four paid turns didn't trigger the citation retry; the model searched and cited, or abstained exactly ([journal](journal/2026-11-25-retry-smoke-turn.md)). So AC-8 has run only against fakes.
+  - **Probe:** a test-only entry point that substitutes a scripted failing first reply (e.g. citing `[9]`), then lets the real model handle the retry feedback.
+  - **Checks:** the API accepts the feedback message, the retry fixes the citation, and budgets and events are correct.
+  - **Cost:** under a cent per run. Needs an AC, and Arun's OK for the spend.
 - **Partial PII masking:** show the last 4 digits of a card or phone number (`**** 4821`) instead of a typed placeholder, where that helps the user.
