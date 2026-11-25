@@ -77,3 +77,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-11-24: first paid agent turn](docs/journal/2026-11-24-first-paid-agent-turn.md)
 - [2026-11-24: guardrails spec, spec 0014](docs/journal/2026-11-24-guardrails-spec.md)
 - [2026-11-24: guardrails build, spec 0014](docs/journal/2026-11-24-guardrails-build.md)
+- [2026-11-25: retry-path smoke turns (no retry in 4 attempts)](docs/journal/2026-11-25-retry-smoke-turn.md)
