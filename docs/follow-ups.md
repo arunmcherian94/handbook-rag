@@ -1,5 +1,30 @@
 # Follow-ups (not built)
 
+## Committed guardrail work (Arun, 25 Nov)
+
+Committed and scheduled, not optional. They came out of the [spec 0014](../specs/0014-guardrails.md) review. C3 comes first, at the start of week 6; C1 and C2 also land in week 6, next to the judge.
+
+- **C1. Injection classifier: compare the options, implement one.** Today input and excerpt detection is regex only (D1). It misses paraphrases, other languages and spaced-out keywords (`i g n o r e all previous instructions` trips nothing). Compare Meta Prompt Guard, Azure Prompt Shields, Lakera Guard, the AWS Bedrock Guardrails prompt-attack filter and NVIDIA NeMo Guardrails on:
+  - cost per turn and latency
+  - hosting: local model vs API (an API sends user text to a third party, OWASP LLM02)
+  - language coverage
+  - published bypass results
+
+  Pick one as a decision with alternatives, then add it as a layer after the rules: rules first, the classifier on what passes. The choice rests on C2's numbers.
+- **C2. Paid injection eval: regex alone vs regex plus the classifier.**
+  - **Attacks:** report the forbidden-outcome rate (attack success) on the `injection-v1` cases, extended with paraphrased, multilingual and spaced-letter variants.
+  - **False positives:** report the false-positive rate on the 128 real questions (eval set v1.2 + permissions-v1).
+  - Each with an SE. The result should read "the classifier cut the forbidden-outcome rate from X% to Y% at a Z% false-positive cost".
+  - The regex-alone arm is the baseline, and it can reuse the trajectory-eval harness.
+  - Paid: dry-run estimate first, then Arun's OK.
+- **C3. Source links and excerpt URLs (immediate: first after this week's committed work).** Today every URL is stripped from answers (D7 a). Two user needs remain, and neither needs the model to write a URL:
+  - **Clickable sources.** The `Sources:` block, and each `[n]` in a UI, link to the document. Code builds the link from the excerpt's `url_path` and heading anchor, never from model text, so it reveals only a page the user's permissions already returned.
+    - Decide the target: the live handbook site (friendlier, but it can differ from the pinned corpus) or a permalink to the handbook repo at pin `5273b21` (exactly what the model saw).
+  - **URLs inside excerpts** (forms, tools). Options:
+    - (a) **Code-extracted links:** code lists the URLs from the *cited* excerpts under the sources. The model still can't emit a URL, so exfiltration stays closed.
+    - (b) **Verbatim allowlist** (D7 b): a model-written URL survives only if it appears verbatim in this turn's excerpts. A URL planted in the corpus still passes, and the eval's `no_url` check (spec 0010) must change.
+    - (c) **Domain allowlist:** weakest; exfiltration through allowed domains (issues, snippets) is still possible.
+
 - **Chunk dates for recency (week 2 or later):** store a per-chunk date from `git blame` that skips the bulk commits (968e3521af, bee431b547, 4469685d7b), and show it to the model with each chunk so it can prefer the newer source. Blame needs network access on the blobless clone. Measure it against the `history-only` facts.
 - **Synthetic retrieval set (week 2):** questions generated from sections (not chunks), labelled synthetic, scored for retrieval only and always reported apart from v1. Gives chunking and embedding comparisons more statistical power than 33 rows. Size from spec 0008's paired spread (sd 0.25 for 3-large, 0.43 for Qwen): to clear 2 paired SEs on a true +0.05, about 105–300 rows for even odds and 210–600 for 80%; on +0.09, about 30–90 and 65–190. Aim for a few hundred (Arun, 21 Oct).
 - **Hybrid search re-test, once the eval set has keyword-heavy questions:** hybrid was not adopted on v1.2 ([journal, 30 Oct](journal/2026-10-30-hybrid-runs.md)). v1.2 has 32 conversational questions and few exact names, codes or rare terms, which are the cases keyword search is for. When the synthetic retrieval set (above) or a later version adds such questions, re-run hybrid with an AND query that falls back to dense when empty (+0.016 offline on v1.2), and BM25 if an extension is available. Report the keyword-heavy subset separately. Not tied to spec 0012 (Arun, 31 Oct).
@@ -182,12 +207,12 @@ Guardrail work kept out of [spec 0014](../specs/0014-guardrails.md) (Arun, 24 No
 - **PII beyond regex (D4):** NER-based detection (e.g. Presidio) for person names and addresses, exempting values that appear in the turn's excerpts so handbook names survive; a trained classifier pass, as OWASP LLM02:2026 Tier 1 #5 recommends; more entities (IP address, postal address, non-US national IDs) and locales.
 - **Per-user repeat-trip escalation (D2):** count `flag` events per user over a window, and add friction (refuse, or require review) past a threshold. Needs a user-level store and the week 6 trip-rate data to set the threshold.
 - **Shadow mode for new rules (D2):** add a new pattern as flag-only, measure its false-positive rate on real traffic, then decide whether it blocks.
-- **Revisit a classifier (D1):** if week 6 trip rates or a paid injection eval show the rules missing paraphrased or encoded attacks, weigh an injection classifier against its cost and latency per turn.
+- **Revisit a classifier (D1):** now committed as [C1](#committed-guardrail-work-arun-25-nov) (Arun, 25 Nov).
 - **Datamarking inside excerpt delimiters (D3 b):** replace whitespace in excerpt content with a per-turn random marker, chosen from characters absent from the corpus, and strip the marker from answers. Deferred for its token cost on every excerpt. Measure the token increase on the AC-14 fixtures, and adopt it if the injection suite or a paid injection eval shows delimiters alone failing ([journal](journal/2026-11-24-guardrails-spec.md#excerpt-framing-delimiting-datamarking-encoding)).
 - **Encoding excerpts (D3 b′):** only after datamarking, and only if gpt-5.4-mini is shown to decode base64 reliably and still quote figures exactly.
-- **Links from excerpts (D7 b):** allow a URL that appears verbatim in the turn's excerpts, if a UI ever renders answers. Needs the eval's `no_url` check (spec 0010) changed to match.
+- **Links from excerpts (D7 b):** now one of the options in committed item [C3](#committed-guardrail-work-arun-25-nov) (Arun, 25 Nov).
 - **Central tool-call policy (L3):** with the second tool, or the first tool with side effects, route every call through one `policy(call, principal, session) -> allow | approval | deny` that fails closed. Approval shows the raw call and is bound to a hash of it. Write limits and business rules live in it.
 - **Session taint (L2):** mark a session tainted when an excerpt is flagged (AC-4), and require approval for any side-effect call in a tainted session. Nothing to gate until such a tool exists.
 - **Canary token (L4):** a random per-session token in the system prompt, checked in the output and in tool arguments; withhold the answer on a match. A smoke detector, valuable once a prompt holds anything private or an outbound channel exists.
-- **Paid injection eval (forbidden-outcome rate):** run the `injection-v1` fixtures against the real model and measure how often it obeys a planted instruction, before and after any framing change (datamarking). Week 6, with Arun's approval for the spend.
+- **Paid injection eval (forbidden-outcome rate):** now committed as [C2](#committed-guardrail-work-arun-25-nov), regex alone vs regex plus a classifier (Arun, 25 Nov). The datamarking comparison can reuse the same eval.
 - **Partial PII masking:** show the last 4 digits of a card or phone number (`**** 4821`) instead of a typed placeholder, where that helps the user.
