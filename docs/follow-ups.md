@@ -220,3 +220,7 @@ Guardrail work kept out of [spec 0014](../specs/0014-guardrails.md) (Arun, 24 No
   - **Checks:** the API accepts the feedback message, the retry fixes the citation, and budgets and events are correct.
   - **Cost:** under a cent per run. Needs an AC, and Arun's OK for the spend.
 - **Partial PII masking:** show the last 4 digits of a card or phone number (`**** 4821`) instead of a typed placeholder, where that helps the user.
+
+## From spec 0015 (2026-11-25)
+- **Multi-turn eval rows:** v1.2 has single-turn rows only, so trajectory evals can't see the 25 Nov turn-3 failure: a conversational follow-up ("put that in one short sentence") got `OUT_OF_SCOPE` ([journal](journal/2026-11-25-retry-smoke-turn.md)). Follow-up rows need Arun's authoring (ADR-0010) and a new eval-set version (ADR-0012). Candidate for the roadmap's "+20 cases".
+- **Guardrails-off arm (D1):** only if Friday's run shows non-zero guardrail trips on benign rows. A targeted on/off comparison, not part of the baseline.
