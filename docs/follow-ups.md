@@ -49,7 +49,7 @@ Committed and scheduled, not optional. They came out of the [spec 0014](../specs
 - **Contextual retrieval, optional, end of plan if needed (Arun, 21 Oct):** before embedding, an LLM writes 50–100 tokens placing each chunk in its document (Anthropic, Sep 2024: top-20 retrieval failures −35% with contextual embeddings, −49% with contextual BM25, −67% with reranking). It targets our wrong-entity misses (row 58's five "Time Off Policies" chunks; row 47 in the Qwen-embedding run, where the generator answered with Belgium's figure). Cost: one LLM call per chunk with its document in the prompt, about 162M input tokens for `fixed-512-64` (22,378 chunks; characters ÷ 4) and 1.7M output, tens of dollars uncached, plus a re-embed. Prompt caching or a section-plus-intro window cuts it. The heading-path prefix is the free version; test that first. Moved off the week-2 roadmap.
 - **Review agents** for spec conformance and architecture.
 - **Answer-model check:** if the seed outputs show grounding, abstention or citation problems, run 10 questions on identical retrieved chunks through gpt-5.4-mini and Sonnet 5.5 (about $0.35) before the answer model unfreezes in week 4. Also item 5 of answer evaluation above.
-- **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer. A candidate for the synthesis rows (baseline-run entry below).
+- **Chunk expansion / parent-child:** retrieve small, then pass neighbouring chunks to the answer. A candidate for the synthesis rows (baseline-run entry below). It belongs to the week 4a error analysis and must be compared at matched tokens, the same lesson as the chunking rejection (Arun, 26 Nov).
 - **Production observability** (PR #7 review):
   - Replace or augment the JSONL traces (spec 0003, AC-8) with a tracing tool that has nested spans (retrieve → prompt → LLM), cost and latency dashboards, and a link from traces to eval runs.
   - Candidates to brainstorm:
@@ -106,7 +106,7 @@ Lower-priority `/code-review` items, noted for later (Arun, 19 Oct). Details in 
   - Binary quantization (`binary_quantize`, HNSW on `bit`, up to 64,000 dims), then re-rank on the full vector.
   - Dedicated vector databases, which have higher limits and usually quantize.
 
-  Trigger: a 1,536-dim candidate that wins or loses narrowly. Then run 3-large@3072 (one change: dims) before week 6.
+  Trigger: a 1,536-dim candidate that wins or loses narrowly. Then run 3-large@3072 (one change: dims) before week 6. It waits for the synthetic retrieval set: 32 rows can't detect the gain (Arun, 26 Nov).
 
 ## Model switching (2026-10-21)
 
@@ -226,5 +226,5 @@ Guardrail work kept out of [spec 0014](../specs/0014-guardrails.md) (Arun, 24 No
 - **Guardrails-off arm (D1):** only if Friday's run shows non-zero guardrail trips on benign rows. A targeted on/off comparison, not part of the baseline.
 
 ## Backfilled from 31 Oct (added 2026-11-26)
-- **Evidence-substring assertions, when the answer model unfreezes:** listed out of scope in [spec 0010](../specs/0010-answer-evaluation.md#out-of-scope), with no follow-up entry until now. Context: to be filled by Arun.
+- **Evidence-substring assertions, when the answer model unfreezes:** listed out of scope in [spec 0010](../specs/0010-answer-evaluation.md#out-of-scope), with no follow-up entry until now. Spec 0010's per-fact assertions check only that a fact is mentioned, not that it's grounded. This would check that the answer's claim appears in the cited excerpt. Parked until the answer model unfreezes, because the assertions are tuned to gpt-5.4-mini's phrasing (Arun, 26 Nov).
 - **Paid-call hook false positives:** the spec 0009 PreToolUse hook prompts on any command that mentions an exact paid target name (`paid-eval` in a heredoc, say), even when nothing is spent. The first broad-match version prompted on docs heredocs ([guardrails journal](journal/2026-10-24-guardrails.md#limitations)).
