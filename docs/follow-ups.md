@@ -222,5 +222,9 @@ Guardrail work kept out of [spec 0014](../specs/0014-guardrails.md) (Arun, 24 No
 - **Partial PII masking:** show the last 4 digits of a card or phone number (`**** 4821`) instead of a typed placeholder, where that helps the user.
 
 ## From spec 0015 (2026-11-25)
-- **Multi-turn eval rows:** v1.2 has single-turn rows only, so trajectory evals can't see the 25 Nov turn-3 failure: a conversational follow-up ("put that in one short sentence") got `OUT_OF_SCOPE` ([journal](journal/2026-11-25-retry-smoke-turn.md)). Follow-up rows need Arun's authoring (ADR-0010) and a new eval-set version (ADR-0012). Candidate for the roadmap's "+20 cases".
+- **Multi-turn eval rows:** v1.2 has single-turn rows only, so trajectory evals can't see the 25 Nov turn-3 failure: a conversational follow-up ("put that in one short sentence") got `OUT_OF_SCOPE` ([journal](journal/2026-11-25-retry-smoke-turn.md)). Follow-up rows need Arun's authoring (ADR-0010) and a new eval-set version (ADR-0012). Candidate for the roadmap's "+20 cases". The fix itself (rule 7 read the follow-up as outside the handbook) belongs to week 4b prompt work.
 - **Guardrails-off arm (D1):** only if Friday's run shows non-zero guardrail trips on benign rows. A targeted on/off comparison, not part of the baseline.
+
+## Backfilled from 31 Oct (added 2026-11-26)
+- **Evidence-substring assertions, when the answer model unfreezes:** listed out of scope in [spec 0010](../specs/0010-answer-evaluation.md#out-of-scope), with no follow-up entry until now. Context: to be filled by Arun.
+- **Paid-call hook false positives:** the spec 0009 PreToolUse hook prompts on any command that mentions an exact paid target name (`paid-eval` in a heredoc, say), even when nothing is spent. The first broad-match version prompted on docs heredocs ([guardrails journal](journal/2026-10-24-guardrails.md#limitations)).
