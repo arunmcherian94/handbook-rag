@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval answer-eval permissions paid-permissions ann-build ann paid-ann agent paid-agent test test-unit test-integration lint fmt db-shell
+.PHONY: help up down corpus ingest chunk embed paid-embed acl ask paid-ask eval paid-eval answer-eval permissions paid-permissions ann-build ann paid-ann agent paid-agent agent-eval paid-agent-eval agent-eval-report test test-unit test-integration lint fmt db-shell
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -34,6 +34,7 @@ PERMISSIONS = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evalu
 ANN = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.ann
 AGENT = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.agent --as "$(AS)" \
 	$(if $(SESSION),--session "$(SESSION)") "$$Q"
+AGENT_EVAL = PYTHONPATH=src uv run --env-file .env python -m handbook_rag.evaluation.agent_run
 AGENT_USAGE = @test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make agent AS=<user id> Q="..." [SESSION=<id>]'; exit 2; }
 ASK_USAGE = @test -n "$$Q" -a -n "$(AS)" || { echo 'usage: make ask AS=<user id> Q="your question"'; exit 2; }
 
@@ -85,6 +86,17 @@ agent: ## Dry run: models, budgets and upper-bound cost of one agent turn; AS= Q
 paid-agent: ## Spend: one agent turn, AS= Q= as for `make agent`; SESSION=<id> follows up
 	$(AGENT_USAGE)
 	$(SPEND) $(AGENT) --confirm
+
+agent-eval: ## Dry run: the agent over eval set v1.2, row count and cost bounds; CAP=<usd> to show
+	$(AGENT_EVAL) $(if $(CAP),--cap "$(CAP)")
+
+paid-agent-eval: ## Spend: run the agent over every live eval row, CAP=<usd> is required (hard stop)
+	@test -n "$(CAP)" || { echo 'usage: make paid-agent-eval CAP=<usd>'; exit 2; }
+	$(SPEND) $(AGENT_EVAL) --cap "$(CAP)" --confirm
+
+agent-eval-report: ## Score a collected agent run, no DB or API: RUN=<run id>
+	@test -n "$(RUN)" || { echo 'usage: make agent-eval-report RUN=<run id>'; exit 2; }
+	PYTHONPATH=src uv run python -m handbook_rag.evaluation.agent_report --run "$(RUN)"
 
 test: test-unit test-integration ## Run unit + integration tests
 

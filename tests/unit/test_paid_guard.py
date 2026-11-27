@@ -79,6 +79,7 @@ def test_targets_come_from_the_makefile(tmp_path):
         sys.path.pop(0)
     assert set(paid_guard.paid_targets()) == {
         "paid-agent",  # spec 0013, AC-17: guarded with no hook change
+        "paid-agent-eval",  # spec 0015, AC-2
         "paid-ann",
         "paid-ask",
         "paid-embed",
