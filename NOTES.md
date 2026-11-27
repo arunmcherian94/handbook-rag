@@ -41,6 +41,7 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [0022. Adopt text-embedding-3-large@1536 as the default embedding model (departs from the AC-9 rule)](docs/decisions/0022-adopt-text-embedding-3-large-1536.md)
 - [0024. Hand-rolled tool-loop agent with Postgres session state](docs/decisions/0024-hand-rolled-agent.md)
 - [0025. Deterministic agent guardrails with a versioned policy in code](docs/decisions/0025-agent-guardrails.md)
+- [0026. Agent eval references are computed at collect time; the scorer stays DB-free](docs/decisions/0026-agent-eval-references-at-collect.md)
 
 ## Journal
 
@@ -78,3 +79,4 @@ Older specs cite eval decisions by letter. They map to: (a) and (c), (d), (f) â†
 - [2026-11-24: guardrails spec, spec 0014](docs/journal/2026-11-24-guardrails-spec.md)
 - [2026-11-24: guardrails build, spec 0014](docs/journal/2026-11-24-guardrails-build.md)
 - [2026-11-25: retry-path smoke turns (no retry in 4 attempts)](docs/journal/2026-11-25-retry-smoke-turn.md)
+- [2026-11-27: trajectory evals, build and first agent baseline, spec 0015](docs/journal/2026-11-27-trajectory-eval-run.md)

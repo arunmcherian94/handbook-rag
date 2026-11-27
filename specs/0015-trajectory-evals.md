@@ -1,6 +1,6 @@
 # 0015: Trajectory evals for the agent
 
-- Status: draft
+- Status: implemented
 - Date: 2026-11-25
 
 ## Problem

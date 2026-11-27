@@ -302,6 +302,15 @@ def find_agent_baseline(runs_root: Path, run: dict, run_id: str) -> Path | None:
     return max(found, key=lambda t: t[0])[1] if found else None
 
 
+def _ask_abstained(rec: dict) -> bool:
+    """An ask row's abstention flag, rows.jsonl `abstention.abstained` (spec 0004). Missing is an
+    error, never "answered" (review fix: a wrong key read every ask row as answered)."""
+    try:
+        return bool(rec["abstention"]["abstained"])
+    except (KeyError, TypeError):
+        raise AgentReportError(f"ask row {rec.get('row')}: no abstention.abstained") from None
+
+
 def ask_evaluation(
     evalset: EvalSet,
     rows: dict[int, dict],
@@ -318,7 +327,7 @@ def ask_evaluation(
             continue
         answer = rec.get("answer")
         if row.answerable:
-            ok = not rec.get("abstained")
+            ok = not _ask_abstained(rec)
         else:
             ok = isinstance(answer, str) and answer.strip() == row.expected
         pairs["terminal_state_pass"].append((row.answerable, float(ok)))
@@ -326,7 +335,7 @@ def ask_evaluation(
         if row.answerable and required:
             facts = [set(c["facts"]) for c in rec["retrieved"][:5]]
             pairs[ASK_RECALL].append((True, fact_recall_at(facts, required, 5)))
-        if row.answerable and not rec.get("abstained") and isinstance(answer, str):
+        if row.answerable and not _ask_abstained(rec) and isinstance(answer, str):
             answers[row.id] = answer
     if answers:
         report = _answer_content(evalset, assertions, review, answers)

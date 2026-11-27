@@ -1,0 +1,491 @@
+{
+  "assertions_sha256": "8530e04f95e55eef3da8ff043e15bb93f23065a28255e4e6c6c16b53535a7860",
+  "comparisons": {
+    "agent_baseline": {
+      "note": "no earlier agent run",
+      "run_id": null
+    },
+    "ask": {
+      "metrics": {
+        "answer_content_fact_pass": {
+          "answerable": {
+            "kind": "continuous",
+            "mean": 0.5677489177489178,
+            "n": 22,
+            "se": 0.08948997144358953
+          },
+          "ooc": null,
+          "pooled": {
+            "kind": "continuous",
+            "mean": 0.5677489177489178,
+            "n": 22,
+            "se": 0.08948997144358953
+          }
+        },
+        "answer_content_row_pass": {
+          "answerable": {
+            "kind": "binary",
+            "mean": 0.36363636363636365,
+            "n": 22,
+            "se": 0.10255928633050294
+          },
+          "ooc": null,
+          "pooled": {
+            "kind": "binary",
+            "mean": 0.36363636363636365,
+            "n": 22,
+            "se": 0.10255928633050294
+          }
+        },
+        "chunk_fact_recall@5": {
+          "answerable": {
+            "kind": "continuous",
+            "mean": 0.5830357142857143,
+            "n": 32,
+            "se": 0.07481474985070434
+          },
+          "ooc": null,
+          "pooled": {
+            "kind": "continuous",
+            "mean": 0.5830357142857143,
+            "n": 32,
+            "se": 0.07481474985070434
+          }
+        },
+        "terminal_state_pass": {
+          "answerable": {
+            "kind": "binary",
+            "mean": 0.696969696969697,
+            "n": 33,
+            "se": 0.08000055652754638
+          },
+          "ooc": {
+            "kind": "binary",
+            "mean": 0.8947368421052632,
+            "n": 19,
+            "se": 0.07040590042736196
+          },
+          "pooled": {
+            "kind": "binary",
+            "mean": 0.7692307692307693,
+            "n": 52,
+            "se": 0.05842727117790384
+          }
+        }
+      },
+      "run_id": "2026-10-21-e602bd95"
+    }
+  },
+  "counts": {
+    "guardrail_nonpass_rows": {
+      "excerpt_delimiter": 0,
+      "excerpt_injection": 0,
+      "excerpt_invisible": 1,
+      "input_empty": 0,
+      "input_garbage": 0,
+      "input_injection": 0,
+      "input_invisible": 0,
+      "input_length": 0,
+      "input_pii": 0,
+      "output_citation": 2,
+      "output_image": 0,
+      "output_link": 0,
+      "output_pii": 0,
+      "persist_pii": 0
+    },
+    "retried_terminal_states": {
+      "abstained": 2
+    },
+    "rows": 52,
+    "rows_by_type": {
+      "contradiction": 8,
+      "lookup": 9,
+      "ooc-in-scope": 10,
+      "ooc-off-topic": 9,
+      "recency": 8,
+      "synthesis": 8
+    },
+    "terminal_states": {
+      "contradiction": {
+        "abstained": 1,
+        "answered": 7
+      },
+      "lookup": {
+        "abstained": 3,
+        "answered": 6
+      },
+      "ooc-in-scope": {
+        "abstained": 10
+      },
+      "ooc-off-topic": {
+        "abstained": 9
+      },
+      "recency": {
+        "abstained": 2,
+        "answered": 6
+      },
+      "synthesis": {
+        "abstained": 1,
+        "answered": 7
+      }
+    }
+  },
+  "incomplete": false,
+  "kinds": {
+    "answer_content_fact_pass": "continuous",
+    "answer_content_row_pass": "binary",
+    "citation_valid": "binary",
+    "cited_expected_doc": "binary",
+    "expected_doc_hit": "binary",
+    "input_tokens": "continuous",
+    "latency_ms": "continuous",
+    "model_calls": "continuous",
+    "ooc_offtopic_searches": "continuous",
+    "output_tokens": "continuous",
+    "page2_cited": "binary",
+    "page2_use": "binary",
+    "rejected_tool_call_share": "continuous",
+    "retry_rate": "binary",
+    "terminal_state_pass": "binary",
+    "tool_calls_accepted": "continuous",
+    "trajectory_fact_coverage": "continuous"
+  },
+  "metrics": {
+    "answer_content_fact_pass": {
+      "answerable": {
+        "kind": "continuous",
+        "mean": 0.4787698412698413,
+        "n": 24,
+        "se": 0.08815815706161811
+      },
+      "ooc": null,
+      "pooled": {
+        "kind": "continuous",
+        "mean": 0.4787698412698413,
+        "n": 24,
+        "se": 0.08815815706161811
+      }
+    },
+    "answer_content_row_pass": {
+      "answerable": {
+        "kind": "binary",
+        "mean": 0.2916666666666667,
+        "n": 24,
+        "se": 0.09278048066588464
+      },
+      "ooc": null,
+      "pooled": {
+        "kind": "binary",
+        "mean": 0.2916666666666667,
+        "n": 24,
+        "se": 0.09278048066588464
+      }
+    },
+    "citation_valid": {
+      "answerable": {
+        "kind": "binary",
+        "mean": 1.0,
+        "n": 26,
+        "se": 0.0
+      },
+      "ooc": null,
+      "pooled": {
+        "kind": "binary",
+        "mean": 1.0,
+        "n": 26,
+        "se": 0.0
+      }
+    },
+    "cited_expected_doc": {
+      "answerable": {
+        "kind": "binary",
+        "mean": 0.8846153846153846,
+        "n": 26,
+        "se": 0.06265626800161944
+      },
+      "ooc": null,
+      "pooled": {
+        "kind": "binary",
+        "mean": 0.8846153846153846,
+        "n": 26,
+        "se": 0.06265626800161944
+      }
+    },
+    "expected_doc_hit": {
+      "answerable": {
+        "kind": "binary",
+        "mean": 0.8181818181818182,
+        "n": 33,
+        "se": 0.06714081326145421
+      },
+      "ooc": null,
+      "pooled": {
+        "kind": "binary",
+        "mean": 0.8181818181818182,
+        "n": 33,
+        "se": 0.06714081326145421
+      }
+    },
+    "input_tokens": {
+      "answerable": {
+        "kind": "continuous",
+        "max": 18281.0,
+        "mean": 4602.787878787879,
+        "n": 33,
+        "se": 499.94465746291525
+      },
+      "ooc": {
+        "kind": "continuous",
+        "max": 11267.0,
+        "mean": 2816.0,
+        "n": 19,
+        "se": 663.9679631882482
+      },
+      "pooled": {
+        "kind": "continuous",
+        "max": 18281.0,
+        "mean": 3949.923076923077,
+        "n": 52,
+        "se": 413.39239760036855
+      }
+    },
+    "latency_ms": {
+      "answerable": {
+        "kind": "continuous",
+        "max": 12279.224458001408,
+        "mean": 3285.5935415760596,
+        "n": 33,
+        "se": 352.5014588909598
+      },
+      "ooc": {
+        "kind": "continuous",
+        "max": 91798.05937499987,
+        "mean": 6737.770528421702,
+        "n": 19,
+        "se": 4733.925035274093
+      },
+      "pooled": {
+        "kind": "continuous",
+        "max": 91798.05937499987,
+        "mean": 4546.965902154275,
+        "n": 52,
+        "se": 1730.2156119198241
+      }
+    },
+    "model_calls": {
+      "answerable": {
+        "kind": "continuous",
+        "max": 4.0,
+        "mean": 2.090909090909091,
+        "n": 33,
+        "se": 0.07981555873373287
+      },
+      "ooc": {
+        "kind": "continuous",
+        "max": 4.0,
+        "mean": 1.631578947368421,
+        "n": 19,
+        "se": 0.19057509633684586
+      },
+      "pooled": {
+        "kind": "continuous",
+        "max": 4.0,
+        "mean": 1.9230769230769231,
+        "n": 52,
+        "se": 0.09044115878419315
+      }
+    },
+    "ooc_offtopic_searches": {
+      "answerable": null,
+      "ooc": {
+        "kind": "continuous",
+        "mean": 0.0,
+        "n": 9,
+        "se": 0.0
+      },
+      "pooled": {
+        "kind": "continuous",
+        "mean": 0.0,
+        "n": 9,
+        "se": 0.0
+      }
+    },
+    "output_tokens": {
+      "answerable": {
+        "kind": "continuous",
+        "max": 683.0,
+        "mean": 122.33333333333333,
+        "n": 33,
+        "se": 20.98324848949078
+      },
+      "ooc": {
+        "kind": "continuous",
+        "max": 105.0,
+        "mean": 31.736842105263158,
+        "n": 19,
+        "se": 5.924891543046216
+      },
+      "pooled": {
+        "kind": "continuous",
+        "max": 683.0,
+        "mean": 89.23076923076923,
+        "n": 52,
+        "se": 14.736565970734688
+      }
+    },
+    "page2_cited": {
+      "answerable": null,
+      "ooc": null,
+      "pooled": null
+    },
+    "page2_use": {
+      "answerable": {
+        "kind": "binary",
+        "mean": 0.0,
+        "n": 33,
+        "se": 0.0
+      },
+      "ooc": {
+        "kind": "binary",
+        "mean": 0.0,
+        "n": 19,
+        "se": 0.0
+      },
+      "pooled": {
+        "kind": "binary",
+        "mean": 0.0,
+        "n": 52,
+        "se": 0.0
+      }
+    },
+    "rejected_tool_call_share": {
+      "answerable": {
+        "kind": "continuous",
+        "mean": 0.0,
+        "n": 32,
+        "se": 0.0
+      },
+      "ooc": {
+        "kind": "continuous",
+        "mean": 0.0,
+        "n": 9,
+        "se": 0.0
+      },
+      "pooled": {
+        "kind": "continuous",
+        "mean": 0.0,
+        "n": 41,
+        "se": 0.0
+      }
+    },
+    "retry_rate": {
+      "answerable": {
+        "kind": "binary",
+        "mean": 0.0,
+        "n": 33,
+        "se": 0.0
+      },
+      "ooc": {
+        "kind": "binary",
+        "mean": 0.10526315789473684,
+        "n": 19,
+        "se": 0.07040590042736196
+      },
+      "pooled": {
+        "kind": "binary",
+        "mean": 0.038461538461538464,
+        "n": 52,
+        "se": 0.026668278664674475
+      }
+    },
+    "terminal_state_pass": {
+      "answerable": {
+        "kind": "binary",
+        "mean": 0.7878787878787878,
+        "n": 33,
+        "se": 0.07116472642790657
+      },
+      "ooc": {
+        "kind": "binary",
+        "mean": 0.9473684210526315,
+        "n": 19,
+        "se": 0.05122781719918819
+      },
+      "pooled": {
+        "kind": "binary",
+        "mean": 0.8461538461538461,
+        "n": 52,
+        "se": 0.05003412581446084
+      }
+    },
+    "tool_calls_accepted": {
+      "answerable": {
+        "kind": "continuous",
+        "max": 3.0,
+        "mean": 1.0909090909090908,
+        "n": 33,
+        "se": 0.07981555873373287
+      },
+      "ooc": {
+        "kind": "continuous",
+        "max": 2.0,
+        "mean": 0.5263157894736842,
+        "n": 19,
+        "se": 0.14035087719298245
+      },
+      "pooled": {
+        "kind": "continuous",
+        "max": 3.0,
+        "mean": 0.8846153846153846,
+        "n": 52,
+        "se": 0.08078538946315442
+      }
+    },
+    "trajectory_fact_coverage": {
+      "answerable": {
+        "kind": "continuous",
+        "mean": 0.5517857142857143,
+        "n": 32,
+        "se": 0.07422358894894927
+      },
+      "ooc": null,
+      "pooled": {
+        "kind": "continuous",
+        "mean": 0.5517857142857143,
+        "n": 32,
+        "se": 0.07422358894894927
+      }
+    }
+  },
+  "run": {
+    "actual_usd": 0.17497445,
+    "answer_model": "openai:gpt-5.4-mini",
+    "budgets": {
+      "max_steps": 6,
+      "max_tokens": 50000,
+      "max_tool_calls": 5,
+      "timeout_s": 90.0
+    },
+    "cap_usd": 1.0,
+    "complete": true,
+    "config_id": "fixed-512-64",
+    "corpus_sha": "5273b21a9a2ebc01055526f4d4ce245ae7d1a7d7",
+    "embed_model": "openai:text-embedding-3-large@1536",
+    "eval_sha256": "995acb3b974d2c6aa7427fb089d9a9e133ab0aaf7879dff184c83071d6f8e725",
+    "eval_version": "v1.2",
+    "guardrails_sha256": "806cc433ebd4111317fcb078f06aefe01de1bd8e5f79c4f139597a3deccd4e19",
+    "guardrails_version": "guardrails-v1",
+    "harness_sha": "9a2e9ca24cb9cc43db2e344826946b8ecf81d51e",
+    "retriever": {
+      "config_id": "fixed-512-64",
+      "embed_model": "openai:text-embedding-3-large@1536",
+      "k": 5,
+      "kind": "dense",
+      "pages": 4
+    },
+    "rows": 52,
+    "stopped": null,
+    "turns": 52
+  },
+  "run_id": "2026-11-27-92d57d39"
+}

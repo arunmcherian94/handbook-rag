@@ -393,11 +393,11 @@ def write_ask(root: Path, name: str, rows=True, **over):
             {
                 "row": 1,
                 "answer": "The limit is 80 dollars; tips are included.",
-                "abstained": False,
+                "abstention": {"abstained": False},
                 "retrieved": [{"chunk_id": "c1", "facts": ["F1"]}, {"chunk_id": "c2", "facts": []}],
             },
-            {"row": 2, "answer": NOT_FOUND, "abstained": True, "retrieved": []},
-            {"row": 3, "answer": NOT_FOUND, "abstained": True, "retrieved": []},
+            {"row": 2, "answer": NOT_FOUND, "abstention": {"abstained": True}, "retrieved": []},
+            {"row": 3, "answer": NOT_FOUND, "abstention": {"abstained": True}, "retrieved": []},
         ]
         (folder / "rows.jsonl").write_text("".join(json.dumps(r) + "\n" for r in ask_rows))
     return folder
@@ -422,16 +422,24 @@ def test_ac16_ask_picks_latest_matching(tmp_path):
     assert ar.find_ask_run(tmp_path / "missing", run_json()) is None
 
 
+def test_ac16_ask_row_without_abstention_is_error():
+    """AC-16a (review fix): ask rows carry abstention.abstained; a row without it fails loudly
+    instead of counting as answered."""
+    rows = {1: {"row": 1, "answer": "x", "abstained": True, "retrieved": []}}
+    with pytest.raises(ar.AgentReportError, match="abstention"):
+        ar.ask_evaluation(EVALSET, rows, ASSERTS, {})
+
+
 def test_ac16_ask_metrics():
     rows = {
         1: {
             "row": 1,
             "answer": "The limit is 80 dollars; tips are included.",
-            "abstained": False,
+            "abstention": {"abstained": False},
             "retrieved": [{"chunk_id": "c1", "facts": ["F1"]}, {"chunk_id": "c2", "facts": []}],
         },
-        2: {"row": 2, "answer": OUT_OF_SCOPE, "abstained": True, "retrieved": []},
-        4: {"row": 4, "answer": NOT_FOUND, "abstained": True, "retrieved": []},
+        2: {"row": 2, "answer": OUT_OF_SCOPE, "abstention": {"abstained": True}, "retrieved": []},
+        4: {"row": 4, "answer": NOT_FOUND, "abstention": {"abstained": True}, "retrieved": []},
     }
     m = ar.ask_evaluation(EVALSET, rows, ASSERTS, {})
     assert m["terminal_state_pass"]["answerable"]["mean"] == 0.5  # row 4 abstained
